@@ -1,0 +1,10 @@
+# The backend (FastAPI on Render, not Vercel) — excluded so Vercel's
+# zero-config Python detection doesn't try to treat api/*.py as serverless
+# functions, which crashes since this isn't meant to run on Vercel at all.
+api/
+agents/
+data/
+orchestrator/
+requirements.txt
+render.yaml
+*.py
