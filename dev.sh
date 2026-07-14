@@ -4,7 +4,7 @@
 set -e
 cd "$(dirname "$0")"
 
-python -m uvicorn api.main:app --reload --port 8420 &
+python -m uvicorn backend.main:app --reload --port 8420 &
 BACKEND_PID=$!
 
 (cd frontend && npm run dev) &

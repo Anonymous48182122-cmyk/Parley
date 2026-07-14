@@ -13,8 +13,8 @@ from pydantic import BaseModel
 
 from agents.prompts import AGENT_DISPLAY_NAMES, AGENTS
 from agents.runner import AgentCallError, run_cross_exam
-from api import jobs
-from api.history import router as history_router
+from backend import jobs
+from backend.history import router as history_router
 from data.search import search_tickers
 
 app = FastAPI(title="Parley API")

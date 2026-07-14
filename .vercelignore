@@ -1,7 +1,6 @@
-# The backend (FastAPI on Render, not Vercel) — excluded so Vercel's
-# zero-config Python detection doesn't try to treat api/*.py as serverless
-# functions, which crashes since this isn't meant to run on Vercel at all.
-api/
+# The backend (FastAPI on Render, not Vercel) — not needed for the Vercel
+# static frontend build, so no reason to upload it.
+backend/
 agents/
 data/
 orchestrator/

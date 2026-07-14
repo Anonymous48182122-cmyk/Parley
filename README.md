@@ -47,7 +47,7 @@ This starts the FastAPI backend on `:8420` and the Vite dev server on `:5173`
 If `dev.sh` doesn't work on your shell, run the two halves in separate terminals:
 
 ```
-python -m uvicorn api.main:app --reload --port 8420
+python -m uvicorn backend.main:app --reload --port 8420
 cd frontend && npm run dev
 ```
 
@@ -69,7 +69,7 @@ data/common.py                 shared normalized schema + format_for_agents()
 agents/prompts.py              9 agent + CIO system prompts, debate turn plan, cross-exam template
 agents/runner.py               Stage 1 (first pass) -> Stage 2 (12-turn debate) -> Stage 3 (CIO)
 orchestrator/analyze.py        auto-detects US vs India and routes to the right fetcher
-api/main.py, api/jobs.py       FastAPI async job + polling API, 48hr analysis cache
+backend/main.py, backend/jobs.py  FastAPI async job + polling API, 48hr analysis cache
 frontend/                      Vite + React + PWA — SearchPage, live CommitteePage debate stream
 ```
 
@@ -87,7 +87,7 @@ transcript so far.
 
 ## Known limitations
 
-- **Job store is in-memory + a background thread** (`api/jobs.py`). Fine as
+- **Job store is in-memory + a background thread** (`backend/jobs.py`). Fine as
   long as the API process itself is long-running (see Deployment below) — an
   in-progress job is lost if that process restarts/redeploys mid-run.
 - **EDGAR has no price or market cap** — only financial statement data. Agents

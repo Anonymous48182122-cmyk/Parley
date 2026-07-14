@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from supabase import Client, create_client
 
-from api.auth import get_current_user
+from backend.auth import get_current_user
 
 router = APIRouter()
 
