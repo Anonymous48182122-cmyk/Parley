@@ -58,18 +58,11 @@ export default function AuthPage() {
   return (
     <div className="container" style={{ maxWidth: 400 }}>
       <div style={{ marginTop: 40, marginBottom: 36, textAlign: "center" }}>
-        <div
-          className="monogram"
-          style={{
-            background: "var(--gold)",
-            width: 44,
-            height: 44,
-            fontSize: "1rem",
-            margin: "0 auto 20px",
-          }}
-        >
-          P
-        </div>
+        <img
+          src="/icon-192.png"
+          alt="Parley"
+          style={{ width: 52, height: 52, borderRadius: "14px", margin: "0 auto 20px", display: "block" }}
+        />
         <h1 style={{ fontSize: "1.9rem", marginBottom: 10 }}>
           {mode === "signup" ? "Create your account" : "Welcome back"}
         </h1>
