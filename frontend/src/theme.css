@@ -1,0 +1,287 @@
+:root {
+  --bg: #05070d;
+  --surface: #0d1220;
+  --surface-raised: #131a2c;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --gold: #c9a04e;
+  --gold-soft: rgba(201, 160, 78, 0.14);
+  --text: #f2f3f5;
+  --text-dim: #9099ac;
+  --text-faint: #565f75;
+  --danger: #f0576a;
+
+  --agent-buffett: #d4af37;
+  --agent-munger: #8b7cf6;
+  --agent-lynch: #1fc98d;
+  --agent-jhunjhunwala: #f5a623;
+  --agent-simons: #2dd4e8;
+  --agent-ackman: #f0576a;
+  --agent-historian: #c2ad8c;
+  --agent-future: #b565f5;
+  --agent-devils_advocate: #ef5da8;
+  --agent-cio: #c9a04e;
+
+  --font-serif: "EB Garamond", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1100px 500px at 50% -10%, rgba(201, 160, 78, 0.09), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.ticker {
+  font-family: var(--font-mono);
+  letter-spacing: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px 24px 100px;
+}
+
+.card {
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 28px 50px -24px rgba(0, 0, 0, 0.7);
+}
+
+.card-gold {
+  background: linear-gradient(165deg, rgba(201, 160, 78, 0.14), rgba(201, 160, 78, 0.02));
+  border: 1px solid rgba(201, 160, 78, 0.35);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: 0 20px 50px -28px rgba(201, 160, 78, 0.35);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  backdrop-filter: blur(6px);
+}
+
+.monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #0a0d16;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.5);
+}
+
+.progress-track {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), #e8c877);
+  border-radius: 999px;
+  transition: width 0.5s var(--ease);
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: typing-pulse 1.2s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fade-in-up 0.4s var(--ease);
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse {
+  animation: soft-pulse 1.8s ease-in-out infinite;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  font-family: var(--font-body);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: var(--radius-md);
+  padding: 15px 18px;
+  font-size: 1rem;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+input[type="text"] {
+  font-family: var(--font-mono);
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus {
+  border-color: var(--gold);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+.button-primary {
+  background: linear-gradient(180deg, #dcb662, var(--gold));
+  color: #1a1305;
+  border: none;
+  border-radius: 999px;
+  padding: 13px 24px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  box-shadow: 0 8px 24px -8px rgba(201, 160, 78, 0.55);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), filter 0.2s var(--ease);
+}
+
+.button-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.button-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.button-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 0.85rem;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.button-secondary:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.055);
+}

@@ -1,0 +1,11 @@
+.env
+frontend/.env
+__pycache__/
+*.pyc
+data/cache/
+frontend/node_modules/
+frontend/dist/
+frontend/dev-dist/
+uvicorn.log
+smoke_test_output.log
+.claude/launch.json
