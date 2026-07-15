@@ -9,6 +9,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon-64.png"],
       manifest: {
+        id: "/",
         name: "Parley",
         short_name: "Parley",
         description: "Parley — nine legendary investor frameworks debate any stock, live",
@@ -18,8 +19,9 @@ export default defineConfig({
         background_color: "#080C16",
         display: "standalone",
         icons: [
-          { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+          { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
     }),
