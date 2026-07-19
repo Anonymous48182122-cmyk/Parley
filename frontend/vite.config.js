@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
+      // Check for a new service worker every 60s while the app is open, on
+      // top of the browser's own checks on load — so "Update available"
+      // shows up promptly instead of only after a fresh app open.
+      workbox: { cleanupOutdatedCaches: true },
       includeAssets: ["favicon-64.png"],
       manifest: {
         id: "/",

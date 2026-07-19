@@ -7,12 +7,14 @@ import HistoryPage from "./components/HistoryPage.jsx";
 import ReplayPage from "./components/ReplayPage.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import TopNav from "./components/TopNav.jsx";
+import UpdatePrompt from "./components/UpdatePrompt.jsx";
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <TopNav />
+        <UpdatePrompt />
         <Routes>
           <Route path="/" element={<SearchPage />} />
           <Route path="/analysis/:ticker" element={<CommitteePage />} />
