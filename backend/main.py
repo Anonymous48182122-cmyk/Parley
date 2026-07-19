@@ -5,6 +5,7 @@ GET /analysis/{ticker}/summary returns the light CIO-memo-only payload;
 DELETE /analysis/{ticker}/cache forces re-analysis next time.
 """
 
+import threading
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -27,6 +28,21 @@ app.add_middleware(
 )
 
 app.include_router(history_router)
+
+
+@app.on_event("startup")
+def _warm_search_cache():
+    """Loads and caches the ~10k US + ~2k India ticker lists in the background
+    on process start, so the first real user's search isn't the one paying
+    for that fetch — matters most right after a cold start (e.g. Render's
+    free tier waking up from idle)."""
+    def warm():
+        try:
+            search_tickers("a", limit=1)
+        except Exception:
+            pass  # best-effort — a real search request will just retry the fetch
+
+    threading.Thread(target=warm, daemon=True).start()
 
 
 class AnalyzeRequest(BaseModel):

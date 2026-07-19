@@ -1,35 +1,66 @@
 import { useEffect, useRef, useState } from "react";
 import { searchTickers } from "../api.js";
+import { searchLocal } from "../popularTickers.js";
 
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 150;
+
+function mergeResults(local, backend, limit) {
+  if (backend === null) return local; // backend hasn't responded yet — show local instantly
+  const seen = new Set(backend.map((r) => `${r.market}-${r.ticker}`));
+  const extra = local.filter((r) => !seen.has(`${r.market}-${r.ticker}`));
+  return [...backend, ...extra].slice(0, limit);
+}
+
+const LIMIT = 8;
 
 export default function TickerSearchBox({ onSelect }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
+  const [localResults, setLocalResults] = useState([]);
+  const [backendResults, setBackendResults] = useState(null);
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const debounceRef = useRef(null);
   const blurTimeoutRef = useRef(null);
+  const requestIdRef = useRef(0);
+
+  const results = mergeResults(localResults, backendResults, LIMIT);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
     const trimmed = query.trim();
+    requestIdRef.current += 1;
+    const thisRequestId = requestIdRef.current;
+
     if (!trimmed) {
-      setResults([]);
+      setLocalResults([]);
+      setBackendResults(null);
       setOpen(false);
       return;
     }
+
+    // Instant, zero-latency local match — shows something on every keystroke
+    // immediately, rather than a blank dropdown while the network call is
+    // still in flight (which can take a while right after a cold start).
+    const local = searchLocal(trimmed, LIMIT);
+    setLocalResults(local);
+    setBackendResults(null);
+    setOpen(local.length > 0);
+    setHighlighted(0);
+
     debounceRef.current = setTimeout(async () => {
       try {
         const matches = await searchTickers(trimmed);
-        setResults(matches);
-        setOpen(matches.length > 0);
+        if (requestIdRef.current !== thisRequestId) return; // stale response, query changed since
+        setBackendResults(matches);
+        setOpen(matches.length > 0 || local.length > 0);
         setHighlighted(0);
       } catch {
-        setResults([]);
-        setOpen(false);
+        if (requestIdRef.current !== thisRequestId) return;
+        // Backend search failed (or is still cold-starting) — keep showing
+        // local results rather than clearing the dropdown to empty.
       }
     }, DEBOUNCE_MS);
+
     return () => clearTimeout(debounceRef.current);
   }, [query]);
 
