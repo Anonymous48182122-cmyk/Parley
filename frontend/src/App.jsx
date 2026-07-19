@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./AuthContext.jsx";
 import SearchPage from "./components/SearchPage.jsx";
 import CommitteePage from "./components/CommitteePage.jsx";
@@ -36,6 +37,7 @@ export default function App() {
             }
           />
         </Routes>
+        <Analytics />
       </BrowserRouter>
     </AuthProvider>
   );
