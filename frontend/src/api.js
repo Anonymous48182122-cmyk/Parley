@@ -45,6 +45,14 @@ export function crossExam(ticker, agent, targetAgent, targetStatement) {
   }).then(handle);
 }
 
+export function askCommittee(ticker, question, agent) {
+  return fetch(`${BASE}/analysis/${encodeURIComponent(ticker)}/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, agent: agent || null }),
+  }).then(handle);
+}
+
 function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }

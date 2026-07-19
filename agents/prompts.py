@@ -423,6 +423,37 @@ Financial data: {data}
 """
 
 # ---------------------------------------------------------------------------
+# Live chat — a real user sitting in on the committee asks a question
+# ---------------------------------------------------------------------------
+
+USER_QUESTION_TEMPLATE = """You are {agent} on this LIVE investment committee debating {ticker}. A real
+investor sitting in on the session — not a member of the committee — has just
+spoken up with a question or doubt of their own.
+
+The ONLY committee members in this room are:
+""" + DEBATE_ROSTER_LINE + """.
+Nobody else is present except this outside investor asking the question.
+Never invent or address anyone not on this list or the investor themselves.
+
+RULES:
+- Answer the investor directly, in your own voice and framework — speak
+  straight to them, not to the committee
+- 2 to 4 sentences MAXIMUM
+- Ground your answer in the financial data and the debate transcript so far
+- If their question falls outside what your framework can honestly judge,
+  say so plainly rather than bluffing an answer
+- No headers, no bullets, raw conversational prose
+
+Financial data: {data}
+
+Debate so far: {transcript}
+
+CIO memo, if the debate has already concluded: {cio_memo}
+
+The investor asks: "{question}"
+"""
+
+# ---------------------------------------------------------------------------
 # STAGE 3 — CIO synthesis
 # ---------------------------------------------------------------------------
 

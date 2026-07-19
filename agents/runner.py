@@ -28,6 +28,7 @@ from agents.prompts import (
     STAGE1_OUTPUT_SPEC,
     STAGE1_PROMPT_TEMPLATE,
     SYSTEM_PROMPTS,
+    USER_QUESTION_TEMPLATE,
 )
 
 load_dotenv()
@@ -230,6 +231,36 @@ def run_cross_exam(agent_key, target_agent_key, target_statement, ticker, data):
         data=data,
     )
     return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
+
+
+def run_user_question(agent_key, ticker, data, turns, question, cio_memo=None):
+    prompt = USER_QUESTION_TEMPLATE.format(
+        agent=AGENT_DISPLAY_NAMES[agent_key],
+        ticker=ticker,
+        data=data,
+        transcript=_format_transcript(turns),
+        cio_memo=cio_memo or "(debate still in progress)",
+        question=question,
+    )
+    return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
+
+
+def run_user_question_all(ticker, data, turns, question, cio_memo=None, on_update=None):
+    """Fans a single user question out to every agent concurrently — same
+    pattern as run_stage1_all, since none of these calls depend on each
+    other's answer."""
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(AGENTS)) as executor:
+        future_to_agent = {
+            executor.submit(run_user_question, agent_key, ticker, data, turns, question, cio_memo): agent_key
+            for agent_key in AGENTS
+        }
+        for future in as_completed(future_to_agent):
+            agent_key = future_to_agent[future]
+            text = future.result()
+            results[agent_key] = text
+            _emit(on_update, "user_answer", {"agent": agent_key, "text": text})
+    return results
 
 
 def run_cio(ticker, data, turns, stage1_analyses):

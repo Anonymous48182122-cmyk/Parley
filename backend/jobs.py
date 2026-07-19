@@ -50,6 +50,20 @@ def get_job(ticker):
         return _jobs.get(ticker.upper())
 
 
+def record_chat(ticker, entry):
+    """Appends a user Q&A exchange to the job and re-persists the on-disk
+    cache, so a page refresh doesn't lose the conversation within the
+    48hr cache window — unlike cross-exam, which is frontend-only state."""
+    ticker_key = ticker.upper()
+    with _lock:
+        job = _jobs.get(ticker_key)
+        if not job:
+            return None
+        job["user_chat"].append(entry)
+        _save_cache(ticker_key, job)
+        return job
+
+
 def clear_cache(ticker):
     ticker_key = ticker.upper()
     path = _cache_path(ticker_key)
@@ -67,6 +81,7 @@ def _new_job(ticker_key, market):
         "data_text": None,
         "stage1": {},
         "debate": [],
+        "user_chat": [],
         "cio_memo": None,
         "current_stage": "fetching_data",
         "error": None,

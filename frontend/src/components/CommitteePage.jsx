@@ -7,6 +7,7 @@ import AgentCard from "./AgentCard.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
+import ChatPanel from "./ChatPanel.jsx";
 
 function SaveToHistory({ ticker, job }) {
   const { session, user } = useAuth();
@@ -249,6 +250,14 @@ export default function CommitteePage() {
                   )}
               </div>
             </section>
+          )}
+
+          {(Object.keys(job.stage1 || {}).length > 0 || job.status === "complete") && (
+            <ChatPanel
+              ticker={ticker}
+              initialChat={job.user_chat}
+              ready={job.status !== "error"}
+            />
           )}
 
           {job.cio_memo && (

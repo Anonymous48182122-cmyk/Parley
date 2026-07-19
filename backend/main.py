@@ -6,6 +6,7 @@ DELETE /analysis/{ticker}/cache forces re-analysis next time.
 """
 
 import threading
+import time
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -13,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from agents.prompts import AGENT_DISPLAY_NAMES, AGENTS
-from agents.runner import AgentCallError, run_cross_exam
+from agents.runner import AgentCallError, run_cross_exam, run_user_question, run_user_question_all
 from backend import jobs
 from backend.history import router as history_router
 from data.search import search_tickers
@@ -56,6 +57,11 @@ class CrossExamRequest(BaseModel):
     target_statement: str
 
 
+class AskRequest(BaseModel):
+    question: str
+    agent: Optional[str] = None  # a specific AGENTS key, or None/"all" to ask the whole committee
+
+
 def _job_response(job):
     return {
         "ticker": job["ticker"],
@@ -65,6 +71,7 @@ def _job_response(job):
         "progress": jobs.progress_fraction(job),
         "stage1": job["stage1"],
         "debate": job["debate"],
+        "user_chat": job.get("user_chat", []),
         "cio_memo": job.get("cio_memo"),
         "error": job.get("error"),
     }
@@ -118,6 +125,34 @@ def get_summary(ticker: str):
 def delete_cache(ticker: str):
     jobs.clear_cache(ticker)
     return {"cleared": True}
+
+
+@app.post("/analysis/{ticker}/ask")
+def ask_committee(ticker: str, req: AskRequest):
+    if not req.question or not req.question.strip():
+        raise HTTPException(400, "question is required")
+    job = jobs.get_job(ticker)
+    if not job or not job.get("data_text"):
+        raise HTTPException(404, "Run analysis for this ticker first.")
+
+    question = req.question.strip()
+    turns = [(t["agent"], t["text"]) for t in job["debate"]]
+
+    try:
+        if req.agent and req.agent != "all":
+            if req.agent not in AGENTS:
+                raise HTTPException(400, "Unknown agent key.")
+            text = run_user_question(req.agent, ticker, job["data_text"], turns, question, job.get("cio_memo"))
+            responses = [{"agent": req.agent, "text": text}]
+        else:
+            results = run_user_question_all(ticker, job["data_text"], turns, question, job.get("cio_memo"))
+            responses = [{"agent": key, "text": results[key]} for key in AGENTS if key in results]
+    except AgentCallError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    entry = {"question": question, "target": req.agent or "all", "responses": responses, "asked_at": time.time()}
+    jobs.record_chat(ticker, entry)
+    return entry
 
 
 @app.post("/analysis/{ticker}/cross-exam")
