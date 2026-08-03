@@ -266,6 +266,8 @@ button {
   border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  font-family: inherit;
   cursor: pointer;
   transition: border-color 0.2s var(--ease), background 0.2s var(--ease);
 }

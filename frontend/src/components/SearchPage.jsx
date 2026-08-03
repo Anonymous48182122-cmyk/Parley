@@ -76,33 +76,15 @@ export default function SearchPage() {
       >
         The Committee
       </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "center" }}>
         {AGENT_ORDER.map((key, i) => (
           <div
             key={key}
-            className="card fade-in"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              padding: "16px 18px",
-              animationDelay: `${i * 0.04}s`,
-              animationFillMode: "backwards",
-            }}
+            className="fade-in"
+            title={`${AGENT_META[key].name} — ${AGENT_META[key].role}`}
+            style={{ animationDelay: `${i * 0.04}s`, animationFillMode: "backwards" }}
           >
             <AgentAvatar agentKey={key} size="lg" />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{AGENT_META[key].name}</div>
-              <div style={{ color: "var(--text-dim)", fontSize: "0.8rem" }}>
-                {AGENT_META[key].role}
-              </div>
-            </div>
           </div>
         ))}
       </div>

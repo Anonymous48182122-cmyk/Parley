@@ -20,12 +20,12 @@ export default function AgentCommitteeStrip({ stage1 }) {
             key={key}
             type="button"
             onClick={() => setExpanded((cur) => (cur === key ? null : key))}
+            title={`${AGENT_META[key].name} — ${AGENT_META[key].role}`}
             className={
               expanded === key ? "committee-chip committee-chip--active" : "committee-chip"
             }
           >
             <AgentAvatar agentKey={key} size="sm" />
-            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{AGENT_META[key].name}</span>
           </button>
         ))}
       </div>
