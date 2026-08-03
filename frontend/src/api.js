@@ -11,8 +11,8 @@ async function handle(res) {
   return res.json();
 }
 
-export function searchTickers(query) {
-  return fetch(`${BASE}/search?q=${encodeURIComponent(query)}`).then(handle);
+export function searchTickers(query, signal) {
+  return fetch(`${BASE}/search?q=${encodeURIComponent(query)}`, { signal }).then(handle);
 }
 
 export function startAnalysis(ticker, market) {

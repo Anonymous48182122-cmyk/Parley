@@ -22,11 +22,18 @@ export default function TickerSearchBox({ onSelect }) {
   const debounceRef = useRef(null);
   const blurTimeoutRef = useRef(null);
   const requestIdRef = useRef(0);
+  const abortRef = useRef(null);
 
   const results = mergeResults(localResults, backendResults, LIMIT);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
+    // Cancel whatever backend request is still in flight from an earlier
+    // keystroke — without this, stale requests keep running on the backend
+    // even after the frontend stops caring about their answer, and a burst
+    // of overlapping requests compounds into each successive keystroke
+    // feeling slower than the last.
+    abortRef.current?.abort();
     const trimmed = query.trim();
     requestIdRef.current += 1;
     const thisRequestId = requestIdRef.current;
@@ -48,20 +55,26 @@ export default function TickerSearchBox({ onSelect }) {
     setHighlighted(0);
 
     debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
-        const matches = await searchTickers(trimmed);
+        const matches = await searchTickers(trimmed, controller.signal);
         if (requestIdRef.current !== thisRequestId) return; // stale response, query changed since
         setBackendResults(matches);
         setOpen(matches.length > 0 || local.length > 0);
         setHighlighted(0);
-      } catch {
+      } catch (err) {
+        if (err.name === "AbortError") return; // superseded by a newer keystroke — expected
         if (requestIdRef.current !== thisRequestId) return;
         // Backend search failed (or is still cold-starting) — keep showing
         // local results rather than clearing the dropdown to empty.
       }
     }, DEBOUNCE_MS);
 
-    return () => clearTimeout(debounceRef.current);
+    return () => {
+      clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+    };
   }, [query]);
 
   function selectResult(result) {
