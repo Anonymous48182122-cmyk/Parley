@@ -19,6 +19,14 @@ const PORTRAIT_AGENTS = new Set(["buffett", "munger", "lynch", "jhunjhunwala", "
 // avatar renders many times across a page (chat, debate turns, chips).
 const svgCache = new Map();
 
+// DiceBear's bot design is just a deterministic hash of the seed string —
+// there's no inherent link between an agent's identity and which random
+// features (horns, glasses, etc.) it lands on. "future" happened to get a
+// horned design that read as more devilish than "devils_advocate"'s own —
+// swapping only the *seed* used to pick the bot shape (not the color, which
+// stays tied to each agent's own accent) fixes that mismatch directly.
+const SEED_OVERRIDES = { future: "devils_advocate", devils_advocate: "future" };
+
 function resolveHex(agentKey) {
   const varName = agentKey ? `--agent-${agentKey}` : "--gold";
   const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
@@ -26,7 +34,7 @@ function resolveHex(agentKey) {
 }
 
 function getAvatarSvg(agentKey) {
-  const seed = agentKey || "committee";
+  const seed = SEED_OVERRIDES[agentKey] || agentKey || "committee";
   const hex = resolveHex(agentKey);
   const cacheKey = `${seed}-${hex}`;
   if (svgCache.has(cacheKey)) return svgCache.get(cacheKey);
