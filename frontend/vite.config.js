@@ -10,7 +10,14 @@ export default defineConfig({
       // Check for a new service worker every 60s while the app is open, on
       // top of the browser's own checks on load — so "Update available"
       // shows up promptly instead of only after a fresh app open.
-      workbox: { cleanupOutdatedCaches: true },
+      workbox: {
+        cleanupOutdatedCaches: true,
+        // Default globPatterns only sweep JS/CSS/HTML — explicitly include
+        // ticker-index.json so the full ticker search index is precached
+        // too, letting repeat app opens search instantly with zero network
+        // fetch at all, not just zero per-keystroke round-trips.
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,json}"],
+      },
       includeAssets: ["favicon-64.png"],
       manifest: {
         id: "/",

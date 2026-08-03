@@ -1,81 +1,42 @@
 import { useEffect, useRef, useState } from "react";
-import { searchTickers } from "../api.js";
 import { searchLocal } from "../popularTickers.js";
-
-const DEBOUNCE_MS = 150;
-
-function mergeResults(local, backend, limit) {
-  if (backend === null) return local; // backend hasn't responded yet — show local instantly
-  const seen = new Set(backend.map((r) => `${r.market}-${r.ticker}`));
-  const extra = local.filter((r) => !seen.has(`${r.market}-${r.ticker}`));
-  return [...backend, ...extra].slice(0, limit);
-}
+import { isTickerIndexReady, preloadTickerIndex, searchFullIndex } from "../tickerIndex.js";
 
 const LIMIT = 8;
 
+function mergeResults(local, full, limit) {
+  const seen = new Set(full.map((r) => `${r.market}-${r.ticker}`));
+  const extra = local.filter((r) => !seen.has(`${r.market}-${r.ticker}`));
+  return [...full, ...extra].slice(0, limit);
+}
+
 export default function TickerSearchBox({ onSelect }) {
   const [query, setQuery] = useState("");
-  const [localResults, setLocalResults] = useState([]);
-  const [backendResults, setBackendResults] = useState(null);
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
-  const debounceRef = useRef(null);
+  const [indexReady, setIndexReady] = useState(isTickerIndexReady());
   const blurTimeoutRef = useRef(null);
-  const requestIdRef = useRef(0);
-  const abortRef = useRef(null);
-
-  const results = mergeResults(localResults, backendResults, LIMIT);
 
   useEffect(() => {
-    clearTimeout(debounceRef.current);
-    // Cancel whatever backend request is still in flight from an earlier
-    // keystroke — without this, stale requests keep running on the backend
-    // even after the frontend stops caring about their answer, and a burst
-    // of overlapping requests compounds into each successive keystroke
-    // feeling slower than the last.
-    abortRef.current?.abort();
-    const trimmed = query.trim();
-    requestIdRef.current += 1;
-    const thisRequestId = requestIdRef.current;
+    preloadTickerIndex().then(() => setIndexReady(true));
+  }, []);
 
-    if (!trimmed) {
-      setLocalResults([]);
-      setBackendResults(null);
-      setOpen(false);
-      return;
-    }
+  const trimmed = query.trim();
+  // Entirely synchronous and zero-network: the curated ~90-ticker list
+  // (popularTickers.js) covers the brief moment before the full ~12.8k-entry
+  // index has finished its one-time fetch, and the full index covers
+  // everything else once ready. No debounce, no backend round-trip per
+  // keystroke — search speed no longer depends on Render's network/CPU
+  // latency at all, which was the actual bottleneck users were hitting.
+  const local = trimmed ? searchLocal(trimmed, LIMIT) : [];
+  const full = trimmed && indexReady ? searchFullIndex(trimmed, LIMIT) : [];
+  const results = mergeResults(local, full, LIMIT);
 
-    // Instant, zero-latency local match — shows something on every keystroke
-    // immediately, rather than a blank dropdown while the network call is
-    // still in flight (which can take a while right after a cold start).
-    const local = searchLocal(trimmed, LIMIT);
-    setLocalResults(local);
-    setBackendResults(null);
-    setOpen(local.length > 0);
+  useEffect(() => {
+    setOpen(results.length > 0 && trimmed.length > 0);
     setHighlighted(0);
-
-    debounceRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      try {
-        const matches = await searchTickers(trimmed, controller.signal);
-        if (requestIdRef.current !== thisRequestId) return; // stale response, query changed since
-        setBackendResults(matches);
-        setOpen(matches.length > 0 || local.length > 0);
-        setHighlighted(0);
-      } catch (err) {
-        if (err.name === "AbortError") return; // superseded by a newer keystroke — expected
-        if (requestIdRef.current !== thisRequestId) return;
-        // Backend search failed (or is still cold-starting) — keep showing
-        // local results rather than clearing the dropdown to empty.
-      }
-    }, DEBOUNCE_MS);
-
-    return () => {
-      clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
-    };
-  }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, indexReady]);
 
   function selectResult(result) {
     clearTimeout(blurTimeoutRef.current);
