@@ -205,14 +205,20 @@ button {
   min-width: 0;
 }
 
-.topnav-email {
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  max-width: 200px;
-  font-size: 0.82rem;
+.topnav-user-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--gold-soft);
+  color: var(--gold);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.75rem;
+  cursor: default;
 }
 
 .phase-strip {
@@ -291,10 +297,6 @@ button {
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 10px;
-  }
-
-  .topnav-email {
-    max-width: 120px;
   }
 
   .chat-composer {

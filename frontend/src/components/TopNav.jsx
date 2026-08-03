@@ -37,7 +37,9 @@ export default function TopNav() {
       <div className="topnav-actions">
         {user ? (
           <>
-            <span className="topnav-email">{user.email}</span>
+            <span className="topnav-user-badge" title={user.email}>
+              {user.email?.[0]?.toUpperCase() ?? "?"}
+            </span>
             <Link to="/history" style={{ color: "var(--text-dim)", flexShrink: 0 }}>
               History
             </Link>
