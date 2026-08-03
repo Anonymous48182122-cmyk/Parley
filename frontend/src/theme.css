@@ -179,16 +179,23 @@ button {
 
 .chat-composer {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .chat-composer select {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 110px;
   max-width: 150px;
 }
 
 .chat-composer input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 160px;
+}
+
+.chat-composer .button-primary {
+  flex: 0 0 auto;
 }
 
 .topnav-actions {

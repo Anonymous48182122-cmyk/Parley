@@ -171,7 +171,7 @@ export default function ChatPanel({ ticker, initialChat, ready }) {
               color: "var(--text)",
               border: "1px solid var(--border-strong)",
               borderRadius: "var(--radius-sm)",
-              padding: "0 10px",
+              padding: "13px 10px",
               fontSize: "0.85rem",
             }}
           >
