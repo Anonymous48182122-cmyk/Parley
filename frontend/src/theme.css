@@ -211,6 +211,8 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  max-width: 200px;
+  font-size: 0.82rem;
 }
 
 .phase-strip {
