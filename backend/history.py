@@ -52,6 +52,9 @@ def save_debate(req: SaveDebateRequest, user_id: str = Depends(get_current_user)
     return result.data[0]
 
 
+HISTORY_EXCERPT_LEN = 300
+
+
 @router.get("/history")
 def list_history(user_id: str = Depends(get_current_user)):
     result = (
@@ -62,7 +65,15 @@ def list_history(user_id: str = Depends(get_current_user)):
         .order("created_at", desc=True)
         .execute()
     )
-    return result.data
+    # The list view only ever renders a ~140-char excerpt (see HistoryPage.jsx)
+    # — truncate here so a user with several saved debates isn't shipped
+    # several KB of full memo text per row just to throw most of it away
+    # client-side. The full text is still fetched in full on /history/{id}.
+    rows = result.data
+    for row in rows:
+        memo = row.get("cio_memo") or ""
+        row["cio_memo"] = memo[:HISTORY_EXCERPT_LEN]
+    return rows
 
 
 @router.get("/history/{entry_id}")

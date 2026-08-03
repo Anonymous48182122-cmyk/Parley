@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { AGENT_ORDER, AGENT_META, agentColor } from "../agentMeta.js";
+import { AGENT_ORDER, AGENT_META } from "../agentMeta.js";
+import AgentAvatar from "./AgentAvatar.jsx";
 import InstallAppButton from "./InstallAppButton.jsx";
 import TickerSearchBox from "./TickerSearchBox.jsx";
 
@@ -27,7 +28,9 @@ export default function SearchPage() {
         <div className="pill" style={{ marginBottom: 24 }}>
           Nine frameworks · One live debate
         </div>
-        <h1 style={{ fontSize: "3.1rem", marginBottom: 16, lineHeight: 1.05 }}>Parley</h1>
+        <h1 style={{ fontSize: "clamp(2rem, 9vw, 3.1rem)", marginBottom: 16, lineHeight: 1.05 }}>
+          Parley
+        </h1>
         <p
           style={{
             color: "var(--text-dim)",
@@ -93,9 +96,7 @@ export default function SearchPage() {
               animationFillMode: "backwards",
             }}
           >
-            <span className="monogram" style={{ background: agentColor(key) }}>
-              {AGENT_META[key].monogram}
-            </span>
+            <AgentAvatar agentKey={key} size="lg" />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{AGENT_META[key].name}</div>
               <div style={{ color: "var(--text-dim)", fontSize: "0.8rem" }}>

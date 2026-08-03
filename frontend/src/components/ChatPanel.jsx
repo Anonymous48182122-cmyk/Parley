@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AGENT_META, AGENT_ORDER, agentColor, splitMentions } from "../agentMeta.js";
 import { askCommittee } from "../api.js";
+import AgentAvatar from "./AgentAvatar.jsx";
 
 function Highlighted({ text }) {
   return (
@@ -23,9 +24,7 @@ function AnswerBubble({ response }) {
   const color = agentColor(response.agent);
   return (
     <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-      <span className="monogram" style={{ background: color, marginTop: 2, flexShrink: 0 }}>
-        {meta?.monogram ?? "?"}
-      </span>
+      <AgentAvatar agentKey={response.agent} size="md" style={{ marginTop: 2 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ color, fontWeight: 600, fontSize: "0.9rem" }}>{meta?.name ?? response.agent}</span>
         <div style={{ fontSize: "0.92rem", lineHeight: 1.55, marginTop: 2 }}>
@@ -40,9 +39,7 @@ function PendingBubble({ agentKey }) {
   const meta = agentKey ? AGENT_META[agentKey] : null;
   return (
     <div className="fade-in" style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, color: "var(--text-dim)" }}>
-      <span className="monogram" style={{ background: agentKey ? agentColor(agentKey) : "var(--gold)", opacity: 0.7, flexShrink: 0 }}>
-        {meta?.monogram ?? "…"}
-      </span>
+      <AgentAvatar agentKey={agentKey} size="md" style={{ opacity: 0.7 }} />
       <span style={{ fontSize: "0.9rem" }}>{meta ? `${meta.name} is thinking` : "The whole committee is weighing in"}</span>
       <span className="typing-dots">
         <span />
@@ -160,7 +157,11 @@ export default function ChatPanel({ ticker, initialChat, ready }) {
           </div>
         )}
 
-        <form onSubmit={handleAsk} style={{ display: "flex", gap: 8, marginTop: chat.length || sending ? 20 : 16 }}>
+        <form
+          onSubmit={handleAsk}
+          className="chat-composer"
+          style={{ marginTop: chat.length || sending ? 20 : 16 }}
+        >
           <select
             value={target}
             onChange={(e) => setTarget(e.target.value)}
@@ -172,8 +173,6 @@ export default function ChatPanel({ ticker, initialChat, ready }) {
               borderRadius: "var(--radius-sm)",
               padding: "0 10px",
               fontSize: "0.85rem",
-              flexShrink: 0,
-              maxWidth: 150,
             }}
           >
             <option value="all">Whole committee</option>

@@ -1,13 +1,11 @@
-import { AGENT_META } from "../agentMeta.js";
+import AgentAvatar from "./AgentAvatar.jsx";
 import FormattedText from "./FormattedText.jsx";
 
 export default function CIOMemo({ text }) {
   return (
     <div className="card-gold fade-in">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-        <span className="monogram" style={{ background: "var(--agent-cio)" }}>
-          {AGENT_META.cio.monogram}
-        </span>
+        <AgentAvatar agentKey="cio" size="md" />
         <div>
           <h2 style={{ fontSize: "1.3rem" }}>CIO Memo</h2>
           <div style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>

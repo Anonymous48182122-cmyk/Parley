@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AGENT_META, agentColor } from "../agentMeta.js";
+import AgentAvatar from "./AgentAvatar.jsx";
 import FormattedText from "./FormattedText.jsx";
 
 export default function AgentCard({ agentKey, text }) {
@@ -23,9 +24,7 @@ export default function AgentCard({ agentKey, text }) {
           cursor: "pointer",
         }}
       >
-        <span className="monogram" style={{ background: color }}>
-          {meta.monogram}
-        </span>
+        <AgentAvatar agentKey={agentKey} size="md" />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600 }}>{meta.name}</div>
           <div style={{ color: "var(--text-dim)", fontSize: "0.82rem" }}>{meta.role}</div>

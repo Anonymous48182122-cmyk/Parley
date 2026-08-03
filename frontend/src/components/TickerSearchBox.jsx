@@ -97,7 +97,7 @@ export default function TickerSearchBox({ onSelect }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ position: "relative", marginBottom: 20 }}>
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="search-row" style={{ display: "flex", gap: 10 }}>
         <input
           type="text"
           placeholder="Search by ticker or company — e.g. Apple, Reliance, PLTR"
@@ -118,7 +118,7 @@ export default function TickerSearchBox({ onSelect }) {
 
       {open && results.length > 0 && (
         <div
-          className="card fade-in"
+          className="card fade-in search-dropdown"
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
@@ -126,7 +126,6 @@ export default function TickerSearchBox({ onSelect }) {
             right: 0,
             zIndex: 10,
             padding: 8,
-            maxHeight: 340,
             overflowY: "auto",
           }}
         >

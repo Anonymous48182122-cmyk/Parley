@@ -34,11 +34,11 @@ export default function TopNav() {
         Parley
       </Link>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div className="topnav-actions">
         {user ? (
           <>
-            <span style={{ color: "var(--text-dim)" }}>{user.email}</span>
-            <Link to="/history" style={{ color: "var(--text-dim)" }}>
+            <span className="topnav-email">{user.email}</span>
+            <Link to="/history" style={{ color: "var(--text-dim)", flexShrink: 0 }}>
               History
             </Link>
             <button

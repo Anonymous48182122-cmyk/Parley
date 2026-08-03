@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AGENT_META, AGENT_ORDER, agentColor, splitMentions } from "../agentMeta.js";
 import { crossExam } from "../api.js";
+import AgentAvatar from "./AgentAvatar.jsx";
 
 function Highlighted({ text }) {
   return (
@@ -44,9 +45,7 @@ export default function DebateMessage({ ticker, turn, agentKey, text, allowCross
 
   return (
     <div className="fade-in" style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-      <span className="monogram" style={{ background: color, marginTop: 2 }}>
-        {meta.monogram}
-      </span>
+      <AgentAvatar agentKey={agentKey} size="md" style={{ marginTop: 2 }} />
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
           <span style={{ color, fontWeight: 600 }}>{meta.name}</span>
@@ -59,8 +58,8 @@ export default function DebateMessage({ ticker, turn, agentKey, text, allowCross
         {allowCrossExam && (
           <button
             onClick={() => setExamOpen((o) => !o)}
-            className="button-secondary"
-            style={{ marginTop: 8, fontSize: "0.75rem", padding: "4px 10px" }}
+            className="button-secondary cross-exam-toggle"
+            style={{ marginTop: 8, fontSize: "0.75rem" }}
           >
             Cross-examine
           </button>
@@ -97,16 +96,21 @@ export default function DebateMessage({ ticker, turn, agentKey, text, allowCross
             key={i}
             className="fade-in"
             style={{
+              display: "flex",
+              gap: 10,
               marginTop: 10,
               paddingLeft: 14,
               borderLeft: `2px dashed ${agentColor(exam.agent)}`,
             }}
           >
-            <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginBottom: 2 }}>
-              CROSS-EXAM — {AGENT_META[exam.agent]?.name ?? exam.agent}
-            </div>
-            <div style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--text-dim)" }}>
-              <Highlighted text={exam.text} />
+            <AgentAvatar agentKey={exam.agent} size="sm" style={{ marginTop: 2 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginBottom: 2 }}>
+                CROSS-EXAM — {AGENT_META[exam.agent]?.name ?? exam.agent}
+              </div>
+              <div style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--text-dim)" }}>
+                <Highlighted text={exam.text} />
+              </div>
             </div>
           </div>
         ))}

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { AGENT_META, AGENT_ORDER, DEBATE_TURN_AGENTS, agentColor } from "../agentMeta.js";
+import { AGENT_META, DEBATE_TURN_AGENTS } from "../agentMeta.js";
 import { startAnalysis, getAnalysis, clearCache, saveToHistory } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
-import AgentCard from "./AgentCard.jsx";
+import AgentAvatar from "./AgentAvatar.jsx";
+import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
@@ -64,13 +65,59 @@ const STAGE_LABELS = {
   cio: "CIO synthesizing the memo",
 };
 
+// Drives the persistent "where am I" strip — deliberately reuses the same
+// job.current_stage/status fields the poll loop already tracks, rather than
+// scroll-spying the page, since that's a more reliable progress signal than
+// scroll position on a page whose content is still arriving.
+const PHASE_ORDER = ["stage1", "debate", "cio"];
+const PHASE_LABELS = { stage1: "First Pass", debate: "Debate", cio: "CIO Memo" };
+const PHASE_ANCHORS = { stage1: "#stage1", debate: "#debate", cio: "#cio-memo" };
+
+function PhaseStrip({ job }) {
+  const currentIndex = PHASE_ORDER.indexOf(job.current_stage);
+  const contentReady = {
+    stage1: Object.keys(job.stage1 || {}).length > 0,
+    debate: (job.debate || []).length > 0,
+    cio: !!job.cio_memo,
+  };
+
+  return (
+    <div className="phase-strip">
+      {PHASE_ORDER.map((key, i) => {
+        const done = job.status === "complete" || (currentIndex >= 0 && i < currentIndex);
+        const current = i === currentIndex;
+        const className = [
+          "phase-step",
+          done && "phase-step--done",
+          current && "phase-step--current",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const label = `${done ? "✓ " : ""}${PHASE_LABELS[key]}`;
+        return contentReady[key] ? (
+          <a key={key} href={PHASE_ANCHORS[key]} className={className}>
+            {label}
+          </a>
+        ) : (
+          <span key={key} className={className}>
+            {label}
+          </span>
+        );
+      })}
+      {contentReady.stage1 && (
+        <a href="#ask-committee" className="phase-step">
+          Ask the Committee
+        </a>
+      )}
+    </div>
+  );
+}
+
 function TypingIndicator({ agentKey }) {
   const meta = AGENT_META[agentKey];
   return (
     <div className="fade-in" style={{ display: "flex", alignItems: "center", gap: 12, color: "var(--text-dim)" }}>
-      <span className="monogram" style={{ background: agentColor(agentKey), opacity: 0.7 }}>
-        {meta.monogram}
-      </span>
+      <AgentAvatar agentKey={agentKey} size="md" style={{ opacity: 0.7 }} />
       <span style={{ fontSize: "0.92rem" }}>{meta.name} is weighing in</span>
       <span className="typing-dots">
         <span />
@@ -203,6 +250,8 @@ export default function CommitteePage() {
 
       {job && job.status !== "error" && (
         <>
+          <PhaseStrip job={job} />
+
           {job.status === "running" && (
             <div style={{ marginBottom: 32 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
@@ -220,18 +269,14 @@ export default function CommitteePage() {
           )}
 
           {Object.keys(job.stage1 || {}).length > 0 && (
-            <section style={{ marginBottom: 40 }}>
+            <section id="stage1" className="scroll-anchor" style={{ marginBottom: 40 }}>
               <SectionLabel>Independent First Pass</SectionLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {AGENT_ORDER.filter((key) => job.stage1[key]).map((key) => (
-                  <AgentCard key={key} agentKey={key} text={job.stage1[key]} />
-                ))}
-              </div>
+              <AgentCommitteeStrip stage1={job.stage1} />
             </section>
           )}
 
           {(job.debate || []).length > 0 && (
-            <section style={{ marginBottom: 40 }}>
+            <section id="debate" className="scroll-anchor" style={{ marginBottom: 40 }}>
               <SectionLabel>Live Debate</SectionLabel>
               <div className="card">
                 {job.debate.map((turn) => (
@@ -253,15 +298,17 @@ export default function CommitteePage() {
           )}
 
           {(Object.keys(job.stage1 || {}).length > 0 || job.status === "complete") && (
-            <ChatPanel
-              ticker={ticker}
-              initialChat={job.user_chat}
-              ready={job.status !== "error"}
-            />
+            <div id="ask-committee" className="scroll-anchor">
+              <ChatPanel
+                ticker={ticker}
+                initialChat={job.user_chat}
+                ready={job.status !== "error"}
+              />
+            </div>
           )}
 
           {job.cio_memo && (
-            <section>
+            <section id="cio-memo" className="scroll-anchor">
               <CIOMemo text={job.cio_memo} />
               <SaveToHistory ticker={ticker} job={job} />
             </section>

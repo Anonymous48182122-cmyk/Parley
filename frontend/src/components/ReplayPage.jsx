@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { getHistoryEntry } from "../api.js";
-import { AGENT_ORDER } from "../agentMeta.js";
-import AgentCard from "./AgentCard.jsx";
+import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
@@ -55,11 +54,7 @@ export default function ReplayPage() {
       {Object.keys(entry.stage1 || {}).length > 0 && (
         <section style={{ marginBottom: 40 }}>
           <SectionLabel>Independent First Pass</SectionLabel>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {AGENT_ORDER.filter((key) => entry.stage1[key]).map((key) => (
-              <AgentCard key={key} agentKey={key} text={entry.stage1[key]} />
-            ))}
-          </div>
+          <AgentCommitteeStrip stage1={entry.stage1} />
         </section>
       )}
 
