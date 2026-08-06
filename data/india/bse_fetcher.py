@@ -239,6 +239,21 @@ def _parse(html):
     _, ratios_rows = parse_generic_table(ratios_table) if ratios_table is not None else ([], {})
     ratios = {label: values[-1] for label, values in ratios_rows.items() if values and values[-1] is not None}
     ratios.update({k: v for k, v in top_ratios.items() if k in ("ROCE", "ROE") and v is not None})
+    # top_ratios already has these parsed (parse_top_ratios captures every
+    # label on Screener's summary strip) — they were previously computed and
+    # then silently thrown away here rather than passed through. "High /
+    # Low" is skipped: it's a combined "X / Y" string, and parse_number's
+    # digit-only stripping would concatenate both numbers into garbage
+    # rather than parse them as a pair — yfinance's fiftyTwoWeekHigh/Low
+    # (wired in via orchestrator/analyze.py) covers that instead.
+    for label, key, suffix in (
+        ("Stock P/E", "P/E Ratio", ""),
+        ("Dividend Yield", "Dividend Yield", "%"),
+        ("Book Value", "Book Value per Share", ""),
+    ):
+        value = top_ratios.get(label)
+        if value is not None:
+            ratios[key] = f"{value}{suffix}" if suffix else value
 
     return {
         "name": name,

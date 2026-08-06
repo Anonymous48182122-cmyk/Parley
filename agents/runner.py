@@ -202,21 +202,22 @@ def _format_transcript(turns):
     return "\n".join(f"{AGENT_DISPLAY_NAMES[a]}: {t}" for a, t in turns)
 
 
-def run_debate_turn(agent_key, ticker, data, turns, instruction):
+def run_debate_turn(agent_key, ticker, data, turns, instruction, own_position=None):
     prompt = DEBATE_TURN_TEMPLATE.format(
         agent=AGENT_DISPLAY_NAMES[agent_key],
         ticker=ticker,
         data=data,
+        own_position=own_position or "(not available)",
         transcript=_format_transcript(turns),
         instruction=instruction,
     )
     return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
 
 
-def run_full_debate(ticker, data, on_update=None):
+def run_full_debate(ticker, data, stage1, on_update=None):
     turns = []
     for turn_number, agent_key, instruction in DEBATE_TURN_PLAN:
-        text = run_debate_turn(agent_key, ticker, data, turns, instruction)
+        text = run_debate_turn(agent_key, ticker, data, turns, instruction, own_position=stage1.get(agent_key))
         turns.append((agent_key, text))
         _emit(on_update, "debate_turn", {"turn": turn_number, "agent": agent_key, "text": text})
     return turns
@@ -283,7 +284,7 @@ def run_committee(ticker, data, on_update=None):
     stage1 = run_stage1_all(ticker, data, on_update=on_update)
 
     _emit(on_update, "stage_start", {"stage": "debate"})
-    turns = run_full_debate(ticker, data, on_update=on_update)
+    turns = run_full_debate(ticker, data, stage1, on_update=on_update)
 
     _emit(on_update, "stage_start", {"stage": "cio"})
     memo = run_cio(ticker, data, turns, stage1)

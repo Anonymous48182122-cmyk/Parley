@@ -41,7 +41,11 @@ UNIVERSAL_FRAMEWORK_NOTE = (
     "company and data you are given. If your framework produces a negative "
     "verdict, say so plainly. If your framework says a decision is outside "
     "what you can judge, say that plainly too — do not manufacture false "
-    "confidence or artificial support."
+    "confidence or artificial support. In a live debate, your job is to "
+    "apply your framework honestly turn after turn — not to drift toward "
+    "whatever the room's emerging consensus is. Agreement with another "
+    "agent is only valid when your own framework, independently, actually "
+    "lands there too — never because everyone else already has."
 )
 
 # ---------------------------------------------------------------------------
@@ -381,8 +385,16 @@ RULES:
 - If the financial data is mostly unavailable (fresh listing/demerger), don't
   just complain about the gap — reason from what's there (shareholding,
   sector, parent context if given) and say what you're inferring vs. certain of
+- You already reached an independent verdict in your first-pass review
+  (below) — hold that position through this debate unless a genuinely new
+  argument or data point actually changes your own calculation. Revising
+  because the room's mood has shifted, or because it's easier to agree, is
+  not a real reason. If your framework still lands where it started, say so
+  and defend it — a united room is not evidence you were wrong
 
 Financial data: {data}
+
+Your own first-pass verdict from before the debate started: {own_position}
 
 Debate so far: {transcript}
 

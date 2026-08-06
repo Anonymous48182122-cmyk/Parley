@@ -3,6 +3,7 @@ groq
 requests
 beautifulsoup4
 lxml
+yfinance
 fastapi
 uvicorn
 python-dotenv

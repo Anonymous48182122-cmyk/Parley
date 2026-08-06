@@ -96,34 +96,39 @@ def _is_annual_duration(start, end):
 
 
 def _extract_series(facts, tags):
-    """Return (unit, [{"end": date, "val": number}, ...]) for the first tag with 10-K data."""
+    """Merge 10-K annual-duration entries across ALL fallback tags — not
+    just the first one with any data. Companies sometimes rename which XBRL
+    tag they report a concept under (e.g. NVIDIA moved revenue from
+    RevenueFromContractWithCustomerExcludingAssessedTax to plain Revenues
+    around FY2022); stopping at the first populated tag silently locks onto
+    whichever tag happened to be listed first, which can be one the company
+    has since abandoned — missing every filing since the switch and making
+    "the latest annual figures" quietly several years stale. For a period
+    reported under more than one tag, whichever was filed most recently wins."""
     us_gaap = facts.get("facts", {}).get("us-gaap", {})
+    unit_key = None
+    by_end = {}
     for tag in tags:
         node = us_gaap.get(tag)
         if not node:
             continue
         units = node.get("units", {})
-        unit_key = "USD" if "USD" in units else next(iter(units), None)
-        if not unit_key:
+        tag_unit = "USD" if "USD" in units else next(iter(units), None)
+        if not tag_unit:
             continue
-        candidates = []
-        for item in units[unit_key]:
+        for item in units[tag_unit]:
             if item.get("form") != "10-K":
                 continue
             if item.get("start") and not _is_annual_duration(item["start"], item["end"]):
                 continue
-            candidates.append(item)
-        if not candidates:
-            continue
-        by_end = {}
-        for item in candidates:
             key = item["end"]
             if key not in by_end or item["filed"] > by_end[key]["filed"]:
                 by_end[key] = item
-        series = sorted(by_end.values(), key=lambda i: i["end"])
-        if series:
-            return unit_key, {item["end"]: item["val"] for item in series}
-    return None, {}
+                unit_key = tag_unit
+    if not by_end:
+        return None, {}
+    series = sorted(by_end.values(), key=lambda i: i["end"])
+    return unit_key, {item["end"]: item["val"] for item in series}
 
 
 def _build_annual_rows(facts, max_years=10):
