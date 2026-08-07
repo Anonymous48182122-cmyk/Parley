@@ -34,12 +34,28 @@ def _pct(value):
     return None if value is None else f"{round(value * 100, 2)}%"
 
 
+def _india_crores(value):
+    # Screener (bse_fetcher.py) reports market cap in crores (1 Cr = 10^7),
+    # matching the app's "INR Cr." unit_label for India — but yfinance
+    # always returns market cap in raw rupees regardless of market. Only
+    # used as a fallback when Screener's own value is missing (rare, since
+    # Screener usually has it), but without this conversion a fallback
+    # would show a number ~10 million times too large under a label that
+    # says crores.
+    return None if value is None else round(value / 1e7, 2)
+
+
 def _fetch(ticker, market):
     symbol = _yf_symbol(ticker, market)
     info = yf.Ticker(symbol).info or {}
 
     price = info.get("currentPrice") or info.get("regularMarketPrice")
     market_cap = info.get("marketCap")
+    if market == "India":
+        market_cap = _india_crores(market_cap)
+
+    sector = info.get("sector")
+    industry = info.get("industry")
 
     dividend_yield = info.get("dividendYield")
     ratios = {
@@ -56,10 +72,11 @@ def _fetch(ticker, market):
         "Return on Assets": _pct(info.get("returnOnAssets")),
         "Net Profit Margin": _pct(info.get("profitMargins")),
         "Book Value per Share": _round(info.get("bookValue")),
+        "Industry": industry,
     }
     ratios = {k: v for k, v in ratios.items() if v is not None}
 
-    return {"price": price, "market_cap": market_cap, "ratios": ratios}
+    return {"price": price, "market_cap": market_cap, "sector": sector, "ratios": ratios}
 
 
 def fetch_market_data(ticker, market):

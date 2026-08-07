@@ -26,6 +26,8 @@ def _merge_market_data(financials):
         financials["price"] = market_data.get("price")
     if financials.get("market_cap") is None:
         financials["market_cap"] = market_data.get("market_cap")
+    if financials.get("sector") in (None, "N/A") and market_data.get("sector"):
+        financials["sector"] = market_data["sector"]
 
     merged_ratios = {**market_data.get("ratios", {}), **(financials.get("ratios") or {})}
     financials["ratios"] = merged_ratios
