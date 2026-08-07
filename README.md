@@ -24,6 +24,9 @@ disagreement instead of averaging it away. Works for US (SEC EDGAR) and India
        cio_memo text,
        stage1 jsonb,
        debate jsonb,
+       user_chat jsonb,
+       cross_exams jsonb,
+       market_data jsonb,
        created_at timestamptz not null default now()
      );
      alter table saved_debates enable row level security;

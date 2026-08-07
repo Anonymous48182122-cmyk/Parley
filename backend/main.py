@@ -72,6 +72,7 @@ def _job_response(job):
         "stage1": job["stage1"],
         "debate": job["debate"],
         "user_chat": job.get("user_chat", []),
+        "market_data": job.get("market_data"),
         "cio_memo": job.get("cio_memo"),
         "error": job.get("error"),
     }

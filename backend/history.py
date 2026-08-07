@@ -36,6 +36,9 @@ class SaveDebateRequest(BaseModel):
     cio_memo: str
     stage1: dict
     debate: list
+    user_chat: Optional[list] = None
+    cross_exams: Optional[dict] = None
+    market_data: Optional[dict] = None
 
 
 @router.post("/history")
@@ -47,6 +50,9 @@ def save_debate(req: SaveDebateRequest, user_id: str = Depends(get_current_user)
         "cio_memo": req.cio_memo,
         "stage1": req.stage1,
         "debate": req.debate,
+        "user_chat": req.user_chat or [],
+        "cross_exams": req.cross_exams or {},
+        "market_data": req.market_data or {},
     }
     result = _get_client().table("saved_debates").insert(row).execute()
     return result.data[0]

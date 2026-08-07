@@ -9,8 +9,9 @@ import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
 import ChatPanel from "./ChatPanel.jsx";
+import MarketSnapshot from "./MarketSnapshot.jsx";
 
-function SaveToHistory({ ticker, job }) {
+function SaveToHistory({ ticker, job, crossExams }) {
   const { session, user } = useAuth();
   const [status, setStatus] = useState("idle"); // idle | saving | saved | error
   const [error, setError] = useState(null);
@@ -36,6 +37,9 @@ function SaveToHistory({ ticker, job }) {
         cio_memo: job.cio_memo,
         stage1: job.stage1,
         debate: job.debate,
+        user_chat: job.user_chat,
+        cross_exams: crossExams,
+        market_data: job.market_data,
       });
       setStatus("saved");
     } catch (err) {
@@ -132,12 +136,18 @@ export default function CommitteePage() {
   const { ticker } = useParams();
   const [job, setJob] = useState(null);
   const [fatalError, setFatalError] = useState(null);
+  const [crossExams, setCrossExams] = useState({});
   const pollRef = useRef(null);
+
+  function handleExamsChange(turn, exams) {
+    setCrossExams((prev) => ({ ...prev, [turn]: exams }));
+  }
 
   useEffect(() => {
     let cancelled = false;
     setJob(null);
     setFatalError(null);
+    setCrossExams({});
 
     async function poll() {
       try {
@@ -250,6 +260,7 @@ export default function CommitteePage() {
 
       {job && job.status !== "error" && (
         <>
+          <MarketSnapshot data={job.market_data} />
           <PhaseStrip job={job} />
 
           {job.status === "running" && (
@@ -286,6 +297,8 @@ export default function CommitteePage() {
                     turn={turn.turn}
                     agentKey={turn.agent}
                     text={turn.text}
+                    initialExams={crossExams[turn.turn] || []}
+                    onExamsChange={handleExamsChange}
                   />
                 ))}
                 {job.status === "running" &&
@@ -310,7 +323,7 @@ export default function CommitteePage() {
           {job.cio_memo && (
             <section id="cio-memo" className="scroll-anchor">
               <CIOMemo text={job.cio_memo} />
-              <SaveToHistory ticker={ticker} job={job} />
+              <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
             </section>
           )}
         </>

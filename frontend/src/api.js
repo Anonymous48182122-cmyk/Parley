@@ -53,11 +53,14 @@ function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }
 
-export function saveToHistory(token, { ticker, market, cio_memo, stage1, debate }) {
+export function saveToHistory(
+  token,
+  { ticker, market, cio_memo, stage1, debate, user_chat, cross_exams, market_data }
+) {
   return fetch(`${BASE}/history`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(token) },
-    body: JSON.stringify({ ticker, market, cio_memo, stage1, debate }),
+    body: JSON.stringify({ ticker, market, cio_memo, stage1, debate, user_chat, cross_exams, market_data }),
   }).then(handle);
 }
 

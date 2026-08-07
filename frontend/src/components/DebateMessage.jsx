@@ -19,12 +19,20 @@ function Highlighted({ text }) {
   );
 }
 
-export default function DebateMessage({ ticker, turn, agentKey, text, allowCrossExam = true }) {
+export default function DebateMessage({
+  ticker,
+  turn,
+  agentKey,
+  text,
+  allowCrossExam = true,
+  initialExams = [],
+  onExamsChange,
+}) {
   const [examOpen, setExamOpen] = useState(false);
   const [examiner, setExaminer] = useState(
     AGENT_ORDER.find((k) => k !== agentKey) || AGENT_ORDER[0]
   );
-  const [exams, setExams] = useState([]);
+  const [exams, setExams] = useState(initialExams);
   const [asking, setAsking] = useState(false);
 
   const meta = AGENT_META[agentKey];
@@ -34,10 +42,14 @@ export default function DebateMessage({ ticker, turn, agentKey, text, allowCross
     setAsking(true);
     try {
       const res = await crossExam(ticker, examiner, agentKey, text);
-      setExams((prev) => [...prev, res]);
+      const next = [...exams, res];
+      setExams(next);
+      onExamsChange?.(turn, next);
       setExamOpen(false);
     } catch (err) {
-      setExams((prev) => [...prev, { agent: examiner, text: `(cross-exam failed: ${err.message})` }]);
+      const next = [...exams, { agent: examiner, text: `(cross-exam failed: ${err.message})` }];
+      setExams(next);
+      onExamsChange?.(turn, next);
     } finally {
       setAsking(false);
     }

@@ -79,6 +79,7 @@ def _new_job(ticker_key, market):
         "market": market,
         "status": "running",
         "data_text": None,
+        "market_data": None,
         "stage1": {},
         "debate": [],
         "user_chat": [],
@@ -133,6 +134,18 @@ def _run_job(ticker_key, market):
             job = _jobs[ticker_key]
             job["market"] = financials.get("market")
             job["data_text"] = data_text
+            # Structured subset for the frontend's price/range visual — the
+            # rest of `financials` (annual rows, shareholding, qualitative
+            # text) is only ever needed as the prose already baked into
+            # data_text, not as separate UI state.
+            job["market_data"] = {
+                "price": financials.get("price"),
+                "market_cap": financials.get("market_cap"),
+                "currency": financials.get("currency"),
+                "unit_label": financials.get("unit_label"),
+                "sector": financials.get("sector"),
+                "ratios": financials.get("ratios", {}),
+            }
     except ValueError as exc:
         with _lock:
             job = _jobs[ticker_key]
