@@ -39,6 +39,8 @@ class SaveDebateRequest(BaseModel):
     user_chat: Optional[list] = None
     cross_exams: Optional[dict] = None
     market_data: Optional[dict] = None
+    verdict: Optional[str] = None
+    conviction: Optional[int] = None
 
 
 @router.post("/history")
@@ -53,6 +55,8 @@ def save_debate(req: SaveDebateRequest, user_id: str = Depends(get_current_user)
         "user_chat": req.user_chat or [],
         "cross_exams": req.cross_exams or {},
         "market_data": req.market_data or {},
+        "verdict": req.verdict,
+        "conviction": req.conviction,
     }
     result = _get_client().table("saved_debates").insert(row).execute()
     return result.data[0]
@@ -66,7 +70,7 @@ def list_history(user_id: str = Depends(get_current_user)):
     result = (
         _get_client()
         .table("saved_debates")
-        .select("id,ticker,market,cio_memo,created_at")
+        .select("id,ticker,market,cio_memo,verdict,conviction,created_at")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .execute()
@@ -80,6 +84,25 @@ def list_history(user_id: str = Depends(get_current_user)):
         memo = row.get("cio_memo") or ""
         row["cio_memo"] = memo[:HISTORY_EXCERPT_LEN]
     return rows
+
+
+@router.get("/history/latest/{ticker}")
+def get_latest_for_ticker(ticker: str, user_id: str = Depends(get_current_user)):
+    """Powers the "what changed since your last look" card — the most
+    recent saved debate for this ticker/user, or null if they've never
+    saved one. Registered ahead of the /history/{entry_id} catch-all below
+    so "latest" isn't swallowed as an entry_id."""
+    result = (
+        _get_client()
+        .table("saved_debates")
+        .select("id,verdict,conviction,market_data,created_at")
+        .eq("user_id", user_id)
+        .eq("ticker", ticker.upper())
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
 
 
 @router.get("/history/{entry_id}")

@@ -55,12 +55,29 @@ function authHeaders(token) {
 
 export function saveToHistory(
   token,
-  { ticker, market, cio_memo, stage1, debate, user_chat, cross_exams, market_data }
+  { ticker, market, cio_memo, stage1, debate, user_chat, cross_exams, market_data, verdict, conviction }
 ) {
   return fetch(`${BASE}/history`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(token) },
-    body: JSON.stringify({ ticker, market, cio_memo, stage1, debate, user_chat, cross_exams, market_data }),
+    body: JSON.stringify({
+      ticker,
+      market,
+      cio_memo,
+      stage1,
+      debate,
+      user_chat,
+      cross_exams,
+      market_data,
+      verdict,
+      conviction,
+    }),
+  }).then(handle);
+}
+
+export function getLatestForTicker(token, ticker) {
+  return fetch(`${BASE}/history/latest/${encodeURIComponent(ticker)}`, {
+    headers: authHeaders(token),
   }).then(handle);
 }
 

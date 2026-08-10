@@ -74,6 +74,8 @@ def _job_response(job):
         "user_chat": job.get("user_chat", []),
         "market_data": job.get("market_data"),
         "cio_memo": job.get("cio_memo"),
+        "verdict": job.get("verdict"),
+        "conviction": job.get("conviction"),
         "error": job.get("error"),
     }
 

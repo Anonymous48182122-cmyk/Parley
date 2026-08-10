@@ -7,6 +7,7 @@ turn-by-turn instead of waiting for the whole run to finish.
 """
 
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -264,6 +265,25 @@ def run_user_question_all(ticker, data, turns, question, cio_memo=None, on_updat
     return results
 
 
+_VERDICT_RE = re.compile(
+    r"^\s*VERDICT:\s*(BUY|HOLD|SELL)\s*\|\s*CONVICTION:\s*(\d{1,2})\s*/\s*10\s*\n+",
+    re.IGNORECASE,
+)
+
+
+def _parse_cio_verdict(text):
+    """Splits the machine-readable VERDICT/CONVICTION line the CIO prompt
+    requires off the front of the memo. Falls back to (text, None, None)
+    if the model didn't format it exactly right, rather than raising —
+    a missing badge is a much smaller failure than losing the whole memo."""
+    match = _VERDICT_RE.match(text)
+    if not match:
+        return text, None, None
+    verdict = match.group(1).upper()
+    conviction = int(match.group(2))
+    return text[match.end():].lstrip(), verdict, conviction
+
+
 def run_cio(ticker, data, turns, stage1_analyses):
     system = CIO_SYSTEM_PROMPT.format(ticker=ticker)
     stage1_text = "\n\n".join(
@@ -276,7 +296,8 @@ def run_cio(ticker, data, turns, stage1_analyses):
         stage1_analyses=stage1_text,
         data=data,
     )
-    return _call(CIO_CANDIDATES, system, prompt, CIO_MAX_TOKENS)
+    text = _call(CIO_CANDIDATES, system, prompt, CIO_MAX_TOKENS)
+    return _parse_cio_verdict(text)
 
 
 def run_committee(ticker, data, on_update=None):
@@ -287,7 +308,7 @@ def run_committee(ticker, data, on_update=None):
     turns = run_full_debate(ticker, data, stage1, on_update=on_update)
 
     _emit(on_update, "stage_start", {"stage": "cio"})
-    memo = run_cio(ticker, data, turns, stage1)
-    _emit(on_update, "cio", {"text": memo})
+    memo, verdict, conviction = run_cio(ticker, data, turns, stage1)
+    _emit(on_update, "cio", {"text": memo, "verdict": verdict, "conviction": conviction})
 
-    return {"stage1": stage1, "debate": turns, "cio_memo": memo}
+    return {"stage1": stage1, "debate": turns, "cio_memo": memo, "verdict": verdict, "conviction": conviction}

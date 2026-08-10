@@ -84,6 +84,8 @@ def _new_job(ticker_key, market):
         "debate": [],
         "user_chat": [],
         "cio_memo": None,
+        "verdict": None,
+        "conviction": None,
         "current_stage": "fetching_data",
         "error": None,
         "started_at": time.time(),
@@ -122,6 +124,8 @@ def _update(ticker_key, event_type, payload):
             job["debate"].append(payload)
         elif event_type == "cio":
             job["cio_memo"] = payload["text"]
+            job["verdict"] = payload.get("verdict")
+            job["conviction"] = payload.get("conviction")
         elif event_type == "stage_start":
             job["current_stage"] = payload["stage"]
 

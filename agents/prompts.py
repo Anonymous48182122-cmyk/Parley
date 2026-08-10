@@ -489,7 +489,23 @@ Non-negotiable rules:
 """
 
 CIO_PROMPT_TEMPLATE = """Read the full committee transcript below on {ticker} and produce a CIO
-memo with exactly these sections, in this order:
+memo.
+
+Start with exactly one line, in this exact format, before anything else —
+this gets parsed by a machine, so do not deviate from it or add commentary
+on the same line:
+
+VERDICT: <BUY, HOLD, or SELL> | CONVICTION: <1-10>/10
+
+BUY/HOLD/SELL is your best single-word compression of where the committee
+net landed — it does not replace the nuance below, which still must
+preserve genuine disagreement rather than average it away. Conviction is
+how strongly the weight of the committee's argument supports that verdict,
+not how good the company is (a HOLD on a genuinely 50/50 split is a low
+conviction HOLD; a SELL where 7 of 9 agents agree is a high conviction SELL).
+
+After that line, leave a blank line, then continue with exactly these
+sections, in this order:
 
 1. Agreement Map — what three or more agents genuinely converged on, naming them.
 2. Disagreement Map — for each major disagreement, name the agents on each

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AGENT_META, DEBATE_TURN_AGENTS } from "../agentMeta.js";
-import { startAnalysis, getAnalysis, clearCache, saveToHistory } from "../api.js";
+import { startAnalysis, getAnalysis, clearCache, saveToHistory, getLatestForTicker } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import AgentAvatar from "./AgentAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
@@ -10,6 +10,7 @@ import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
+import WhatChanged from "./WhatChanged.jsx";
 
 function SaveToHistory({ ticker, job, crossExams }) {
   const { session, user } = useAuth();
@@ -40,6 +41,8 @@ function SaveToHistory({ ticker, job, crossExams }) {
         user_chat: job.user_chat,
         cross_exams: crossExams,
         market_data: job.market_data,
+        verdict: job.verdict,
+        conviction: job.conviction,
       });
       setStatus("saved");
     } catch (err) {
@@ -134,14 +137,28 @@ function TypingIndicator({ agentKey }) {
 
 export default function CommitteePage() {
   const { ticker } = useParams();
+  const { session } = useAuth();
   const [job, setJob] = useState(null);
   const [fatalError, setFatalError] = useState(null);
   const [crossExams, setCrossExams] = useState({});
+  const [previousEntry, setPreviousEntry] = useState(null);
   const pollRef = useRef(null);
 
   function handleExamsChange(turn, exams) {
     setCrossExams((prev) => ({ ...prev, [turn]: exams }));
   }
+
+  // Powers the "what changed since you last saved this" card — best-effort,
+  // silently skipped for signed-out users or if there's simply no prior save.
+  useEffect(() => {
+    if (!session) {
+      setPreviousEntry(null);
+      return;
+    }
+    getLatestForTicker(session.access_token, ticker)
+      .then(setPreviousEntry)
+      .catch(() => setPreviousEntry(null));
+  }, [ticker, session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,6 +278,7 @@ export default function CommitteePage() {
       {job && job.status !== "error" && (
         <>
           <MarketSnapshot data={job.market_data} />
+          <WhatChanged previous={previousEntry} current={job} />
           <PhaseStrip job={job} />
 
           {job.status === "running" && (
@@ -322,7 +340,7 @@ export default function CommitteePage() {
 
           {job.cio_memo && (
             <section id="cio-memo" className="scroll-anchor">
-              <CIOMemo text={job.cio_memo} />
+              <CIOMemo text={job.cio_memo} verdict={job.verdict} conviction={job.conviction} />
               <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
             </section>
           )}

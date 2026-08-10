@@ -145,7 +145,7 @@ export default function ReplayPage() {
 
       {entry.cio_memo && (
         <section>
-          <CIOMemo text={entry.cio_memo} />
+          <CIOMemo text={entry.cio_memo} verdict={entry.verdict} conviction={entry.conviction} />
         </section>
       )}
     </div>

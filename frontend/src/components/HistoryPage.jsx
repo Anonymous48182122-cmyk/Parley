@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { deleteHistoryEntry, listHistory } from "../api.js";
+import VerdictBadge from "./VerdictBadge.jsx";
 
 function excerpt(text, maxLen = 140) {
   if (!text) return "";
@@ -65,6 +66,7 @@ export default function HistoryPage() {
                   {entry.ticker}
                 </span>
                 {entry.market && <span className="pill" style={{ fontSize: "0.7rem" }}>{entry.market}</span>}
+                <VerdictBadge verdict={entry.verdict} conviction={entry.conviction} size="sm" />
                 <span style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
                   {new Date(entry.created_at).toLocaleDateString()}
                 </span>

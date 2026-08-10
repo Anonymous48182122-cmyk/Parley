@@ -27,6 +27,8 @@ disagreement instead of averaging it away. Works for US (SEC EDGAR) and India
        user_chat jsonb,
        cross_exams jsonb,
        market_data jsonb,
+       verdict text,
+       conviction int,
        created_at timestamptz not null default now()
      );
      alter table saved_debates enable row level security;
