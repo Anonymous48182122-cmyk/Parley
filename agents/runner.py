@@ -6,6 +6,7 @@ so a caller (the API job store, or a plain CLI script) can observe progress
 turn-by-turn instead of waiting for the whole run to finish.
 """
 
+import logging
 import os
 import re
 import threading
@@ -13,6 +14,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import groq
+import httpx
 from dotenv import load_dotenv
 from google import genai
 from google.genai import errors as gemini_errors
@@ -34,6 +36,8 @@ from agents.prompts import (
 
 load_dotenv()
 
+log = logging.getLogger("parley.llm")
+
 # Two independent free-tier providers, so a Gemini-wide outage/quota wall
 # doesn't stall the whole run — Groq (aistudio.google.com/apikey and
 # console.groq.com, both free, no credit card) picks up the slack. Free-tier
@@ -41,27 +45,55 @@ load_dotenv()
 # gets deprecated for new keys, or is simply overloaded), so each stage tries
 # an ordered (provider, model) candidate list, falling through on
 # "unavailable" (404) or a model staying overloaded (503/429) after retries.
+#
+# Refreshed against live probes (Sep 2026): the pro tier is quota-exhausted /
+# withdrawn for free keys, several older ids 404, and Gemini flash models 503
+# in bursts — while Groq's gpt-oss-120b answers in ~1s. A model that fails is
+# put on a cooldown (see _cool_down) so later calls skip it instead of paying
+# the failure again, which is what made whole debates crawl.
 STAGE1_CANDIDATES = [
-    ("gemini", "gemini-3.5-flash"),
-    ("gemini", "gemini-3-flash-preview"),
-    ("groq", "llama-3.3-70b-versatile"),
-    ("gemini", "gemini-3.1-flash-lite"),
+    ("gemini", "gemini-3.6-flash"),
     ("groq", "openai/gpt-oss-120b"),
+    ("gemini", "gemini-3.7-flash"),
+    ("gemini", "gemini-3.8-flash"),
+    ("gemini", "gemini-3-flash-preview"),
+    ("gemini", "gemini-3.5-flash"),
+    ("groq", "openai/gpt-oss-20b"),
+    ("groq", "qwen/qwen3.8-27b"),
+    ("gemini", "gemini-3.1-flash-lite"),
 ]
 DEBATE_CANDIDATES = STAGE1_CANDIDATES
 CIO_CANDIDATES = [
-    ("gemini", "gemini-2.5-pro"),
-    ("groq", "llama-3.3-70b-versatile"),
-    ("gemini", "gemini-3-flash-preview"),
+    ("gemini", "gemini-3.6-flash"),
     ("groq", "openai/gpt-oss-120b"),
-    ("gemini", "gemini-3.1-flash-lite"),
+    ("gemini", "gemini-3.7-flash"),
+    ("gemini", "gemini-3.8-flash"),
+    ("gemini", "gemini-3-flash-preview"),
+    ("gemini", "gemini-3.5-flash"),
+    ("groq", "qwen/qwen3.8-27b"),
 ]
 
 STAGE1_MAX_TOKENS = 1400
 DEBATE_MAX_TOKENS = 300
 CIO_MAX_TOKENS = 2500
 
-_MAX_RETRIES_PER_MODEL = 3
+# Only one retry on a transient error: with this many fallbacks, moving to the
+# next model beats waiting on an overloaded one.
+_MAX_RETRIES_PER_MODEL = 2
+
+_COOLDOWN_SECONDS = {"transient": 60, "daily": 3 * 3600, "missing": 6 * 3600, "rejected": 30 * 60}
+# Longest a single call will wait for a rate-limited pool to recover.
+_MAX_WAIT_SECONDS = 150
+# Groq's free tier meters ~8k tokens/minute per model and counts the request
+# (input + max_tokens) against it, so anything bigger is rejected outright
+# (HTTP 413) no matter how long we wait.
+_GROQ_MAX_REQUEST_TOKENS = 7500
+# A single request's hard cap. Without this, an overloaded Gemini endpoint has
+# been observed to hang 170s+ before finally erroring — far worse than just
+# failing fast and letting the pool move to the next candidate.
+_REQUEST_TIMEOUT_SECONDS = 25
+_cooldowns = {}
+_cooldown_lock = threading.Lock()
 
 _gemini_client = None
 _groq_client = None
@@ -80,7 +112,10 @@ def _get_gemini_client():
             api_key = os.environ.get("GEMINI_API_KEY")
             if not api_key:
                 raise AgentCallError("GEMINI_API_KEY is not set in the environment")
-            _gemini_client = genai.Client(api_key=api_key)
+            _gemini_client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(timeout=_REQUEST_TIMEOUT_SECONDS * 1000),  # ms
+            )
         return _gemini_client
 
 
@@ -91,7 +126,9 @@ def _get_groq_client():
             api_key = os.environ.get("GROQ_API_KEY")
             if not api_key:
                 raise AgentCallError("GROQ_API_KEY is not set in the environment")
-            _groq_client = groq.Groq(api_key=api_key)
+            # retries handled by _call; a fixed timeout instead of Groq's default
+            # so a hung connection fails fast like the Gemini client above.
+            _groq_client = groq.Groq(api_key=api_key, max_retries=0, timeout=_REQUEST_TIMEOUT_SECONDS)
         return _groq_client
 
 
@@ -112,6 +149,11 @@ def _call_gemini(model, system, user, max_tokens):
 
 
 def _call_groq(model, system, user, max_tokens):
+    extra = {}
+    if model.startswith("openai/gpt-oss"):
+        # These are reasoning models: at default effort they can spend the whole
+        # (small) token budget thinking and return an empty visible answer.
+        extra["reasoning_effort"] = "low"
     response = _get_groq_client().chat.completions.create(
         model=model,
         max_tokens=max_tokens,
@@ -119,46 +161,141 @@ def _call_groq(model, system, user, max_tokens):
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
+        **extra,
     )
     return response.choices[0].message.content
 
 
-_GEMINI_RETRYABLE = (gemini_errors.ServerError,)
-_GROQ_RETRYABLE = (groq.RateLimitError, groq.InternalServerError, groq.APIConnectionError, groq.APITimeoutError)
+_GEMINI_TRANSIENT = (gemini_errors.ServerError,)
+_GROQ_TRANSIENT = (groq.RateLimitError, groq.InternalServerError, groq.APIConnectionError, groq.APITimeoutError)
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL | re.IGNORECASE)
+_RETRY_HINT_RE = re.compile(r"(?:try again|retry) in (?:(\d+)m)?\s*(\d+(?:\.\d+)?)(ms|s)", re.IGNORECASE)
 
 
-def _is_retryable(provider, exc):
+_NETWORK_ERRORS = (httpx.TransportError, OSError, TimeoutError)
+
+
+def _classify_error(provider, exc):
+    """transient = overload / rate limit (worth a brief retry and a cooldown);
+    daily = a per-day quota that will not recover for hours; missing = model id
+    gone for this key; rejected = request-level refusal."""
+    if isinstance(exc, _NETWORK_ERRORS):
+        # DNS/connection/timeout failures are a local or transit blip, not a
+        # verdict on any particular model — never provider-specific.
+        return "transient"
     if provider == "gemini":
-        if isinstance(exc, _GEMINI_RETRYABLE):
-            return True
-        return isinstance(exc, gemini_errors.ClientError) and exc.code == 429
-    return isinstance(exc, _GROQ_RETRYABLE)
+        if isinstance(exc, _GEMINI_TRANSIENT):
+            return "transient"
+        if isinstance(exc, gemini_errors.ClientError):
+            if exc.code == 429:
+                return "daily" if "PerDay" in str(exc) else "transient"
+            return "missing" if exc.code == 404 else "rejected"
+        return "rejected"
+    if isinstance(exc, _GROQ_TRANSIENT):
+        return "daily" if "per day" in str(exc).lower() else "transient"
+    return "missing" if isinstance(exc, groq.NotFoundError) else "rejected"
 
 
-def _retry_delay(attempt):
+def _retry_hint(exc):
+    """Seconds the provider says to wait ("Please retry in 58.8s"), if any."""
+    match = _RETRY_HINT_RE.search(str(exc))
+    if not match:
+        return None
+    minutes, amount, unit = match.groups()
+    seconds = float(amount) / (1000 if unit.lower() == "ms" else 1)
+    return seconds + 60 * int(minutes or 0)
+
+
+def _cooldown_until(provider, model):
+    with _cooldown_lock:
+        return _cooldowns.get((provider, model), 0)
+
+
+def _cool_down(provider, model, kind, hint=None):
+    seconds = _COOLDOWN_SECONDS[kind]
+    if kind == "transient" and hint:
+        seconds = min(max(hint + 0.5, 2), _COOLDOWN_SECONDS["transient"])
+    with _cooldown_lock:
+        _cooldowns[(provider, model)] = time.time() + seconds
+
+
+def _retry_delay(attempt, hint=None):
+    if hint and hint <= 10:
+        return hint + 0.5
     return min(30, 2**attempt)
 
 
-def _call(candidates, system, user, max_tokens):
+def _try_model(provider, model, system, user, max_tokens):
+    """One model, with a brief retry on transient errors. Returns the text, or
+    (None, error) after putting the model on cooldown."""
+    for attempt in range(_MAX_RETRIES_PER_MODEL):
+        started = time.time()
+        try:
+            if provider == "gemini":
+                text = _call_gemini(model, system, user, max_tokens)
+            else:
+                text = _call_groq(model, system, user, max_tokens)
+            text = _THINK_RE.sub("", text or "").strip()
+            if not text:
+                log.warning("%s:%s empty reply after %.1fs", provider, model, time.time() - started)
+                _cool_down(provider, model, "transient", 20)
+                return None, f"{provider}:{model} returned no text (likely a safety-filter block)"
+            log.info("%s:%s ok in %.1fs", provider, model, time.time() - started)
+            return text, None
+        except Exception as exc:  # noqa: BLE001 — deliberately broad, see module docstring
+            kind = _classify_error(provider, exc)
+            hint = _retry_hint(exc)
+            log.warning("%s:%s %s (%s) after %.1fs: %.140s", provider, model, kind,
+                        type(exc).__name__, time.time() - started, exc)
+            if kind == "transient" and attempt < _MAX_RETRIES_PER_MODEL - 1 and (hint is None or hint <= 10):
+                time.sleep(_retry_delay(attempt, hint))
+                continue
+            _cool_down(provider, model, kind, hint)
+            return None, exc
+    return None, "retries exhausted"
+
+
+def _call(candidates, system, user, max_tokens, prefer_provider=None, max_wait=None):
+    """Free-tier capacity is a pool of small buckets (Gemini: a handful of
+    requests/day per model; Groq: ~8k tokens/min per model), so this treats the
+    candidate list as a pool rather than a one-shot fallback chain:
+
+    - models on cooldown are skipped, so a dead/exhausted one costs one failure
+      per cooldown window instead of one per call;
+    - if every model is cooling but some recover soon, wait for the earliest
+      instead of failing — a slow answer beats a failed debate;
+    - models that provably can't take the request (Groq's per-minute token cap)
+      are skipped up front instead of failing after a wait;
+    - `prefer_provider` moves that provider's models to the front (stable) to
+      spread parallel calls across both providers' limits."""
     if isinstance(candidates, tuple):
         candidates = [candidates]
+    if prefer_provider:
+        candidates = sorted(candidates, key=lambda c: c[0] != prefer_provider)
 
+    est_tokens = (len(system) + len(user)) / 3.5 + max_tokens
+    fits = [c for c in candidates if c[0] != "groq" or est_tokens <= _GROQ_MAX_REQUEST_TOKENS]
+    if fits:
+        candidates = fits
+
+    deadline = time.time() + (max_wait if max_wait is not None else _MAX_WAIT_SECONDS)
     last_error = None
-    for provider, model in candidates:
-        for attempt in range(_MAX_RETRIES_PER_MODEL):
-            try:
-                text = _call_gemini(model, system, user, max_tokens) if provider == "gemini" \
-                    else _call_groq(model, system, user, max_tokens)
-                if not text:
-                    last_error = f"{provider}:{model} returned no text (likely a safety-filter block)"
-                    break  # try next candidate
-                return text.strip()
-            except Exception as exc:  # noqa: BLE001 — deliberately broad, see module docstring
-                last_error = exc
-                if _is_retryable(provider, exc):
-                    time.sleep(_retry_delay(attempt))
-                    continue
-                break  # model/provider unavailable or a non-retryable error — try next candidate
+    while True:
+        now = time.time()
+        active = [c for c in candidates if _cooldown_until(*c) <= now]
+        if not active:
+            soonest = min(_cooldown_until(*c) for c in candidates)
+            if soonest > deadline:
+                break  # nothing recovers within our patience
+            time.sleep(max(soonest - now, 0.2) + 0.3)
+            continue
+        for provider, model in active:
+            text, error = _try_model(provider, model, system, user, max_tokens)
+            if text:
+                return text
+            last_error = error
+        if time.time() >= deadline:
+            break
     raise AgentCallError(
         f"Call failed across all candidate models {candidates}: {last_error}"
     )
@@ -169,7 +306,7 @@ def _emit(on_update, event_type, payload):
         on_update(event_type, payload)
 
 
-def run_stage1(agent_key, ticker, data):
+def run_stage1(agent_key, ticker, data, prefer_provider=None):
     sections = "\n".join(f"- {s}" for s in STAGE1_OUTPUT_SPEC[agent_key])
     prompt = STAGE1_PROMPT_TEMPLATE.format(
         ticker=ticker,
@@ -177,7 +314,8 @@ def run_stage1(agent_key, ticker, data):
         sections=sections,
         data=data,
     )
-    return _call(STAGE1_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, STAGE1_MAX_TOKENS)
+    return _call(STAGE1_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, STAGE1_MAX_TOKENS,
+                 prefer_provider=prefer_provider)
 
 
 def run_stage1_all(ticker, data, on_update=None):
@@ -186,8 +324,11 @@ def run_stage1_all(ticker, data, on_update=None):
     land in `on_update` in whatever order finishes first, not AGENTS order."""
     results = {}
     with ThreadPoolExecutor(max_workers=len(AGENTS)) as executor:
+        # Alternate which provider each agent tries first, so nine simultaneous
+        # requests don't all hit one provider's per-minute limit.
         future_to_agent = {
-            executor.submit(run_stage1, agent_key, ticker, data): agent_key for agent_key in AGENTS
+            executor.submit(run_stage1, agent_key, ticker, data, "groq" if i % 2 else None): agent_key
+            for i, agent_key in enumerate(AGENTS)
         }
         for future in as_completed(future_to_agent):
             agent_key = future_to_agent[future]
@@ -203,12 +344,18 @@ def _format_transcript(turns):
     return "\n".join(f"{AGENT_DISPLAY_NAMES[a]}: {t}" for a, t in turns)
 
 
+# Each debate turn re-sends the agent's own first pass as an anchor; the full
+# ~1,400-token text every turn eats Groq's per-minute token budget, and the
+# anchor only needs the reasoning gist plus the Verdict at the tail.
+_OWN_POSITION_CHARS = 1500
+
+
 def run_debate_turn(agent_key, ticker, data, turns, instruction, own_position=None):
     prompt = DEBATE_TURN_TEMPLATE.format(
         agent=AGENT_DISPLAY_NAMES[agent_key],
         ticker=ticker,
         data=data,
-        own_position=own_position or "(not available)",
+        own_position=_condense(own_position, _OWN_POSITION_CHARS) if own_position else "(not available)",
         transcript=_format_transcript(turns),
         instruction=instruction,
     )
@@ -284,19 +431,51 @@ def _parse_cio_verdict(text):
     return text[match.end():].lstrip(), verdict, conviction
 
 
+def _condense(text, limit):
+    """Keeps the head and (mostly) the tail of a first-pass analysis — the
+    Verdict is always its final section, so a plain prefix cut would drop the
+    one part the CIO can't do without."""
+    if len(text) <= limit:
+        return text
+    head = int(limit * 0.35)
+    return text[:head].rstrip() + " [...] " + text[-(limit - head):].lstrip()
+
+
+# Groq's free tier rejects requests over ~7k input tokens/min, so if every
+# Gemini model is overloaded the full CIO prompt (~13k tokens) has nowhere to
+# go. This budget shrinks it enough to fit.
+# How long the full prompt waits on Gemini before falling back to the compact one.
+_CIO_FULL_PROMPT_PATIENCE = 25
+_CIO_COMPACT_STAGE1_CHARS = 1000
+# Leaves the request under Groq's per-minute cap; the six-section memo fits.
+_CIO_COMPACT_MAX_TOKENS = 1900
+_CIO_COMPACT_DATA_CHARS = 3500
+
+
 def run_cio(ticker, data, turns, stage1_analyses):
     system = CIO_SYSTEM_PROMPT.format(ticker=ticker)
-    stage1_text = "\n\n".join(
-        f"--- {AGENT_DISPLAY_NAMES[a]} first pass ---\n{text}"
-        for a, text in stage1_analyses.items()
-    )
-    prompt = CIO_PROMPT_TEMPLATE.format(
-        ticker=ticker,
-        transcript=_format_transcript(turns),
-        stage1_analyses=stage1_text,
-        data=data,
-    )
-    text = _call(CIO_CANDIDATES, system, prompt, CIO_MAX_TOKENS)
+
+    def build(stage1_limit=None, data_limit=None):
+        stage1_text = "\n\n".join(
+            f"--- {AGENT_DISPLAY_NAMES[a]} first pass ---\n"
+            f"{_condense(text, stage1_limit) if stage1_limit else text}"
+            for a, text in stage1_analyses.items()
+        )
+        return CIO_PROMPT_TEMPLATE.format(
+            ticker=ticker,
+            transcript=_format_transcript(turns),
+            stage1_analyses=stage1_text,
+            data=data[:data_limit] if data_limit else data,
+        )
+
+    try:
+        text = _call(CIO_CANDIDATES, system, build(), CIO_MAX_TOKENS, max_wait=_CIO_FULL_PROMPT_PATIENCE)
+    except AgentCallError as exc:
+        log.warning("full CIO prompt failed on every model (%.200s); retrying compact", exc)
+        text = _call(
+            CIO_CANDIDATES, system,
+            build(_CIO_COMPACT_STAGE1_CHARS, _CIO_COMPACT_DATA_CHARS), _CIO_COMPACT_MAX_TOKENS,
+        )
     return _parse_cio_verdict(text)
 
 

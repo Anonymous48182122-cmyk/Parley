@@ -8,6 +8,7 @@ market it came from.
 from data.common import format_for_agents
 from data.india import bse_fetcher
 from data.market_data import fetch_market_data
+from data.peers import fetch_peers
 from data.us import edgar_fetcher
 
 
@@ -45,7 +46,14 @@ def fetch_financials(ticker, market=None):
         except ValueError:
             financials = bse_fetcher.fetch(ticker)
 
-    return _merge_market_data(financials)
+    financials = _merge_market_data(financials)
+    financials["peers"] = fetch_peers(
+        financials["ticker"],
+        financials.get("market"),
+        own_name=financials.get("name"),
+        own_market_cap=financials.get("market_cap"),
+    )
+    return financials
 
 
 def fetch_and_format(ticker, market=None):

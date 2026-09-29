@@ -6,6 +6,7 @@ market — see format_for_agents below.
 """
 
 import json
+import statistics
 import time
 from pathlib import Path
 
@@ -79,6 +80,74 @@ def _fmt(value, suffix=""):
     return f"{value:,}{suffix}"
 
 
+def _compact(value, unit_label):
+    """Short human units for the trend table — full-precision raw figures would
+    burn prompt tokens on digits no analyst reads."""
+    if value is None:
+        return "N/A"
+    if unit_label == "USD":
+        for cutoff, suffix in ((1e9, "B"), (1e6, "M")):
+            if abs(value) >= cutoff:
+                return f"{value / cutoff:,.2f}{suffix}"
+    return f"{value:,.0f}" if abs(value) >= 100 else f"{value:,.1f}"
+
+
+def _year_by_year(annual, unit_label, max_rows=8):
+    """A compact period-by-period table so agents can judge consistency,
+    inflection points and cyclicality — the latest-year snapshot plus one CAGR
+    can't show a business that swung from loss to profit or back."""
+    rows = annual[-max_rows:]
+    if len(rows) < 3:
+        return []
+    out = ["", f"Year-by-year (oldest to latest; {unit_label}):",
+           "Period | Revenue | Rev YoY | Op margin | Net margin | FCF | Diluted EPS"]
+    prev_rev = annual[-max_rows - 1].get("revenue") if len(annual) > max_rows else None
+    for row in rows:
+        rev = row.get("revenue")
+        yoy = None
+        # A trailing-twelve-months row (Screener appends one) overlaps the last
+        # fiscal year, so "growth" against it would be a misleading comparison.
+        if rev is not None and prev_rev and str(row.get("period")).upper() != "TTM":
+            yoy = round(100 * (rev - prev_rev) / abs(prev_rev), 1)
+        prev_rev = rev
+        out.append(
+            f"{row.get('period')} | {_compact(rev, unit_label)} | {_fmt(yoy, '%')} | "
+            f"{_fmt(row.get('operating_margin'), '%')} | {_fmt(row.get('net_margin'), '%')} | "
+            f"{_compact(row.get('fcf'), unit_label)} | {_fmt(row.get('eps_diluted'))}"
+        )
+    return out
+
+
+def _format_peers(peers, own_pe, unit_label):
+    """Peer table for the agent prompt, plus the median peer P/E next to the
+    company's own — the single number that turns "P/E 40" into "expensive
+    versus a peer median of 22"."""
+    if not peers:
+        return []
+    lines = ["", "Peer comparison (same-industry companies of comparable size):"]
+    for peer in peers:
+        parts = []
+        if peer.get("pe") is not None:
+            fwd = f" (fwd {peer['forward_pe']})" if peer.get("forward_pe") is not None else ""
+            parts.append(f"P/E {peer['pe']}{fwd}")
+        cap_unit = "" if unit_label == "USD" else " Cr"
+        parts.append(f"mkt cap {_compact(peer.get('market_cap'), unit_label)}{cap_unit}")
+        for key, label in (
+            ("roce", "ROCE"), ("roe", "ROE"), ("operating_margin", "op margin"),
+            ("revenue_growth", "revenue growth"), ("sales_growth", "latest-qtr sales growth"),
+            ("profit_growth", "latest-qtr profit growth"), ("dividend_yield", "div yield"),
+        ):
+            if peer.get(key) is not None:
+                parts.append(f"{label} {peer[key]}%")
+        lines.append(f"- {peer['name']}: " + ", ".join(parts))
+    peer_pes = [p["pe"] for p in peers if p.get("pe") and p["pe"] > 0]
+    if len(peer_pes) >= 2:
+        median = round(statistics.median(peer_pes), 1)
+        own = f"{own_pe}" if own_pe is not None else "N/A"
+        lines.append(f"Peer median P/E: {median} (this company: {own})")
+    return lines
+
+
 def format_for_agents(data):
     """Render the normalized schema into the text block every agent prompt reads."""
     annual = data.get("annual", [])
@@ -133,6 +202,7 @@ def format_for_agents(data):
             f"{len(annual)} periods):",
             f"- Revenue CAGR: {_fmt(cagr, '%') if cagr is not None else 'N/A'}",
         ]
+        lines += _year_by_year(annual, unit_label)
 
     ratios = data.get("ratios") or {}
     if ratios:
@@ -140,6 +210,9 @@ def format_for_agents(data):
         lines.append("Additional ratios:")
         for key, value in ratios.items():
             lines.append(f"- {key}: {value}")
+
+    own_pe = ratios.get("P/E Ratio (Trailing)", ratios.get("P/E Ratio"))
+    lines += _format_peers(data.get("peers"), own_pe, unit_label)
 
     shareholding = data.get("shareholding") or []
     if shareholding:
