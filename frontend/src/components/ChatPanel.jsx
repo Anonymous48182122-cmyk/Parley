@@ -50,7 +50,7 @@ function PendingBubble({ agentKey }) {
   );
 }
 
-export default function ChatPanel({ ticker, initialChat, ready }) {
+export default function ChatPanel({ ticker, initialChat, ready, agents = AGENT_ORDER }) {
   const [chat, setChat] = useState(initialChat || []);
   const [question, setQuestion] = useState("");
   const [pendingQuestion, setPendingQuestion] = useState("");
@@ -176,7 +176,7 @@ export default function ChatPanel({ ticker, initialChat, ready }) {
             }}
           >
             <option value="all">Whole committee</option>
-            {AGENT_ORDER.map((k) => (
+            {agents.map((k) => (
               <option key={k} value={k}>
                 {AGENT_META[k].name}
               </option>

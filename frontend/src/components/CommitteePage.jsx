@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { AGENT_META, DEBATE_TURN_AGENTS } from "../agentMeta.js";
+import { Link, useLocation, useParams } from "react-router-dom";
+import { AGENT_META } from "../agentMeta.js";
 import { startAnalysis, getAnalysis, clearCache, saveToHistory, getLatestForTicker } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import AgentAvatar from "./AgentAvatar.jsx";
@@ -137,12 +137,16 @@ function TypingIndicator({ agentKey }) {
 
 export default function CommitteePage() {
   const { ticker } = useParams();
+  const location = useLocation();
   const { session } = useAuth();
   const [job, setJob] = useState(null);
   const [fatalError, setFatalError] = useState(null);
   const [crossExams, setCrossExams] = useState({});
   const [previousEntry, setPreviousEntry] = useState(null);
   const pollRef = useRef(null);
+  // From the committee picker on SearchPage — absent on a direct link/refresh,
+  // in which case the backend falls back to its own default committee.
+  const requestedAgents = location.state?.agents;
 
   function handleExamsChange(turn, exams) {
     setCrossExams((prev) => ({ ...prev, [turn]: exams }));
@@ -182,7 +186,7 @@ export default function CommitteePage() {
 
     async function begin() {
       try {
-        const initial = await startAnalysis(ticker);
+        const initial = await startAnalysis(ticker, undefined, requestedAgents);
         if (cancelled) return;
         setJob(initial);
         if (initial.status === "running") {
@@ -198,7 +202,7 @@ export default function CommitteePage() {
       cancelled = true;
       clearInterval(pollRef.current);
     };
-  }, [ticker]);
+  }, [ticker, requestedAgents]);
 
   async function handleRetry() {
     clearInterval(pollRef.current);
@@ -210,7 +214,9 @@ export default function CommitteePage() {
       // best-effort — proceed to re-run regardless
     }
     try {
-      const initial = await startAnalysis(ticker);
+      // Re-run with the same committee this job actually used, not whatever
+      // (possibly stale) navigation state got us here.
+      const initial = await startAnalysis(ticker, undefined, job?.agents || requestedAgents);
       setJob(initial);
       if (initial.status === "running") {
         pollRef.current = setInterval(async () => {
@@ -245,6 +251,12 @@ export default function CommitteePage() {
           </span>
         )}
       </div>
+
+      {job?.agent_warning && (
+        <div style={{ color: "var(--text-dim)", fontSize: "0.82rem", marginBottom: 20 }}>
+          {job.agent_warning}
+        </div>
+      )}
 
       {fatalError && (
         <div className="card fade-in" style={{ borderColor: "var(--danger)", marginBottom: 20 }}>
@@ -317,12 +329,13 @@ export default function CommitteePage() {
                     text={turn.text}
                     initialExams={crossExams[turn.turn] || []}
                     onExamsChange={handleExamsChange}
+                    agents={job.agents}
                   />
                 ))}
                 {job.status === "running" &&
                   job.current_stage === "debate" &&
-                  job.debate.length < DEBATE_TURN_AGENTS.length && (
-                    <TypingIndicator agentKey={DEBATE_TURN_AGENTS[job.debate.length]} />
+                  job.debate.length < (job.turn_plan || []).length && (
+                    <TypingIndicator agentKey={job.turn_plan[job.debate.length]} />
                   )}
               </div>
             </section>
@@ -334,6 +347,7 @@ export default function CommitteePage() {
                 ticker={ticker}
                 initialChat={job.user_chat}
                 ready={job.status !== "error"}
+                agents={job.agents}
               />
             </div>
           )}

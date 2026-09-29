@@ -1,9 +1,14 @@
 """
-Pipeline runner: Stage 1 (independent first pass) -> Stage 2 (12-turn
-free-form debate, plus optional cross-examination round) -> Stage 3 (CIO
-synthesis). Every stage accepts an `on_update(event_type, payload)` callback
-so a caller (the API job store, or a plain CLI script) can observe progress
-turn-by-turn instead of waiting for the whole run to finish.
+Pipeline runner: Stage 1 (independent first pass) -> Stage 2 (free-form
+debate, plus optional cross-examination round) -> Stage 3 (CIO synthesis).
+Every stage accepts an `on_update(event_type, payload)` callback so a caller
+(the API job store, or a plain CLI script) can observe progress turn-by-turn
+instead of waiting for the whole run to finish.
+
+Every stage also accepts `agent_keys` — the caller picks which agents sit on
+the committee for this run (see agents.prompts.AGENTS/DEFAULT_AGENTS); the
+debate turn plan is generated fresh per call from whichever subset is given
+(agents.prompts.build_debate_turn_plan), not a fixed script.
 """
 
 import logging
@@ -22,16 +27,17 @@ from google.genai import types
 
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
-    AGENTS,
+    DEFAULT_AGENTS,
     CIO_PROMPT_TEMPLATE,
     CIO_SYSTEM_PROMPT,
     CROSS_EXAM_TEMPLATE,
-    DEBATE_TURN_PLAN,
     DEBATE_TURN_TEMPLATE,
     STAGE1_OUTPUT_SPEC,
     STAGE1_PROMPT_TEMPLATE,
     SYSTEM_PROMPTS,
     USER_QUESTION_TEMPLATE,
+    build_debate_turn_plan,
+    roster_line,
 )
 
 load_dotenv()
@@ -318,17 +324,19 @@ def run_stage1(agent_key, ticker, data, prefer_provider=None):
                  prefer_provider=prefer_provider)
 
 
-def run_stage1_all(ticker, data, on_update=None):
-    """Runs all 9 independent first-pass analyses concurrently — they don't
-    read each other's output, so there's no reason to serialize them. Results
-    land in `on_update` in whatever order finishes first, not AGENTS order."""
+def run_stage1_all(ticker, data, agent_keys=None, on_update=None):
+    """Runs the selected committee's independent first-pass analyses
+    concurrently — they don't read each other's output, so there's no reason
+    to serialize them. Results land in `on_update` in whatever order finishes
+    first, not agent_keys order."""
+    agent_keys = agent_keys or DEFAULT_AGENTS
     results = {}
-    with ThreadPoolExecutor(max_workers=len(AGENTS)) as executor:
-        # Alternate which provider each agent tries first, so nine simultaneous
-        # requests don't all hit one provider's per-minute limit.
+    with ThreadPoolExecutor(max_workers=len(agent_keys)) as executor:
+        # Alternate which provider each agent tries first, so a big roster's
+        # simultaneous requests don't all hit one provider's per-minute limit.
         future_to_agent = {
             executor.submit(run_stage1, agent_key, ticker, data, "groq" if i % 2 else None): agent_key
-            for i, agent_key in enumerate(AGENTS)
+            for i, agent_key in enumerate(agent_keys)
         }
         for future in as_completed(future_to_agent):
             agent_key = future_to_agent[future]
@@ -350,11 +358,12 @@ def _format_transcript(turns):
 _OWN_POSITION_CHARS = 1500
 
 
-def run_debate_turn(agent_key, ticker, data, turns, instruction, own_position=None):
+def run_debate_turn(agent_key, ticker, data, turns, instruction, roster, own_position=None):
     prompt = DEBATE_TURN_TEMPLATE.format(
         agent=AGENT_DISPLAY_NAMES[agent_key],
         ticker=ticker,
         data=data,
+        roster=roster,
         own_position=_condense(own_position, _OWN_POSITION_CHARS) if own_position else "(not available)",
         transcript=_format_transcript(turns),
         instruction=instruction,
@@ -362,19 +371,26 @@ def run_debate_turn(agent_key, ticker, data, turns, instruction, own_position=No
     return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
 
 
-def run_full_debate(ticker, data, stage1, on_update=None):
+def run_full_debate(ticker, data, stage1, agent_keys=None, on_update=None):
+    agent_keys = agent_keys or DEFAULT_AGENTS
+    roster = roster_line(agent_keys)
+    turn_plan = build_debate_turn_plan(agent_keys)
     turns = []
-    for turn_number, agent_key, instruction in DEBATE_TURN_PLAN:
-        text = run_debate_turn(agent_key, ticker, data, turns, instruction, own_position=stage1.get(agent_key))
+    for turn_number, agent_key, instruction in turn_plan:
+        text = run_debate_turn(
+            agent_key, ticker, data, turns, instruction, roster, own_position=stage1.get(agent_key)
+        )
         turns.append((agent_key, text))
         _emit(on_update, "debate_turn", {"turn": turn_number, "agent": agent_key, "text": text})
     return turns
 
 
-def run_cross_exam(agent_key, target_agent_key, target_statement, ticker, data):
+def run_cross_exam(agent_key, target_agent_key, target_statement, ticker, data, agent_keys=None):
+    roster = roster_line(agent_keys or DEFAULT_AGENTS)
     prompt = CROSS_EXAM_TEMPLATE.format(
         agent=AGENT_DISPLAY_NAMES[agent_key],
         ticker=ticker,
+        roster=roster,
         target_agent=AGENT_DISPLAY_NAMES[target_agent_key],
         target_statement=target_statement,
         data=data,
@@ -382,11 +398,12 @@ def run_cross_exam(agent_key, target_agent_key, target_statement, ticker, data):
     return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
 
 
-def run_user_question(agent_key, ticker, data, turns, question, cio_memo=None):
+def run_user_question(agent_key, ticker, data, turns, question, agent_keys=None, cio_memo=None):
     prompt = USER_QUESTION_TEMPLATE.format(
         agent=AGENT_DISPLAY_NAMES[agent_key],
         ticker=ticker,
         data=data,
+        roster=roster_line(agent_keys or DEFAULT_AGENTS),
         transcript=_format_transcript(turns),
         cio_memo=cio_memo or "(debate still in progress)",
         question=question,
@@ -394,15 +411,17 @@ def run_user_question(agent_key, ticker, data, turns, question, cio_memo=None):
     return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
 
 
-def run_user_question_all(ticker, data, turns, question, cio_memo=None, on_update=None):
-    """Fans a single user question out to every agent concurrently — same
-    pattern as run_stage1_all, since none of these calls depend on each
-    other's answer."""
+def run_user_question_all(ticker, data, turns, question, agent_keys=None, cio_memo=None, on_update=None):
+    """Fans a single user question out to every agent on this job's committee
+    concurrently — same pattern as run_stage1_all, since none of these calls
+    depend on each other's answer."""
+    agent_keys = agent_keys or DEFAULT_AGENTS
     results = {}
-    with ThreadPoolExecutor(max_workers=len(AGENTS)) as executor:
+    with ThreadPoolExecutor(max_workers=len(agent_keys)) as executor:
         future_to_agent = {
-            executor.submit(run_user_question, agent_key, ticker, data, turns, question, cio_memo): agent_key
-            for agent_key in AGENTS
+            executor.submit(run_user_question, agent_key, ticker, data, turns, question, agent_keys, cio_memo):
+                agent_key
+            for agent_key in agent_keys
         }
         for future in as_completed(future_to_agent):
             agent_key = future_to_agent[future]
@@ -479,12 +498,13 @@ def run_cio(ticker, data, turns, stage1_analyses):
     return _parse_cio_verdict(text)
 
 
-def run_committee(ticker, data, on_update=None):
+def run_committee(ticker, data, agent_keys=None, on_update=None):
+    agent_keys = agent_keys or DEFAULT_AGENTS
     _emit(on_update, "stage_start", {"stage": "stage1"})
-    stage1 = run_stage1_all(ticker, data, on_update=on_update)
+    stage1 = run_stage1_all(ticker, data, agent_keys=agent_keys, on_update=on_update)
 
     _emit(on_update, "stage_start", {"stage": "debate"})
-    turns = run_full_debate(ticker, data, stage1, on_update=on_update)
+    turns = run_full_debate(ticker, data, stage1, agent_keys=agent_keys, on_update=on_update)
 
     _emit(on_update, "stage_start", {"stage": "cio"})
     memo, verdict, conviction = run_cio(ticker, data, turns, stage1)

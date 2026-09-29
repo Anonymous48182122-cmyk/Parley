@@ -7,13 +7,13 @@ DELETE /analysis/{ticker}/cache forces re-analysis next time.
 
 import threading
 import time
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from agents.prompts import AGENT_DISPLAY_NAMES, AGENTS
+from agents.prompts import AGENT_DISPLAY_NAMES, AGENT_KIND, AGENTS
 from agents.runner import AgentCallError, run_cross_exam, run_user_question, run_user_question_all
 from backend import jobs
 from backend.history import router as history_router
@@ -49,6 +49,7 @@ def _warm_search_cache():
 class AnalyzeRequest(BaseModel):
     ticker: str
     market: Optional[str] = None  # "US" | "India" | None (auto-detect)
+    agents: Optional[List[str]] = None  # subset of AGENTS; None/invalid -> default committee
 
 
 class CrossExamRequest(BaseModel):
@@ -71,6 +72,9 @@ def _job_response(job):
         "progress": jobs.progress_fraction(job),
         "stage1": job["stage1"],
         "debate": job["debate"],
+        "agents": job.get("agents", []),
+        "turn_plan": job.get("turn_plan", []),
+        "agent_warning": job.get("agent_warning"),
         "user_chat": job.get("user_chat", []),
         "market_data": job.get("market_data"),
         "cio_memo": job.get("cio_memo"),
@@ -87,7 +91,10 @@ def health():
 
 @app.get("/agents")
 def list_agents():
-    return [{"key": key, "name": AGENT_DISPLAY_NAMES[key]} for key in AGENTS]
+    return [
+        {"key": key, "name": AGENT_DISPLAY_NAMES[key], "kind": AGENT_KIND[key]}
+        for key in AGENTS
+    ]
 
 
 @app.get("/search")
@@ -99,7 +106,7 @@ def search(q: str = ""):
 def analyze(req: AnalyzeRequest):
     if not req.ticker or not req.ticker.strip():
         raise HTTPException(400, "ticker is required")
-    job = jobs.start_analysis(req.ticker.strip(), market=req.market)
+    job = jobs.start_analysis(req.ticker.strip(), market=req.market, agents=req.agents)
     return _job_response(job)
 
 
@@ -140,16 +147,23 @@ def ask_committee(ticker: str, req: AskRequest):
 
     question = req.question.strip()
     turns = [(t["agent"], t["text"]) for t in job["debate"]]
+    committee = job.get("agents") or AGENTS
 
     try:
         if req.agent and req.agent != "all":
-            if req.agent not in AGENTS:
-                raise HTTPException(400, "Unknown agent key.")
-            text = run_user_question(req.agent, ticker, job["data_text"], turns, question, job.get("cio_memo"))
+            if req.agent not in committee:
+                raise HTTPException(400, "Unknown agent key, or not on this debate's committee.")
+            text = run_user_question(
+                req.agent, ticker, job["data_text"], turns, question,
+                agent_keys=committee, cio_memo=job.get("cio_memo"),
+            )
             responses = [{"agent": req.agent, "text": text}]
         else:
-            results = run_user_question_all(ticker, job["data_text"], turns, question, job.get("cio_memo"))
-            responses = [{"agent": key, "text": results[key]} for key in AGENTS if key in results]
+            results = run_user_question_all(
+                ticker, job["data_text"], turns, question,
+                agent_keys=committee, cio_memo=job.get("cio_memo"),
+            )
+            responses = [{"agent": key, "text": results[key]} for key in committee if key in results]
     except AgentCallError as exc:
         raise HTTPException(502, str(exc)) from exc
 
@@ -163,10 +177,14 @@ def cross_exam(ticker: str, req: CrossExamRequest):
     job = jobs.get_job(ticker)
     if not job or not job.get("data_text"):
         raise HTTPException(404, "Run analysis for this ticker first.")
-    if req.agent not in AGENTS or req.target_agent not in AGENTS:
-        raise HTTPException(400, "Unknown agent key.")
+    committee = job.get("agents") or AGENTS
+    if req.agent not in committee or req.target_agent not in committee:
+        raise HTTPException(400, "Unknown agent key, or not on this debate's committee.")
     try:
-        text = run_cross_exam(req.agent, req.target_agent, req.target_statement, ticker, job["data_text"])
+        text = run_cross_exam(
+            req.agent, req.target_agent, req.target_statement, ticker, job["data_text"],
+            agent_keys=committee,
+        )
     except AgentCallError as exc:
         raise HTTPException(502, str(exc)) from exc
     return {"agent": req.agent, "text": text}

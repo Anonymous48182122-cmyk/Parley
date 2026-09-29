@@ -11,11 +11,11 @@ async function handle(res) {
   return res.json();
 }
 
-export function startAnalysis(ticker, market) {
+export function startAnalysis(ticker, market, agents) {
   return fetch(`${BASE}/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ticker, market: market || null }),
+    body: JSON.stringify({ ticker, market: market || null, agents: agents || null }),
   }).then(handle);
 }
 

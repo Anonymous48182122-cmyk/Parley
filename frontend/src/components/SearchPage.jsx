@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AGENT_ORDER, AGENT_META } from "../agentMeta.js";
-import AgentAvatar from "./AgentAvatar.jsx";
+import { DEFAULT_AGENTS, MIN_AGENTS } from "../agentMeta.js";
+import CommitteePicker from "./CommitteePicker.jsx";
 import InstallAppButton from "./InstallAppButton.jsx";
 import TickerSearchBox from "./TickerSearchBox.jsx";
 
@@ -13,20 +14,43 @@ const QUICK_PICKS = [
   { ticker: "URBANCO", market: "India" },
 ];
 
+const STORAGE_KEY = "parley.committee";
+
+function loadSavedCommittee() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return new Set(DEFAULT_AGENTS);
+    const keys = JSON.parse(raw);
+    return Array.isArray(keys) && keys.length >= MIN_AGENTS ? new Set(keys) : new Set(DEFAULT_AGENTS);
+  } catch {
+    return new Set(DEFAULT_AGENTS);
+  }
+}
+
 export default function SearchPage() {
   const navigate = useNavigate();
+  const [selected, setSelected] = useState(loadSavedCommittee);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected]));
+    } catch {
+      // best-effort convenience only — a blocked/private-mode storage write
+      // just means the next visit falls back to the default committee
+    }
+  }, [selected]);
 
   function goToTicker(value) {
     const clean = value.trim().toUpperCase();
-    if (!clean) return;
-    navigate(`/analysis/${encodeURIComponent(clean)}`);
+    if (!clean || selected.size < MIN_AGENTS) return;
+    navigate(`/analysis/${encodeURIComponent(clean)}`, { state: { agents: [...selected] } });
   }
 
   return (
     <div className="container">
       <div style={{ textAlign: "center", marginTop: 32, marginBottom: 44 }}>
         <div className="pill" style={{ marginBottom: 24 }}>
-          Nine frameworks · One live debate
+          Your committee · One live debate
         </div>
         <h1 style={{ fontSize: "clamp(2rem, 9vw, 3.1rem)", marginBottom: 16, lineHeight: 1.05 }}>
           Parley
@@ -40,9 +64,9 @@ export default function SearchPage() {
             lineHeight: 1.6,
           }}
         >
-          Pick a stock. Watch nine legendary investor frameworks argue about it in real
-          time, then read a CIO memo that keeps the disagreement instead of averaging it
-          away.
+          Pick a stock and pick your committee. Watch legendary investor frameworks argue
+          about it in real time, then read a CIO memo that keeps the disagreement instead
+          of averaging it away.
         </p>
       </div>
 
@@ -52,11 +76,12 @@ export default function SearchPage() {
 
       <TickerSearchBox onSelect={(ticker) => goToTicker(ticker)} />
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 64, justifyContent: "center" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 48, justifyContent: "center" }}>
         {QUICK_PICKS.map((pick) => (
           <button
             key={pick.ticker}
             className="button-secondary ticker"
+            disabled={selected.size < MIN_AGENTS}
             onClick={() => goToTicker(pick.ticker)}
           >
             {pick.ticker}
@@ -64,48 +89,12 @@ export default function SearchPage() {
         ))}
       </div>
 
-      <h2
-        style={{
-          fontSize: "0.8rem",
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          color: "var(--text-faint)",
-          marginBottom: 18,
-          textAlign: "center",
-        }}
-      >
-        The Committee
-      </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {AGENT_ORDER.map((key, i) => (
-          <div
-            key={key}
-            className="card fade-in"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              padding: "16px 18px",
-              animationDelay: `${i * 0.04}s`,
-              animationFillMode: "backwards",
-            }}
-          >
-            <AgentAvatar agentKey={key} size="lg" />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{AGENT_META[key].name}</div>
-              <div style={{ color: "var(--text-dim)", fontSize: "0.8rem" }}>
-                {AGENT_META[key].role}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <CommitteePicker
+        selected={selected}
+        onChange={setSelected}
+        onReset={() => setSelected(new Set(DEFAULT_AGENTS))}
+        defaultAgents={DEFAULT_AGENTS}
+      />
     </div>
   );
 }

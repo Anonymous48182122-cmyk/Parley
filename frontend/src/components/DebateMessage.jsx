@@ -27,10 +27,11 @@ export default function DebateMessage({
   allowCrossExam = true,
   initialExams = [],
   onExamsChange,
+  agents = AGENT_ORDER,
 }) {
   const [examOpen, setExamOpen] = useState(false);
   const [examiner, setExaminer] = useState(
-    AGENT_ORDER.find((k) => k !== agentKey) || AGENT_ORDER[0]
+    agents.find((k) => k !== agentKey) || agents[0]
   );
   const [exams, setExams] = useState(initialExams);
   const [asking, setAsking] = useState(false);
@@ -91,7 +92,7 @@ export default function DebateMessage({
                 fontSize: "0.85rem",
               }}
             >
-              {AGENT_ORDER.filter((k) => k !== agentKey).map((k) => (
+              {agents.filter((k) => k !== agentKey).map((k) => (
                 <option key={k} value={k}>
                   {AGENT_META[k].name}
                 </option>

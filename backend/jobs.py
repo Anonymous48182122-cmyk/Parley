@@ -9,13 +9,28 @@ import json
 import threading
 import time
 
-from agents.prompts import AGENTS, DEBATE_TURN_PLAN
+from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
 from agents.runner import AgentCallError, run_committee
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
 
 ANALYSIS_TTL_HOURS = 48
-TOTAL_STEPS = len(AGENTS) + len(DEBATE_TURN_PLAN) + 1  # stage1 + debate + CIO
+
+
+def normalize_agents(agent_keys):
+    """Validates a requested committee against the known roster, falling back
+    to the default 9 on anything unusable (empty, unknown keys, too few)
+    rather than 400ing — a bad/stale agent list shouldn't block the whole
+    analysis. Returns (agent_keys, warning_or_None)."""
+    if not agent_keys:
+        return DEFAULT_AGENTS, None
+    known = [key for key in agent_keys if key in AGENTS]
+    # de-dupe while preserving the user's chosen order
+    seen = set()
+    known = [key for key in known if not (key in seen or seen.add(key))]
+    if len(known) < MIN_AGENTS:
+        return DEFAULT_AGENTS, f"Need at least {MIN_AGENTS} valid agents; using the default committee."
+    return known, None
 
 _jobs = {}
 _lock = threading.Lock()
@@ -73,10 +88,15 @@ def clear_cache(ticker):
         _jobs.pop(ticker_key, None)
 
 
-def _new_job(ticker_key, market):
+def _new_job(ticker_key, market, agent_keys):
     return {
         "ticker": ticker_key,
         "market": market,
+        "agents": agent_keys,
+        # The debate's actual speaking order for this roster — the frontend's
+        # "X is weighing in" indicator reads this instead of assuming a fixed
+        # script, since the turn plan is generated fresh per roster.
+        "turn_plan": [agent_key for _, agent_key, _ in build_debate_turn_plan(agent_keys)],
         "status": "running",
         "data_text": None,
         "market_data": None,
@@ -93,24 +113,30 @@ def _new_job(ticker_key, market):
     }
 
 
-def start_analysis(ticker, market=None, force=False):
+def start_analysis(ticker, market=None, agents=None, force=False):
     ticker_key = ticker.upper()
+    agent_keys, agent_warning = normalize_agents(agents)
 
     if not force:
         cached = _load_cached(ticker_key)
-        if cached:
+        # Only reuse the cache if it's for the same committee — otherwise a
+        # different agent selection would silently return someone else's
+        # (or an earlier) debate instead of actually running the one asked for.
+        if cached and cached.get("agents") == agent_keys:
             with _lock:
                 _jobs[ticker_key] = cached
             return cached
 
     with _lock:
         existing = _jobs.get(ticker_key)
-        if existing and existing["status"] == "running":
+        if existing and existing["status"] == "running" and existing.get("agents") == agent_keys:
             return existing
-        job = _new_job(ticker_key, market)
+        job = _new_job(ticker_key, market, agent_keys)
+        if agent_warning:
+            job["agent_warning"] = agent_warning
         _jobs[ticker_key] = job
 
-    thread = threading.Thread(target=_run_job, args=(ticker_key, market), daemon=True)
+    thread = threading.Thread(target=_run_job, args=(ticker_key, market, agent_keys), daemon=True)
     thread.start()
     return job
 
@@ -130,7 +156,7 @@ def _update(ticker_key, event_type, payload):
             job["current_stage"] = payload["stage"]
 
 
-def _run_job(ticker_key, market):
+def _run_job(ticker_key, market, agent_keys):
     try:
         financials = fetch_financials(ticker_key, market=market)
         data_text = format_for_agents(financials)
@@ -169,7 +195,7 @@ def _run_job(ticker_key, market):
         _update(ticker_key, event_type, payload)
 
     try:
-        run_committee(ticker_key, data_text, on_update=on_update)
+        run_committee(ticker_key, data_text, agent_keys=agent_keys, on_update=on_update)
         with _lock:
             job = _jobs[ticker_key]
             job["status"] = "complete"
@@ -190,5 +216,6 @@ def _run_job(ticker_key, market):
 
 
 def progress_fraction(job):
+    total_steps = len(job.get("agents") or DEFAULT_AGENTS) + len(job.get("turn_plan") or []) + 1
     completed = len(job["stage1"]) + len(job["debate"]) + (1 if job.get("cio_memo") else 0)
-    return round(completed / TOTAL_STEPS, 3)
+    return round(completed / total_steps, 3)
