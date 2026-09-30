@@ -100,6 +100,13 @@ button {
 
 .card-interactive {
   cursor: pointer;
+  /* Native <button>s (CommitteePicker's cards) get the browser's default
+     button text color instead of inheriting the page's --text like a <div>
+     would — same bug/fix as .committee-chip. Harmless no-op on the <div>
+     usages (HistoryPage), which already inherit color naturally. */
+  color: inherit;
+  font-family: inherit;
+  text-align: inherit;
 }
 
 .card-interactive:hover {
