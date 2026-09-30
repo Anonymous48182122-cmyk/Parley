@@ -1,6 +1,16 @@
 import { AGENT_META, AGENT_ORDER, MIN_AGENTS } from "../agentMeta.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 
+// Mirrors agents/prompts.py's _rounds_for — smaller committees get more
+// back-and-forth per agent, larger ones stay to one turn each. Shown so
+// picking 4 agents vs 9 has a visible tradeoff before you commit, not just
+// after the debate is already running.
+function roundsFor(n) {
+  if (n <= 4) return 3;
+  if (n <= 6) return 2;
+  return 1;
+}
+
 // Shared by SearchPage (to build the roster before starting) — a plain
 // checkbox grid grouped into the two AGENT_META "kind"s, since mixing real
 // investors and the fictional framework roles in one undifferentiated list
@@ -114,8 +124,9 @@ export default function CommitteePicker({ selected, onChange, onReset, defaultAg
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: "0.78rem", color: "var(--text-faint)" }}>
-            {selected.size} selected
-            {selected.size < MIN_AGENTS ? ` — pick at least ${MIN_AGENTS}` : ""}
+            {selected.size < MIN_AGENTS
+              ? `${selected.size} selected — pick at least ${MIN_AGENTS}`
+              : `${selected.size} selected → ${selected.size * roundsFor(selected.size)} debate turns`}
           </span>
           {!isDefault && (
             <button
