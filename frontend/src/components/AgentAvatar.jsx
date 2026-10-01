@@ -8,7 +8,10 @@ const SIZE_PX = { sm: 28, md: 34, lg: 56 };
 // Real investors get a commissioned illustrated portrait (frontend/public/avatars/*.webp)
 // instead of a bot avatar — the Historian, Future Agent, Devil's Advocate, and CIO
 // aren't real people, so they keep the procedurally generated bot.
-const PORTRAIT_AGENTS = new Set(["buffett", "munger", "lynch", "jhunjhunwala", "simons", "ackman"]);
+const PORTRAIT_AGENTS = new Set([
+  "buffett", "munger", "lynch", "jhunjhunwala", "simons", "ackman",
+  "graham", "marks", "pabrai", "burry", "sperandeo", "damani",
+]);
 
 // Procedurally generated "AI bot" avatars (DiceBear, MIT-licensed, fully
 // local/offline generation — no network call, no per-user tracking) rather
