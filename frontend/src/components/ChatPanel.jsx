@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AGENT_META, AGENT_ORDER, agentColor, splitMentions } from "../agentMeta.js";
 import { askCommittee } from "../api.js";
 import AgentAvatar from "./AgentAvatar.jsx";
+import BioAvatar from "./BioAvatar.jsx";
 
 function Highlighted({ text }) {
   return (
@@ -24,7 +25,7 @@ function AnswerBubble({ response }) {
   const color = agentColor(response.agent);
   return (
     <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-      <AgentAvatar agentKey={response.agent} size="md" style={{ marginTop: 2 }} />
+      <BioAvatar agentKey={response.agent} size="md" style={{ marginTop: 2 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ color, fontWeight: 600, fontSize: "0.9rem" }}>{meta?.name ?? response.agent}</span>
         <div style={{ fontSize: "0.92rem", lineHeight: 1.55, marginTop: 2 }}>

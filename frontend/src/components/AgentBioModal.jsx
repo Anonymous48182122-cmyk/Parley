@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AGENT_META, agentColor } from "../agentMeta.js";
 import { AGENT_BIOS } from "../agentBios.js";
 import AgentAvatar from "./AgentAvatar.jsx";
@@ -20,9 +21,14 @@ export default function AgentBioModal({ agentKey, onClose }) {
   const bio = AGENT_BIOS[agentKey];
   const color = agentColor(agentKey);
 
-  return (
+  // Portaled to <body>: this opens from inside animated/transformed cards, and
+  // position: fixed misplaces itself inside any transformed ancestor.
+  return createPortal(
     <div
-      onClick={onClose}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
       style={{
         position: "fixed",
         inset: 0,
@@ -75,6 +81,7 @@ export default function AgentBioModal({ agentKey, onClose }) {
           {bio}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

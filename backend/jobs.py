@@ -116,20 +116,32 @@ def _new_job(ticker_key, market, agent_keys):
 def start_analysis(ticker, market=None, agents=None, force=False):
     ticker_key = ticker.upper()
     agent_keys, agent_warning = normalize_agents(agents)
+    # No committee specified (a direct link, or a page refresh that lost the
+    # picker's router state) means "whatever is already running or cached for
+    # this ticker" — not "the default nine". Treating it as the default would
+    # replace a user's custom-committee debate with a fresh default one every
+    # time they refreshed the page.
+    unspecified = not agents
+
+    def same_committee(job):
+        return unspecified or job.get("agents") == agent_keys
 
     if not force:
         cached = _load_cached(ticker_key)
-        # Only reuse the cache if it's for the same committee — otherwise a
-        # different agent selection would silently return someone else's
-        # (or an earlier) debate instead of actually running the one asked for.
-        if cached and cached.get("agents") == agent_keys:
+        # Otherwise only reuse the cache for the same committee — a different
+        # explicit selection must actually run the debate it asked for rather
+        # than silently returning an earlier one.
+        if cached and same_committee(cached):
+            # Caches written before committee selection existed have no
+            # roster; their first-pass keys are the committee that ran.
+            cached.setdefault("agents", list(cached.get("stage1", {})))
             with _lock:
                 _jobs[ticker_key] = cached
             return cached
 
     with _lock:
         existing = _jobs.get(ticker_key)
-        if existing and existing["status"] == "running" and existing.get("agents") == agent_keys:
+        if existing and existing["status"] == "running" and same_committee(existing):
             return existing
         job = _new_job(ticker_key, market, agent_keys)
         if agent_warning:

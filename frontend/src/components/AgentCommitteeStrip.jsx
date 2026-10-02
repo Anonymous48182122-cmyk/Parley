@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AGENT_ORDER, AGENT_META, agentColor } from "../agentMeta.js";
 import AgentAvatar from "./AgentAvatar.jsx";
+import BioAvatar from "./BioAvatar.jsx";
 import FormattedText from "./FormattedText.jsx";
 
 // Collapses Stage 1's 9 independent write-ups into one compact chip row —
@@ -24,7 +25,7 @@ export default function AgentCommitteeStrip({ stage1 }) {
               expanded === key ? "committee-chip committee-chip--active" : "committee-chip"
             }
           >
-            <AgentAvatar agentKey={key} size="sm" />
+            <BioAvatar agentKey={key} size="sm" />
             <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{AGENT_META[key].name}</span>
           </button>
         ))}
@@ -40,7 +41,7 @@ export default function AgentCommitteeStrip({ stage1 }) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-            <AgentAvatar agentKey={expanded} size="md" />
+            <BioAvatar agentKey={expanded} size="md" />
             <div>
               <div style={{ fontWeight: 600 }}>{AGENT_META[expanded].name}</div>
               <div style={{ color: "var(--text-dim)", fontSize: "0.82rem" }}>

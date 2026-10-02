@@ -4,6 +4,7 @@ import { AGENT_META, agentColor, splitMentions } from "../agentMeta.js";
 import { useAuth } from "../AuthContext.jsx";
 import { getHistoryEntry } from "../api.js";
 import AgentAvatar from "./AgentAvatar.jsx";
+import BioAvatar from "./BioAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
@@ -50,7 +51,7 @@ function ChatReplay({ chat }) {
               const meta = AGENT_META[r.agent];
               return (
                 <div key={j} style={{ display: "flex", gap: 12, marginTop: 12 }}>
-                  <AgentAvatar agentKey={r.agent} size="md" style={{ marginTop: 2 }} />
+                  <BioAvatar agentKey={r.agent} size="md" style={{ marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ color: agentColor(r.agent), fontWeight: 600, fontSize: "0.9rem" }}>
                       {meta?.name ?? r.agent}

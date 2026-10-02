@@ -2,6 +2,7 @@ import { useState } from "react";
 import { AGENT_META, AGENT_ORDER, agentColor, splitMentions } from "../agentMeta.js";
 import { crossExam } from "../api.js";
 import AgentAvatar from "./AgentAvatar.jsx";
+import BioAvatar from "./BioAvatar.jsx";
 
 function Highlighted({ text }) {
   return (
@@ -58,7 +59,7 @@ export default function DebateMessage({
 
   return (
     <div className="fade-in" style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-      <AgentAvatar agentKey={agentKey} size="md" style={{ marginTop: 2 }} />
+      <BioAvatar agentKey={agentKey} size="md" style={{ marginTop: 2 }} />
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
           <span style={{ color, fontWeight: 600 }}>{meta.name}</span>
