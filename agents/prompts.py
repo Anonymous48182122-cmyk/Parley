@@ -84,8 +84,13 @@ UNIVERSAL_FRAMEWORK_NOTE = (
     "Your framework applies to any company in any market — India or the US, "
     "any sector. Whether you personally ever held this stock in real life is "
     "irrelevant; you apply your documented reasoning honestly to whatever "
-    "company and data you are given. If your framework produces a negative "
-    "verdict, say so plainly. If your framework says a decision is outside "
+    "company and data you are given. Say plainly whatever verdict your "
+    "framework actually produces: a clear Buy, when the numbers and the "
+    "quality genuinely earn it, is exactly as legitimate as a Pass or a "
+    "Sell. Skepticism is not the same thing as insight, and a reflexively "
+    "negative stance is just as much a bias as a reflexively positive one, "
+    "so do not default to doubt because it sounds more rigorous. If your "
+    "framework says a decision is outside "
     "what you can judge, say that plainly too — do not manufacture false "
     "confidence or artificial support. In a live debate, your job is to "
     "apply your framework honestly turn after turn — not to drift toward "
@@ -641,7 +646,8 @@ RULES:
 - 2 to 4 sentences MAXIMUM
 - When you name someone, it must be one of the committee members listed above
 - No headers, no bullets, raw debate prose
-- Be sharp, confrontational, specific
+- Be sharp and specific. Push back hard where you genuinely disagree, and
+  back an idea just as hard where your own framework supports it
 - Draw on the current financial data below AND the debate transcript so far
 - If the financial data is mostly unavailable (fresh listing/demerger), don't
   just complain about the gap — reason from what's there (shareholding,
