@@ -350,18 +350,34 @@ def run_stage1_all(ticker, data, agent_keys=None, on_update=None):
     return results
 
 
-def _format_transcript(turns, per_turn_limit=None):
+def _format_transcript(turns, per_turn_limit=None, keep_recent=None):
+    """per_turn_limit clips each turn's text. With keep_recent, only the turns
+    older than the last `keep_recent` are clipped: late in a long debate the
+    recent exchange is what an agent is answering, while the early turns only
+    need their gist, and the full transcript plus a richer data block no longer
+    fits Groq's request cap."""
     if not turns:
         return "(debate has not started yet)"
-    def clip(t):
-        return t if not per_turn_limit or len(t) <= per_turn_limit else t[:per_turn_limit].rstrip() + "..."
-    return "\n".join(f"{AGENT_DISPLAY_NAMES[a]}: {clip(t)}" for a, t in turns)
+    older = len(turns) - keep_recent if keep_recent else None
+
+    def clip(i, t):
+        if not per_turn_limit or len(t) <= per_turn_limit:
+            return t
+        if older is not None and i >= older:
+            return t
+        return t[:per_turn_limit].rstrip() + "..."
+
+    return "\n".join(f"{AGENT_DISPLAY_NAMES[a]}: {clip(i, t)}" for i, (a, t) in enumerate(turns))
 
 
 # Each debate turn re-sends the agent's own first pass as an anchor; the full
 # ~1,400-token text every turn eats Groq's per-minute token budget, and the
 # anchor only needs the reasoning gist plus the Verdict at the tail.
 _OWN_POSITION_CHARS = 1500
+# In a debate or live chat, turns older than the last few are clipped to their
+# gist so the prompt still fits Groq's cap now that the data block is richer.
+_OLD_TURN_CHARS = 380
+_RECENT_TURNS_FULL = 6
 
 
 def run_debate_turn(agent_key, ticker, data, turns, instruction, roster, own_position=None):
@@ -371,7 +387,7 @@ def run_debate_turn(agent_key, ticker, data, turns, instruction, roster, own_pos
         data=data,
         roster=roster,
         own_position=_condense(own_position, _OWN_POSITION_CHARS) if own_position else "(not available)",
-        transcript=_format_transcript(turns),
+        transcript=_format_transcript(turns, per_turn_limit=_OLD_TURN_CHARS, keep_recent=_RECENT_TURNS_FULL),
         instruction=instruction,
     )
     return _call(DEBATE_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, DEBATE_MAX_TOKENS)
@@ -410,7 +426,7 @@ def run_user_question(agent_key, ticker, data, turns, question, agent_keys=None,
         ticker=ticker,
         data=data,
         roster=roster_line(agent_keys or DEFAULT_AGENTS),
-        transcript=_format_transcript(turns),
+        transcript=_format_transcript(turns, per_turn_limit=_OLD_TURN_CHARS, keep_recent=_RECENT_TURNS_FULL),
         cio_memo=cio_memo or "(debate still in progress)",
         question=question,
     )

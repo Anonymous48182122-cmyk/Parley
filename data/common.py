@@ -10,6 +10,8 @@ import statistics
 import time
 from pathlib import Path
 
+from data.technicals import describe_technicals
+
 CACHE_DIR = Path(__file__).parent / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
@@ -204,6 +206,33 @@ def format_for_agents(data):
         "(N/A means the figure was not available from the data source. It never means zero.)",
     ]
 
+    if data.get("business_summary"):
+        lines[2:2] = ["", "Business: " + data["business_summary"]]
+
+    ttm = data.get("ttm")
+    if ttm:
+        lines += [
+            "",
+            f"Trailing twelve months (TTM, income statement only, {unit_label}):",
+            f"- Revenue {_fmt(ttm.get('revenue'))}, operating income {_fmt(ttm.get('operating_income'))} "
+            f"(margin {_fmt(ttm.get('operating_margin'), '%')}), net income {_fmt(ttm.get('net_income'))} "
+            f"(margin {_fmt(ttm.get('net_margin'), '%')}), EPS {_fmt(ttm.get('eps_diluted'))}",
+        ]
+
+    detail = data.get("balance_detail") or {}
+    if detail.get("balance_sheet"):
+        lines += [
+            "",
+            f"Balance sheet detail ({detail.get('period')}, {unit_label}):",
+            "- " + "; ".join(f"{k} {_fmt(v)}" for k, v in detail["balance_sheet"].items()),
+        ]
+    if detail.get("cash_flow"):
+        lines += [
+            "",
+            f"Cash flow detail (same period, {unit_label}; CFO/OP is the percent of operating profit that became cash):",
+            "- " + "; ".join(f"{k} {_fmt(v)}" for k, v in detail["cash_flow"].items()),
+        ]
+
     if len(annual) > 1:
         first = annual[0]
         years = len(annual) - 1
@@ -217,7 +246,23 @@ def format_for_agents(data):
             f"{len(annual)} periods):",
             f"- Revenue CAGR: {_fmt(cagr, '%') if cagr is not None else 'N/A'}",
         ]
-        lines += _year_by_year(annual, unit_label)
+        lines += _year_by_year(annual + ([ttm] if ttm else []), unit_label)
+
+    quarters = data.get("quarters") or []
+    if quarters:
+        lines += ["", f"Recent quarters ({unit_label}):", "Quarter | Sales | Op profit | OPM % | Net profit | EPS"]
+        for q in quarters:
+            lines.append(
+                f"{q.get('period')} | {_compact(q.get('sales'), unit_label)} | "
+                f"{_compact(q.get('operating_profit'), unit_label)} | {_fmt(q.get('opm'), '%')} | "
+                f"{_compact(q.get('net_profit'), unit_label)} | {_fmt(q.get('eps'))}"
+            )
+
+    growth = data.get("growth") or {}
+    if growth:
+        lines += ["", "Growth and returns:"]
+        for title, vals in growth.items():
+            lines.append(f"- {title}: " + ", ".join(f"{k} {v}%" for k, v in vals.items()))
 
     ratios = data.get("ratios") or {}
     if ratios:
@@ -228,6 +273,13 @@ def format_for_agents(data):
 
     own_pe = ratios.get("P/E Ratio (Trailing)", ratios.get("P/E Ratio"))
     lines += _format_peers(data.get("peers"), own_pe, unit_label)
+
+    lines += describe_technicals(data.get("technicals"), currency)
+
+    pros, cons = data.get("pros") or [], data.get("cons") or []
+    if pros or cons:
+        lines += ["", "Screener's automated checklist:"]
+        lines += [f"- Pro: {x}" for x in pros[:3]] + [f"- Con: {x}" for x in cons[:3]]
 
     shareholding = data.get("shareholding") or []
     if shareholding:

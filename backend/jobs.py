@@ -187,6 +187,7 @@ def _run_job(ticker_key, market, agent_keys):
                 "unit_label": financials.get("unit_label"),
                 "sector": financials.get("sector"),
                 "ratios": financials.get("ratios", {}),
+                "technicals": financials.get("technicals") or {},
             }
     except ValueError as exc:
         with _lock:

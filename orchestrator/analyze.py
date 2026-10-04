@@ -30,6 +30,12 @@ def _merge_market_data(financials):
     if financials.get("sector") in (None, "N/A") and market_data.get("sector"):
         financials["sector"] = market_data["sector"]
 
+    # Price action and the business description: keep whatever the primary source
+    # already supplied (Screener's own series for India), else use Yahoo's.
+    for key in ("technicals", "business_summary"):
+        if not financials.get(key) and market_data.get(key):
+            financials[key] = market_data[key]
+
     merged_ratios = {**market_data.get("ratios", {}), **(financials.get("ratios") or {})}
     financials["ratios"] = merged_ratios
     return financials
