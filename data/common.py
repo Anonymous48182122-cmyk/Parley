@@ -156,6 +156,20 @@ def format_for_agents(data):
     currency = data.get("currency", "")
     unit_label = data.get("unit_label", currency)
 
+    # SEC's total-debt tag is missing for some filers (e.g. Plug Power), which
+    # rendered as "N/A" right next to a debt-to-equity ratio of 176% — and an
+    # agent read the N/A as "no debt". When debt isn't directly reported but a
+    # debt-to-equity ratio and equity are, derive the figure and say so.
+    total_debt_text = _fmt(latest.get("total_debt"))
+    if latest.get("total_debt") is None:
+        de = (data.get("ratios") or {}).get("Debt to Equity")
+        equity = latest.get("total_equity")
+        if isinstance(de, (int, float)) and equity:
+            total_debt_text = (
+                f"~{_fmt(round(equity * de / 100))} (derived from debt-to-equity "
+                f"{de}% x total equity; not directly reported)"
+            )
+
     lines = [
         f"Company: {data.get('name', data['ticker'])} ({data['ticker']}), "
         f"{data.get('market', '')} listed, {data.get('sector', 'Sector N/A')}",
@@ -178,7 +192,7 @@ def format_for_agents(data):
         "Balance sheet:",
         f"- Total assets: {_fmt(latest.get('total_assets'))}",
         f"- Total equity: {_fmt(latest.get('total_equity'))}",
-        f"- Total debt: {_fmt(latest.get('total_debt'))}",
+        f"- Total debt: {total_debt_text}",
         f"- Cash & equivalents: {_fmt(latest.get('cash'))}",
         "",
         "Cash flow:",
@@ -187,6 +201,7 @@ def format_for_agents(data):
         f"- Free cash flow: {_fmt(latest.get('fcf'))}",
         f"- Dividends paid: {_fmt(latest.get('dividends'))}",
         f"- Approx. ROIC: {_fmt(latest.get('roic_approx'), '%')}",
+        "(N/A means the figure was not available from the data source. It never means zero.)",
     ]
 
     if len(annual) > 1:

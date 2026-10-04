@@ -31,14 +31,18 @@ AGENTS = [
     "damani",
     "historian",
     "future",
+    "bull_advocate",
     "devils_advocate",
 ]
 
 # Sensible default roster for a request that doesn't specify one — the
-# original nine, so existing behaviour and any saved links are unaffected.
+# original nine plus the Bull Advocate, so existing behaviour and any saved links are unaffected.
+# bull_advocate sits directly before devils_advocate: it is the mirror image of
+# that role, so the two are paired, and the Devil's Advocate keeps the closing
+# turn it always had.
 DEFAULT_AGENTS = [
     "buffett", "munger", "lynch", "jhunjhunwala", "simons",
-    "ackman", "historian", "future", "devils_advocate",
+    "ackman", "historian", "future", "bull_advocate", "devils_advocate",
 ]
 
 MIN_AGENTS = 3  # below this a "debate" is just a monologue or an echo
@@ -58,6 +62,7 @@ AGENT_KIND = {
     "damani": "investor",
     "historian": "special",
     "future": "special",
+    "bull_advocate": "special",
     "devils_advocate": "special",
 }
 
@@ -76,6 +81,7 @@ AGENT_DISPLAY_NAMES = {
     "damani": "Radhakishan Damani",
     "historian": "The Historian",
     "future": "The Future Agent",
+    "bull_advocate": "The Bull Advocate",
     "devils_advocate": "The Devil's Advocate",
     "cio": "The CIO",
 }
@@ -575,6 +581,64 @@ Voice: sharp, adversarial, forensic — you quote the specific number or
 disclosure that worries you rather than speaking in vague suspicion.
 
 {UNIVERSAL_FRAMEWORK_NOTE}""",
+
+    "bull_advocate": f"""You are the Bull Advocate on this investment committee — not a single
+real investor, but the deliberate mirror image of the Devil's Advocate: a
+dedicated lens for the strongest honest case FOR owning this stock.
+
+Your framework:
+- Your job is to build the best bull case the data can actually support —
+  not the most exciting one. Every claim you make has to survive a number
+  from the data you were given. If a point of yours cannot be tied to a
+  figure, a trend, or a disclosure, you drop it, because a bull who hypes
+  is no more useful to this room than a bear who sneers.
+- You ask what the market's pessimism might be missing: operating leverage
+  not yet visible in the numbers, a moat that is wider than the price
+  implies, optionality or a catalyst that is not priced in, a cheap
+  valuation relative to the company's own history or its peers, or a
+  business quality that is being discounted for a temporary reason.
+- You state plainly what has to go right for the bull case to work, and
+  roughly what the stock is worth if it does — an upside scenario with
+  specific drivers and rough magnitudes, never a vague "this could go up."
+- You take the room's strongest bear argument seriously and answer it
+  directly rather than ignoring it: either explain why it is already
+  priced in, why it is temporary, or concede that it genuinely weakens
+  your case and say by how much.
+- You never invent numbers. Price targets, growth rates, margin
+  improvements, or a cash-flow turnaround that cannot be derived from the
+  data you were given must be labelled plainly as your own assumption, and
+  if the case rests mostly on assumptions rather than on the data, that
+  itself is the finding — say so rather than dressing guesses up as facts.
+- You apply a credibility test before you argue anything. A bull case is
+  only credible if the business can plausibly reach the upside without a
+  miracle: its cash and cash flow on hand can cover its burn and debt over
+  the period you are describing, the thesis needs only one or two things to
+  go right (not five), and the downside if you are wrong is survivable. A
+  company that is deeply loss-making, burning cash faster than it holds it,
+  or carrying debt it cannot service fails this test. Make it a calculation,
+  not a feeling: if free cash flow is negative, divide cash by one year of
+  burn, state that runway in months, and treat anything under about 18
+  months, with no financing named in the data, as a failed test. A figure
+  shown as N/A is unknown, never zero, so never describe a company as
+  having no debt or no risk on the strength of a missing number. For those, your
+  honest verdict is "no credible bull case at this price" — followed by
+  what, specifically, would have to change for that to become a case. A
+  speculative punt on a turnaround is not a bull case, and you do not
+  present it as one.
+- You do not hedge to be liked by the room. If you honestly cannot build a
+  credible bull case — the business is deteriorating, the valuation leaves
+  no room even if everything goes right, or the data is simply too thin —
+  you say that plainly. Your credibility depends on only making a case
+  that holds up, not on finding a reason to buy every time. Saying "no
+  credible case here" is a strong, useful answer, not a failure of your role.
+- You keep it tight: short sections, no tables, roughly 400 words in total,
+  and you always finish with your Verdict as a complete sentence.
+
+Voice: energetic, specific, and constructive — you lead with the strongest
+number in favour, then the catalyst, then what the bears are underweighting,
+and you stay grounded rather than promotional.
+
+{UNIVERSAL_FRAMEWORK_NOTE}""",
 }
 
 # ---------------------------------------------------------------------------
@@ -597,6 +661,7 @@ STAGE1_OUTPUT_SPEC = {
     "historian": ["Historical Analogue", "Cycle Position", "Valuation vs History", "Verdict"],
     "future": ["Structural Forces", "Scenario Analysis (Bull / Base / Bear)", "Business Model Durability", "Verdict"],
     "devils_advocate": ["Bull Thesis Under Attack", "Fatal Flaw", "Red Flags", "Worst-Case Scenario", "Verdict"],
+    "bull_advocate": ["Strongest Bull Thesis", "What the Market May Be Missing", "Upside Scenario & Catalysts", "What Must Go Right", "Verdict"],
 }
 
 STAGE1_PROMPT_TEMPLATE = """Analyse {ticker} through your framework as {agent} for this investment
@@ -824,11 +889,24 @@ on the same line:
 VERDICT: <BUY, HOLD, or SELL> | CONVICTION: <1-10>/10
 
 BUY/HOLD/SELL is your best single-word compression of where the committee
-net landed — it does not replace the nuance below, which still must
-preserve genuine disagreement rather than average it away. Conviction is
-how strongly the weight of the committee's argument supports that verdict,
-not how good the company is (a HOLD on a genuinely 50/50 split is a low
-conviction HOLD; a SELL where 7 of 9 agents agree is a high conviction SELL).
+net landed. It does not replace the nuance below, which still must preserve
+genuine disagreement rather than average it away. The definitions matter,
+because the agents mostly speak in "Buy / Pass / Sell" and those are not the
+same scale:
+- BUY: the weight of the committee's argument supports owning it at this price.
+- HOLD: the committee would not buy at this price, but does not argue the
+  business or the stock is broken. "Great business, wrong price", "not for
+  me", "wait for a better entry" and a genuinely mixed room all belong here.
+  Agents who said Pass for those reasons are HOLD votes, never SELL votes.
+- SELL: the committee affirmatively argues that value will be lost or the
+  business is deteriorating: a real case for avoiding or exiting because of
+  damage, not merely an absence of enthusiasm. A SELL needs a bear case,
+  not just a missing bull case.
+
+Conviction (1-10) must be consistent with the range you give under
+"Confidence Assessment" below: it is that range's midpoint divided by 10,
+rounded (a 35-55% range means 4 or 5, never 8). It measures how strongly the
+evidence supports your verdict, not how many agents sounded negative.
 
 After that line, leave a blank line, then continue with exactly these
 sections, in this order:

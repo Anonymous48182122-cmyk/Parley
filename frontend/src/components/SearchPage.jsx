@@ -16,12 +16,29 @@ const QUICK_PICKS = [
 
 const STORAGE_KEY = "parley.committee";
 
+// The default committee before the Bull Advocate was added. The page saves the
+// default to localStorage on first visit, so every returning visitor has this
+// exact set stored; treat it as "never customised" and move them to the new
+// default instead of freezing them on the old one. Any genuinely custom pick
+// is left untouched.
+const LEGACY_DEFAULT = [
+  "buffett", "munger", "lynch", "jhunjhunwala", "simons",
+  "ackman", "historian", "future", "devils_advocate",
+];
+
+function isLegacyDefault(keys) {
+  return keys.length === LEGACY_DEFAULT.length && LEGACY_DEFAULT.every((k) => keys.includes(k));
+}
+
 function loadSavedCommittee() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return new Set(DEFAULT_AGENTS);
     const keys = JSON.parse(raw);
-    return Array.isArray(keys) && keys.length >= MIN_AGENTS ? new Set(keys) : new Set(DEFAULT_AGENTS);
+    if (!Array.isArray(keys) || keys.length < MIN_AGENTS || isLegacyDefault(keys)) {
+      return new Set(DEFAULT_AGENTS);
+    }
+    return new Set(keys);
   } catch {
     return new Set(DEFAULT_AGENTS);
   }

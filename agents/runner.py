@@ -302,6 +302,10 @@ def _call(candidates, system, user, max_tokens, prefer_provider=None, max_wait=N
             last_error = error
         if time.time() >= deadline:
             break
+    if last_error is None:
+        last_error = ("no model could be tried: every candidate is cooling down after "
+                      "hitting a quota/rate limit, or the request is too large for the "
+                      "ones that remain")
     raise AgentCallError(
         f"Call failed across all candidate models {candidates}: {last_error}"
     )
@@ -346,10 +350,12 @@ def run_stage1_all(ticker, data, agent_keys=None, on_update=None):
     return results
 
 
-def _format_transcript(turns):
+def _format_transcript(turns, per_turn_limit=None):
     if not turns:
         return "(debate has not started yet)"
-    return "\n".join(f"{AGENT_DISPLAY_NAMES[a]}: {t}" for a, t in turns)
+    def clip(t):
+        return t if not per_turn_limit or len(t) <= per_turn_limit else t[:per_turn_limit].rstrip() + "..."
+    return "\n".join(f"{AGENT_DISPLAY_NAMES[a]}: {clip(t)}" for a, t in turns)
 
 
 # Each debate turn re-sends the agent's own first pass as an anchor; the full
@@ -460,21 +466,37 @@ def _condense(text, limit):
     return text[:head].rstrip() + " [...] " + text[-(limit - head):].lstrip()
 
 
-# Groq's free tier rejects requests over ~7k input tokens/min, so if every
-# Gemini model is overloaded the full CIO prompt (~13k tokens) has nowhere to
-# go. This budget shrinks it enough to fit.
-# How long the full prompt waits on Gemini before falling back to the compact one.
+# Groq's free tier rejects requests over ~7.5k tokens (input + output) per
+# minute, so when every Gemini model is exhausted or overloaded the full CIO
+# prompt has nowhere to go. A fixed "compact" size stopped being enough once
+# committees grew past nine agents (more first-passes AND more debate turns),
+# so the fallback is now sized from the actual roster to fit that budget.
 _CIO_FULL_PROMPT_PATIENCE = 25
-_CIO_COMPACT_STAGE1_CHARS = 1000
-# Leaves the request under Groq's per-minute cap; the six-section memo fits.
-_CIO_COMPACT_MAX_TOKENS = 1900
-_CIO_COMPACT_DATA_CHARS = 3500
+_CIO_COMPACT_MAX_TOKENS = 1500
+_CIO_COMPACT_DATA_CHARS = 3000
+_CHARS_PER_TOKEN = 3.5  # same estimate _call() uses to decide what fits Groq
+
+
+def _compact_cio_limits(system, n_agents, turns):
+    """(first_pass_chars_per_agent, chars_per_debate_turn) that keep the compact
+    CIO request under Groq's cap for this roster. Shrinks the debate-turn clip
+    first (the transcript is the bulkier part), then each first pass."""
+    from agents.prompts import CIO_PROMPT_TEMPLATE  # local: template is large
+
+    budget = (_GROQ_MAX_REQUEST_TOKENS - _CIO_COMPACT_MAX_TOKENS) * _CHARS_PER_TOKEN
+    fixed = len(system) + len(CIO_PROMPT_TEMPLATE) + _CIO_COMPACT_DATA_CHARS + 600  # + slack
+    for turn_cap in (450, 340, 260):
+        transcript = sum(min(len(t), turn_cap) + 25 for _, t in turns)
+        per_agent = (budget - fixed - transcript) / max(n_agents, 1)
+        if per_agent >= 300:
+            return int(min(per_agent, 1100)), turn_cap
+    return 300, 260
 
 
 def run_cio(ticker, data, turns, stage1_analyses):
     system = CIO_SYSTEM_PROMPT.format(ticker=ticker)
 
-    def build(stage1_limit=None, data_limit=None):
+    def build(stage1_limit=None, data_limit=None, turn_limit=None):
         stage1_text = "\n\n".join(
             f"--- {AGENT_DISPLAY_NAMES[a]} first pass ---\n"
             f"{_condense(text, stage1_limit) if stage1_limit else text}"
@@ -482,7 +504,7 @@ def run_cio(ticker, data, turns, stage1_analyses):
         )
         return CIO_PROMPT_TEMPLATE.format(
             ticker=ticker,
-            transcript=_format_transcript(turns),
+            transcript=_format_transcript(turns, turn_limit),
             stage1_analyses=stage1_text,
             data=data[:data_limit] if data_limit else data,
         )
@@ -490,10 +512,12 @@ def run_cio(ticker, data, turns, stage1_analyses):
     try:
         text = _call(CIO_CANDIDATES, system, build(), CIO_MAX_TOKENS, max_wait=_CIO_FULL_PROMPT_PATIENCE)
     except AgentCallError as exc:
-        log.warning("full CIO prompt failed on every model (%.200s); retrying compact", exc)
+        stage1_limit, turn_limit = _compact_cio_limits(system, len(stage1_analyses), turns)
+        log.warning("full CIO prompt failed on every model (%.200s); retrying compact "
+                    "(first pass %d chars, turn %d chars)", exc, stage1_limit, turn_limit)
         text = _call(
             CIO_CANDIDATES, system,
-            build(_CIO_COMPACT_STAGE1_CHARS, _CIO_COMPACT_DATA_CHARS), _CIO_COMPACT_MAX_TOKENS,
+            build(stage1_limit, _CIO_COMPACT_DATA_CHARS, turn_limit), _CIO_COMPACT_MAX_TOKENS,
         )
     return _parse_cio_verdict(text)
 

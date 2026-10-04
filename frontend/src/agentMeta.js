@@ -15,6 +15,7 @@ export const AGENT_ORDER = [
   "damani",
   "historian",
   "future",
+  "bull_advocate",
   "devils_advocate",
 ];
 
@@ -22,11 +23,11 @@ export const AGENT_ORDER = [
 // agents/prompts.py's MIN_AGENTS. Used to gate the picker's "start" action.
 export const MIN_AGENTS = 3;
 
-// The nine agents a fresh committee run defaults to when nothing else was
+// The ten agents a fresh committee run defaults to when nothing else was
 // chosen — mirrors agents/prompts.py's DEFAULT_AGENTS.
 export const DEFAULT_AGENTS = [
   "buffett", "munger", "lynch", "jhunjhunwala", "simons",
-  "ackman", "historian", "future", "devils_advocate",
+  "ackman", "historian", "future", "bull_advocate", "devils_advocate",
 ];
 
 export const AGENT_META = {
@@ -44,6 +45,7 @@ export const AGENT_META = {
   damani: { name: "Radhakishan Damani", monogram: "RD", role: "Conservative Operator", kind: "investor" },
   historian: { name: "The Historian", monogram: "H", role: "Pattern Recognition", kind: "special" },
   future: { name: "The Future Agent", monogram: "FA", role: "10-20yr Horizon", kind: "special" },
+  bull_advocate: { name: "The Bull Advocate", monogram: "BU", role: "Bull Case", kind: "special" },
   devils_advocate: { name: "The Devil's Advocate", monogram: "DA", role: "Bear Case", kind: "special" },
   cio: { name: "The CIO", monogram: "CIO", role: "Synthesizer", kind: "special" },
 };
@@ -58,10 +60,19 @@ export function agentName(key) {
 
 // Builds a regex that matches any agent's display name (and common short
 // forms) so mentions inside debate prose can be auto-highlighted.
+// A short form (the last word of a name) is only usable if it identifies exactly
+// one agent — "Advocate" belongs to both the Bull and the Devil's Advocate, so
+// highlighting a bare "Advocate" as either would be a guess.
+const LAST_WORD_OWNERS = Object.values(AGENT_META).reduce((acc, meta) => {
+  const w = meta.name.split(" ").pop();
+  acc[w] = (acc[w] || 0) + 1;
+  return acc;
+}, {});
+
 const NAME_VARIANTS = Object.entries(AGENT_META).flatMap(([key, meta]) => {
   const variants = new Set([meta.name]);
   const lastWord = meta.name.split(" ").pop();
-  if (lastWord && lastWord.length > 2) variants.add(lastWord);
+  if (lastWord && lastWord.length > 2 && LAST_WORD_OWNERS[lastWord] === 1) variants.add(lastWord);
   return [...variants].map((variant) => ({ key, variant }));
 });
 
