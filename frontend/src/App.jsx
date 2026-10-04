@@ -7,6 +7,7 @@ import AuthPage from "./components/AuthPage.jsx";
 import HistoryPage from "./components/HistoryPage.jsx";
 import ReplayPage from "./components/ReplayPage.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
+import Footer from "./components/Footer.jsx";
 import TopNav from "./components/TopNav.jsx";
 import UpdatePrompt from "./components/UpdatePrompt.jsx";
 
@@ -37,6 +38,7 @@ export default function App() {
             }
           />
         </Routes>
+        <Footer />
         <Analytics />
       </BrowserRouter>
     </AuthProvider>
