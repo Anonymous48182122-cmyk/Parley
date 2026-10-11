@@ -1,0 +1,182 @@
+"""
+Yahoo-independent gap fillers.
+
+Yahoo Finance answers cloud/datacenter IPs (where the live backend runs) with
+empty data, so everything that depended on it vanished in production: price,
+market cap, sector, ratios, price action, and the statements of companies whose
+SEC filings are patchy. These helpers run after the Yahoo steps and fill only
+what is still missing, from Nasdaq's public API (US) and from the statements the
+agents already have (every market). Each is best-effort and never raises.
+"""
+
+from statistics import mean
+
+from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_history, fetch_nasdaq_quote
+from data.technicals import compute_technicals
+from data.yahoo_fundamentals import apply_statement_rows
+
+
+def _note(financials, text):
+    notes = financials.setdefault("data_sources", [])
+    if text not in notes:
+        notes.append(text)
+
+
+def complete_with_nasdaq(financials):
+    """US only: fill statement gaps (or replace empty statements) from Nasdaq."""
+    if financials.get("market") != "US":
+        return financials
+    try:
+        data = fetch_nasdaq_annual(financials["ticker"])
+        return apply_statement_rows(financials, data.get("rows") or [], data.get("currency"), "Nasdaq")
+    except Exception:
+        return financials
+
+
+def _beta(stock_series, market_series):
+    """Beta of daily returns against the market over the dates both have."""
+    m = {d: c for d, c in market_series}
+    pairs = [(d, c) for d, c in stock_series if d in m]
+    if len(pairs) < 120:
+        return None
+    sr = [pairs[i][1] / pairs[i - 1][1] - 1 for i in range(1, len(pairs)) if pairs[i - 1][1]]
+    mr = [m[pairs[i][0]] / m[pairs[i - 1][0]] - 1 for i in range(1, len(pairs)) if m[pairs[i - 1][0]]]
+    n = min(len(sr), len(mr))
+    sr, mr = sr[-n:], mr[-n:]
+    mm, sm = mean(mr), mean(sr)
+    var = sum((x - mm) ** 2 for x in mr)
+    if var == 0:
+        return None
+    return round(sum((x - mm) * (y - sm) for x, y in zip(mr, sr)) / var, 2)
+
+
+def fill_market_gaps(financials):
+    """US only: fill price, market cap, sector, 52-week range, analyst target,
+    business description and price action from Nasdaq where Yahoo gave none."""
+    if financials.get("market") != "US":
+        return financials
+    ticker = financials["ticker"]
+    try:
+        q = fetch_nasdaq_quote(ticker)
+        if not q:
+            return financials
+        ratios = financials.setdefault("ratios", {})
+        used = False
+
+        if financials.get("price") is None and q.get("price") is not None:
+            financials["price"], used = q["price"], True
+        if financials.get("market_cap") is None and q.get("market_cap") is not None:
+            financials["market_cap"], used = q["market_cap"], True
+        if financials.get("sector") in (None, "N/A") and q.get("sector"):
+            financials["sector"], used = q["sector"], True
+
+        def put(key, value):
+            if value is not None and ratios.get(key) in (None, ""):
+                ratios[key] = value
+
+        put("Industry", q.get("industry"))
+        put("52-Week High", q.get("high_52w"))
+        put("52-Week Low", q.get("low_52w"))
+        put("Analyst Mean Target Price", q.get("target"))
+        if q.get("dividend_yield") is not None:
+            put("Dividend Yield", f"{q['dividend_yield']}%")
+        put("P/E Ratio (Trailing)", q.get("pe"))
+        if not financials.get("business_summary") and q.get("description"):
+            text = q["description"]
+            financials["business_summary"] = text if len(text) <= 650 else text[:650].rstrip() + "..."
+
+        # forward P/E only when the per-share EPS and the ADR price are on the same basis,
+        # which shows up as the market cap / net income P/E agreeing with price / EPS
+        fwd, price = q.get("forward_eps"), financials.get("price")
+        latest = (financials.get("annual") or [{}])[-1]
+        mcap, ni, eps = financials.get("market_cap"), latest.get("net_income"), latest.get("eps_diluted")
+        if fwd and fwd > 0 and price and financials.get("unit_label") == "USD":
+            consistent = bool(mcap and ni and ni > 0 and eps and eps > 0
+                              and abs((price / eps) / (mcap / ni) - 1) < 0.2)
+            if consistent:
+                put("P/E Ratio (Forward)", round(price / fwd, 2))
+
+        if not financials.get("technicals"):
+            history = fetch_nasdaq_history(ticker)
+            tech = compute_technicals([(d, c) for d, c in history]) if history else {}
+            if tech:
+                financials["technicals"], used = tech, True
+                spy = fetch_nasdaq_history("SPY", "etf")
+                beta = _beta(history, spy) if spy else None
+                if beta is not None and ratios.get("Beta") in (None, ""):
+                    ratios["Beta"] = beta
+                    _note(financials, "Beta is against the S&P 500 (SPY) over about a year of daily returns")
+        if used:
+            _note(financials, "price, market cap and sector from Nasdaq (Yahoo Finance was unavailable)")
+    except Exception:
+        pass
+    return financials
+
+
+def _pct(value):
+    return f"{round(value * 100, 2)}%"
+
+
+def derive_ratios(financials):
+    """Fill ratio gaps from the statements the agents already have. Uses the last
+    fiscal year, so P/E and yield describe that year and not the trailing twelve months."""
+    try:
+        annual = financials.get("annual") or []
+        if not annual:
+            return financials
+        last = annual[-1]
+        ratios = financials.setdefault("ratios", {})
+        derived = []
+
+        # Screener names some of these differently; never shadow what it already gave
+        aliases = {"Return on Equity": ("ROE",), "P/E Ratio (Trailing)": ("P/E Ratio",)}
+
+        def put(key, value):
+            taken = any(ratios.get(k) not in (None, "") for k in (key, *aliases.get(key, ())))
+            if value is not None and not taken:
+                ratios[key] = value
+                derived.append(key)
+
+        ni, eq, rev = last.get("net_income"), last.get("total_equity"), last.get("revenue")
+        assets, debt = last.get("total_assets"), last.get("total_debt")
+
+        if ni is not None and eq and eq > 0:
+            put("Return on Equity", _pct(ni / eq))
+        if ni is not None and assets:
+            put("Return on Assets", _pct(ni / assets))
+        # gross margin and debt/equity say nothing useful about a bank or insurer
+        lender = any(w in str(financials.get("sector") or "").lower() for w in ("financ", "bank", "insur"))
+        if ni is not None and rev:
+            put("Net Profit Margin", _pct(ni / rev))
+        if not lender and last.get("gross_profit") is not None and rev:
+            put("Gross Margin", _pct(last["gross_profit"] / rev))
+        if last.get("operating_income") is not None and rev and not last.get("operating_income_proxy"):
+            put("Operating Margin", _pct(last["operating_income"] / rev))
+        if not lender and debt is not None and eq and eq > 0:
+            put("Debt to Equity", round(debt / eq * 100, 2))  # percent, the way Yahoo reports it
+
+        # price-based ratios need price and statements in the same currency
+        mcap = financials.get("market_cap")
+        unit = str(financials.get("unit_label") or "")
+        same_ccy = (financials.get("market") == "US" and unit == "USD") or \
+                   (financials.get("market") == "India" and "Cr" in unit)
+        if mcap and same_ccy:
+            if ni and ni > 0:
+                put("P/E Ratio (Trailing)", round(mcap / ni, 2))
+            div = last.get("dividends")
+            if div and div > 0:
+                put("Dividend Yield", f"{round(div / mcap * 100, 2)}%")
+            if eq and eq > 0:
+                put("Price to Book", round(mcap / eq, 2))
+
+        elif mcap and financials.get("market") == "US":
+            # an ADR reporting in yen or euros: Nasdaq's dollar-converted statements make P/E possible
+            usd = (fetch_nasdaq_annual(financials["ticker"]).get("rows") or [{}])[-1].get("net_income")
+            if usd and usd > 0:
+                put("P/E Ratio (Trailing)", round(mcap / usd, 2))
+
+        if derived:
+            _note(financials, "some ratios (" + ", ".join(derived[:6]) + ") computed from the last fiscal year's statements")
+    except Exception:
+        pass
+    return financials

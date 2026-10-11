@@ -89,6 +89,34 @@ def health():
     return {"ok": True}
 
 
+@app.get("/health/sources")
+def health_sources(ticker: str = "AAPL"):
+    """Which outside data sources this server can actually reach right now. Yahoo
+    Finance, for one, answers cloud IPs with empty data, which is invisible
+    until a stock card goes blank, so this makes it checkable."""
+    from data import nasdaq_data
+    import yfinance as yf
+
+    def check(fn):
+        started = time.time()
+        try:
+            result = fn()
+            return {"ok": bool(result), "seconds": round(time.time() - started, 1)}
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "seconds": round(time.time() - started, 1), "error": str(exc)[:160]}
+
+    symbol = ticker.upper()
+    return {
+        "ticker": symbol,
+        "yahoo_info": check(lambda: yf.Ticker(symbol).info.get("marketCap")),
+        "yahoo_history": check(lambda: len(yf.Ticker(symbol).history(period="1mo"))),
+        "yahoo_statements": check(lambda: not yf.Ticker(symbol).income_stmt.empty),
+        "nasdaq_quote": check(lambda: nasdaq_data._fetch_quote(symbol)),
+        "nasdaq_history": check(lambda: nasdaq_data._fetch_history(symbol)),
+        "nasdaq_statements": check(lambda: nasdaq_data._fetch_statements(symbol)),
+    }
+
+
 @app.get("/agents")
 def list_agents():
     return [

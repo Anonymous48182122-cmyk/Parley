@@ -63,18 +63,35 @@ def get_symbol_list():
 def _get_html(ticker, statement_type):
     time.sleep(_REQUEST_DELAY_SECONDS)
     url = BASE_URL.format(ticker=ticker.upper(), statement_type=statement_type)
+    # Screener throttles bursts with 429 / 5xx. A throttled response used to be
+    # read as "this company has no page", so back off and retry instead.
     response = requests.get(url, headers=HEADERS, timeout=20)
+    for delay in (2, 5):
+        if response.status_code != 429 and response.status_code < 500:
+            break
+        time.sleep(delay)
+        response = requests.get(url, headers=HEADERS, timeout=20)
     return response
+
+
+def _has_figures(html):
+    top = parse_top_ratios(BeautifulSoup(html, "lxml"))
+    return top.get("Current Price") is not None or top.get("Market Cap") is not None
 
 
 def fetch_screener_html(ticker):
     """Consolidated figures first, falling back to standalone if unavailable."""
     response = _get_html(ticker, "consolidated")
+    if response.status_code == 200 and _has_figures(response.text):
+        return response.text, "consolidated"
+    # Some companies (IRFC) have a consolidated page that is an empty shell with
+    # every figure blank; their numbers are all on the standalone page.
+    standalone = _get_html(ticker, "")
+    if standalone.status_code == 200:
+        return standalone.text, "standalone"
     if response.status_code == 200:
         return response.text, "consolidated"
-    response = _get_html(ticker, "")
-    if response.status_code == 200:
-        return response.text, "standalone"
+    response = standalone
     raise ValueError(f"Screener.in has no page for ticker {ticker} (status {response.status_code})")
 
 
@@ -217,10 +234,14 @@ def _build_annual_rows(soup, max_years=10):
 
     bs_idx = {_period_key(h): i for i, h in enumerate(bs_h)}
     cf_idx = {_period_key(h): i for i, h in enumerate(cf_h)}
+    # Not "Financing Profit": for a bank Screener's figure comes out as a large
+    # negative number (-15,342 Cr for HDFC Bank), which would read as a huge
+    # operating loss at a profitable lender. Yahoo's pre-tax income stands in.
     op, net_p, eps = _row(pl, "Operating Profit"), _row(pl, "Net Profit"), _row(pl, "EPS in Rs")
     payout = _row(pl, "Dividend Payout %")
     eq_cap, reserves = _row(bs, "Equity Capital"), _row(bs, "Reserves")
-    borrowings, assets = _row(bs, "Borrowings"), _row(bs, "Total Assets", "Total Liabilities")
+    borrowings, assets = _row(bs, "Borrowings", "Borrowing"), _row(bs, "Total Assets", "Total Liabilities")
+    interest_row = _row(pl, "Interest")
     ocf_row, fcf_row = _row(cf, "Cash from Operating Activity"), _row(cf, "Free Cash Flow")
 
     def build(i, header):
@@ -250,6 +271,7 @@ def _build_annual_rows(soup, max_years=10):
             "capex": (ocf - fcf) if (ocf is not None and fcf is not None) else None,
             "dividends": round(net * pay / 100, 1) if (net is not None and pay is not None) else None,
             "shares_outstanding": None,
+            "interest_expense": _at(interest_row, i),
         }
         compute_derived(row)
         if fcf is not None:
@@ -278,6 +300,7 @@ def _quarters(soup, n=6):
         return []
     op, opm = _row(rows, "Operating Profit"), _row(rows, "OPM %")
     net, eps = _row(rows, "Net Profit"), _row(rows, "EPS in Rs")
+    gnpa, nnpa = _row(rows, "Gross NPA %"), _row(rows, "Net NPA %")  # banks only
     start = max(0, len(headers) - n)
     return [
         {
@@ -287,6 +310,8 @@ def _quarters(soup, n=6):
             "opm": _at(opm, i),
             "net_profit": _at(net, i),
             "eps": _at(eps, i),
+            "gnpa": _at(gnpa, i),
+            "nnpa": _at(nnpa, i),
         }
         for i in range(start, len(headers))
     ]
@@ -385,9 +410,15 @@ def _parse(html):
         ratios["52-Week High"] = high
         ratios["52-Week Low"] = low
 
+    def classification(title):
+        tag = soup.find("a", attrs={"title": title, "href": re.compile(r"^/market/")})
+        return tag.get_text(strip=True) if tag else None
+
     annual, ttm, detail = _build_annual_rows(soup)
     return {
         "name": name,
+        "sector": classification("Broad Sector"),
+        "industry": classification("Industry"),
         "price": top_ratios.get("Current Price"),
         "market_cap": top_ratios.get("Market Cap"),
         "annual": annual,
@@ -415,14 +446,14 @@ def fetch(ticker, _allow_parent_lookup=True):
         return parsed
 
     ticker_upper = ticker.upper()
-    parsed = cached_fetch(f"in_screener_v2_{ticker_upper}", ttl_hours=24, fetch_fn=do_fetch)
+    parsed = cached_fetch(f"in_screener_v3_{ticker_upper}", ttl_hours=24, fetch_fn=do_fetch)
     result = {
         "ticker": ticker_upper,
         "name": parsed.get("name") or ticker_upper,
         "market": "India",
         "currency": "INR",
         "unit_label": "INR Cr.",
-        "sector": "N/A",
+        "sector": parsed.get("sector") or "N/A",
         "price": parsed.get("price"),
         "market_cap": parsed.get("market_cap"),
         "annual": parsed.get("annual", []),
@@ -434,7 +465,8 @@ def fetch(ticker, _allow_parent_lookup=True):
         "cons": parsed.get("cons") or [],
         "business_summary": parsed.get("about"),
         "technicals": parsed.get("technicals") or {},
-        "ratios": parsed.get("ratios", {}),
+        "ratios": {**({"Industry": parsed["industry"]} if parsed.get("industry") else {}),
+                   **parsed.get("ratios", {})},
         "shareholding": parsed.get("shareholding", []),
         "qualitative": f"Figures are {parsed.get('statement_type', 'consolidated')} per Screener.in.",
     }

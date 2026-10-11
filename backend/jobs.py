@@ -185,6 +185,10 @@ def _run_job(ticker_key, market, agent_keys):
                 "market_cap": financials.get("market_cap"),
                 "currency": financials.get("currency"),
                 "unit_label": financials.get("unit_label"),
+                # statements can be in a foreign currency (TWD, DKK) while the
+                # price and market cap of the US listing are in USD
+                "market_cap_unit": financials.get("market_cap_unit") or financials.get("unit_label"),
+                "price_currency": financials.get("price_currency") or financials.get("currency"),
                 "sector": financials.get("sector"),
                 "ratios": financials.get("ratios", {}),
                 "technicals": financials.get("technicals") or {},

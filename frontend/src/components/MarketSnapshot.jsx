@@ -124,10 +124,21 @@ function Move({ label, value }) {
 }
 
 export default function MarketSnapshot({ data }) {
-  if (!data || (data.price == null && data.market_cap == null)) return null;
+  if (!data) return null;
 
   const ratios = data.ratios || {};
   const tech = data.technicals || {};
+  // Show the card whenever there is anything to show. It used to disappear
+  // whenever price and market cap were both missing, which hid the ratios and
+  // price action that were still available.
+  const hasAnything =
+    data.price != null ||
+    data.market_cap != null ||
+    Object.keys(ratios).length > 0 ||
+    Object.keys(tech).length > 0;
+  if (!hasAnything) return null;
+  // the last daily close stands in for the live price when only the history came through
+  const price = data.price ?? tech.last ?? null;
   const sector = data.sector && data.sector !== "N/A" ? data.sector : null;
 
   // The range prefers the exchange's own 52-week figures and falls back to the
@@ -141,8 +152,8 @@ export default function MarketSnapshot({ data }) {
   return (
     <div className="card fade-in" style={{ marginBottom: 28 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "18px 26px" }}>
-        <Stat label="Price" value={formatPrice(data.price, data.currency)} />
-        <Stat label="Market Cap" value={formatMarketCap(data.market_cap, data.unit_label)} />
+        <Stat label="Price" value={formatPrice(price, data.price_currency ?? data.currency)} />
+        <Stat label="Market Cap" value={formatMarketCap(data.market_cap, data.market_cap_unit ?? data.unit_label)} />
         <Stat label="P/E" value={pick(ratios, "P/E Ratio (Trailing)", "P/E Ratio")} />
         <Stat label="Forward P/E" value={pick(ratios, "P/E Ratio (Forward)")} />
         <Stat label="Dividend Yield" value={pick(ratios, "Dividend Yield")} />
@@ -155,7 +166,7 @@ export default function MarketSnapshot({ data }) {
         <Stat label="Industry" value={pick(ratios, "Industry")} />
       </div>
 
-      <RangeBar low={low} high={high} current={data.price} currency={data.currency} />
+      <RangeBar low={low} high={high} current={price} currency={data.price_currency ?? data.currency} />
 
       {hasMoves && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 14 }}>

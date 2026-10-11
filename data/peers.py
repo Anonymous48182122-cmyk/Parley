@@ -14,6 +14,7 @@ simply runs without a peer table.
 
 import math
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -21,6 +22,7 @@ import yfinance as yf
 
 from data.common import cached_fetch
 from data.india.bse_fetcher import HEADERS, parse_number
+from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_quote, fetch_nasdaq_universe
 
 PEERS_TTL_HOURS = 6
 MAX_PEERS = 4
@@ -143,6 +145,68 @@ def _us_peers(ticker, own_cap):
     low, high = _US_CAP_BAND
     if own_cap:
         rows = [r for r in rows if low <= r["market_cap"] / own_cap <= high]
+    if len(rows) < 2:
+        # Mega-caps have no industry peer of similar size (Yahoo's list for Apple
+        # is speaker and remote-control makers). Use the largest companies in the
+        # same sector instead, which is who an investor actually compares them to.
+        sector_key = info.get("sectorKey")
+        try:
+            leaders = yf.Sector(sector_key).top_companies if sector_key else None
+            names = [s for s in (leaders.index if leaders is not None else []) if s.upper() != ticker.upper()][:8]
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                extra = [r for r in pool.map(_safe(_us_peer_row), names) if r]
+            seen = {r["ticker"] for r in rows}
+            rows += [r for r in extra if r["ticker"] not in seen]
+        except Exception:
+            pass
+    rows.sort(key=lambda r: _cap_distance(r["market_cap"], own_cap))
+    return rows[:MAX_PEERS]
+
+
+def _nasdaq_peer_row(entry):
+    """A peer's multiples from Nasdaq's statements: last fiscal year, in dollars."""
+    rows = (fetch_nasdaq_annual(entry["symbol"]).get("rows")) or []
+    if not rows:
+        return None
+    last, prev = rows[-1], (rows[-2] if len(rows) > 1 else {})
+    rev, ni, eq, op = last.get("revenue"), last.get("net_income"), last.get("total_equity"), last.get("operating_income")
+    cap = entry["cap"]
+    growth = None
+    if rev and prev.get("revenue"):
+        growth = round((rev / prev["revenue"] - 1) * 100, 1)
+    return {
+        "name": entry["name"].replace(" Common Stock", "").replace(" Class A", "").strip() or entry["symbol"],
+        "ticker": entry["symbol"],
+        "market_cap": cap,
+        "pe": round(cap / ni, 1) if ni and ni > 0 else None,
+        "forward_pe": None,
+        "revenue_growth": growth,
+        "operating_margin": round(op / rev * 100, 1) if op is not None and rev else None,
+        "roe": round(ni / eq * 100, 1) if ni is not None and eq and eq > 0 else None,
+    }
+
+
+def _us_peers_nasdaq(ticker, own_cap):
+    """Same idea as _us_peers, from Nasdaq's stock list instead of Yahoo's industry
+    constituents (Yahoo is unreachable from the cloud host)."""
+    quote = fetch_nasdaq_quote(ticker)
+    universe = fetch_nasdaq_universe()
+    own_cap = own_cap or quote.get("market_cap")
+    if not universe or not own_cap:
+        return []
+    industry, sector = quote.get("industry"), quote.get("sector")
+    others = [u for u in universe if u["symbol"].upper() != ticker.upper()]
+
+    low, high = _US_CAP_BAND
+    pool = [u for u in others if industry and u["industry"] == industry and low <= u["cap"] / own_cap <= high]
+    if len(pool) < 2 and sector:
+        # no similar-sized company in the industry: the sector's nearest by size instead
+        pool += [u for u in others if u["sector"] == sector and u not in pool and low <= u["cap"] / own_cap <= high]
+    if len(pool) < 2 and sector:
+        pool += sorted((u for u in others if u["sector"] == sector and u not in pool), key=lambda u: -u["cap"])[:8]
+    pool.sort(key=lambda u: _cap_distance(u["cap"], own_cap))
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        rows = [r for r in ex.map(_safe(_nasdaq_peer_row), pool[:8]) if r]
     rows.sort(key=lambda r: _cap_distance(r["market_cap"], own_cap))
     return rows[:MAX_PEERS]
 
@@ -164,11 +228,28 @@ def fetch_peers(ticker, market, own_name=None, own_market_cap=None):
     in the same unit the fetcher reported (crores for India, dollars for US)."""
 
     def fetch():
-        if market == "India":
-            return _india_peers(ticker, own_name, own_market_cap)
-        return _us_peers(ticker, own_market_cap)
+        last = None
+        for attempt in range(2):  # a throttled/failed first try is common; one retry
+            try:
+                found = (_india_peers(ticker, own_name, own_market_cap) if market == "India"
+                         else _us_peers(ticker, own_market_cap))
+                if found:
+                    return found
+            except Exception as exc:  # noqa: BLE001
+                last = exc
+            if market != "India":
+                try:
+                    found = _us_peers_nasdaq(ticker, own_market_cap)
+                    if found:
+                        return found
+                except Exception as exc:  # noqa: BLE001
+                    last = exc
+            time.sleep(1.5)
+        # Raising keeps an empty/failed result out of the cache, so the next
+        # request tries again instead of serving "no peers" for hours.
+        raise ValueError(f"no peers found for {ticker}: {last}")
 
     try:
-        return cached_fetch(f"peers_{market}_{ticker.upper()}", PEERS_TTL_HOURS, fetch)
+        return cached_fetch(f"peers_v3_{market}_{ticker.upper()}", PEERS_TTL_HOURS, fetch)
     except Exception:
         return []

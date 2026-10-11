@@ -128,6 +128,33 @@ def _fetch(ticker, market):
     except Exception:
         pass  # price history is a bonus; never fail the fetch over it
 
+    governance = {}
+    try:
+        officers = [
+            {"name": o.get("name"), "title": o.get("title"), "pay": o.get("totalPay")}
+            for o in (info.get("companyOfficers") or [])[:4] if o.get("totalPay")
+        ]
+        if officers:
+            governance["officers"] = officers[:3]
+    except Exception:
+        pass
+    try:
+        table = stock.insider_purchases  # US filers: Form 4 activity over the last 6 months
+        if table is not None and not table.empty:
+            rows = {str(r.iloc[0]): r for _, r in table.iterrows()}
+            def cell(label, col):
+                r = rows.get(label)
+                v = None if r is None else r.get(col)
+                return None if v is None or v != v else float(v)
+            if cell("Purchases", "Shares") is not None or cell("Sales", "Shares") is not None:
+                governance["insiders_6m"] = {
+                    "buy_shares": cell("Purchases", "Shares"), "buy_trans": cell("Purchases", "Trans"),
+                    "sell_shares": cell("Sales", "Shares"), "sell_trans": cell("Sales", "Trans"),
+                    "net_pct": cell("% Net Shares Purchased (Sold)", "Shares"),
+                }
+    except Exception:
+        pass
+
     summary = (info.get("longBusinessSummary") or "").strip()
     if len(summary) > 650:
         summary = summary[:650].rstrip() + "..."
@@ -139,6 +166,7 @@ def _fetch(ticker, market):
         "ratios": ratios,
         "technicals": technicals,
         "business_summary": summary or None,
+        "governance": governance,
     }
 
 
@@ -147,7 +175,7 @@ def fetch_market_data(ticker, market):
     total failure — callers should treat {} as "no market data available"
     rather than an error."""
     try:
-        cache_key = f"market_v3_{market}_{ticker.upper()}"
+        cache_key = f"market_v4_{market}_{ticker.upper()}"
         return cached_fetch(cache_key, MARKET_DATA_TTL_HOURS, lambda: _fetch(ticker, market))
     except Exception:
         return {}

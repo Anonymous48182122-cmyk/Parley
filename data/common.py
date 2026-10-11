@@ -87,7 +87,7 @@ def _compact(value, unit_label):
     burn prompt tokens on digits no analyst reads."""
     if value is None:
         return "N/A"
-    if unit_label == "USD":
+    if not str(unit_label).endswith("Cr."):
         for cutoff, suffix in ((1e9, "B"), (1e6, "M")):
             if abs(value) >= cutoff:
                 return f"{value / cutoff:,.2f}{suffix}"
@@ -150,6 +150,144 @@ def _format_peers(peers, own_pe, unit_label):
     return lines
 
 
+def _capital_allocation(annual, unit_label):
+    """What management does with the cash: buybacks, dividends, stock comp, and
+    whether the share count is shrinking or being diluted."""
+    if not annual:
+        return []
+    latest = annual[-1]
+    parts = []
+    for key, label in (("buybacks", "share buybacks"), ("dividends", "dividends paid"), ("sbc", "stock-based compensation")):
+        if latest.get(key) is not None:
+            parts.append(f"{label} {_fmt(latest[key])}")
+    shares = [(r.get("period"), r.get("shares_avg")) for r in annual[-5:] if r.get("shares_avg")]
+    if len(shares) >= 2:
+        first, last = shares[0][1], shares[-1][1]
+        parts.append(
+            f"diluted share count {last / 1e6:,.0f}M vs {first / 1e6:,.0f}M at {shares[0][0]} "
+            f"({100 * (last - first) / first:+.1f}%, {'buying back / shrinking' if last < first else 'diluting'})"
+        )
+    return ["", f"Capital allocation (latest fiscal year, {unit_label}):", "- " + "; ".join(parts)] if parts else []
+
+
+def _management_lines(gov):
+    out = []
+    officers = gov.get("officers")
+    if officers:
+        out.append("- Executive pay: " + "; ".join(
+            f"{o.get('name')} ({o.get('title')}) {_compact(o['pay'], 'USD')}" for o in officers))
+    ins = gov.get("insiders_6m")
+    if ins:
+        def n(v):
+            return "n/a" if v is None else f"{v:,.0f}"
+        net = ins.get("net_pct")
+        out.append(
+            f"- Insider trading, last 6 months: {n(ins.get('buy_trans'))} purchases ({n(ins.get('buy_shares'))} shares) "
+            f"vs {n(ins.get('sell_trans'))} sales ({n(ins.get('sell_shares'))} shares)"
+            + (f"; net {net * 100:+.2f}% of insider holdings" if net is not None else "")
+        )
+    return ["", "Management and insiders:"] + out if out else []
+
+
+def _proxy_note(row):
+    note = row.get("operating_income_proxy")
+    return f" [{note} shown: this company does not report an operating income line]" if note else ""
+
+
+_FINANCIAL_WORDS = ("financial", "bank", "insurance", "credit services", "capital markets",
+                    "asset management", "mortgage", "nbfc", "lending")
+
+
+def _derived_metrics(data, latest, ttm, cap_unit, unit_label):
+    """Valuation figures computed here from numbers already in the block, so a
+    missing ready-made ratio is never a reason an agent can't value the company.
+    Skipped when market cap and the statements are in different currencies."""
+    out = []
+    kind = f"{data.get('sector') or ''} {(data.get('ratios') or {}).get('Industry') or ''}".lower()
+    interest, op = latest.get("interest_expense"), latest.get("operating_income")
+    if interest and interest > 0 and op is not None and not any(w in kind for w in _FINANCIAL_WORDS):
+        out.append(f"- Interest coverage (operating income / interest expense): {op / interest:.1f}x"
+                   + (" (operating loss: interest is not covered by operations)" if op < 0 else ""))
+    market_cap = data.get("market_cap")
+    if not market_cap or cap_unit != unit_label:
+        return (["", "Derived valuation metrics (computed from the figures above):"] + out) if out else []
+    revenue = (ttm or {}).get("revenue") or latest.get("revenue")
+    if revenue and revenue > 0:
+        out.append(f"- Price/Sales: {market_cap / revenue:.2f}" + (" (TTM revenue)" if (ttm or {}).get("revenue") else ""))
+    equity = latest.get("total_equity")
+    if equity and equity > 0:
+        out.append(f"- Price/Book: {market_cap / equity:.2f}")
+    fcf = latest.get("fcf")
+    if fcf is not None:
+        out.append(f"- Free cash flow yield: {100 * fcf / market_cap:.1f}% (latest fiscal year FCF / market cap)")
+    debt, cash = latest.get("total_debt"), latest.get("cash")
+    if debt is not None and cash is not None:
+        out.append(f"- Net debt (debt minus cash): {_fmt(round(debt - cash, 1))} {unit_label}")
+    return ["", "Derived valuation metrics (computed from the figures above):"] + out if out else []
+
+
+def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
+    """Plain statements of what is not available and what to use instead. The
+    point is that an agent should work around a gap, not decline to opine."""
+    notes = []
+    kind = f"{data.get('sector') or ''} {ratios.get('Industry') or ''}".lower()
+    is_financial = any(word in kind for word in _FINANCIAL_WORDS)
+    if is_financial:
+        notes.append(
+            "This is a financial company. Operating margin, free cash flow, capex and debt-to-equity "
+            "do not mean what they do for an industrial business (deposits, float or borrowing ARE its "
+            "raw material). Judge it on return on equity, book value and price-to-book, earnings "
+            "growth and consistency, and balance sheet scale instead. Asset quality (NPAs), "
+            "capital adequacy and net interest margin are not in our data; infer them from return on "
+            "equity, price-to-book, leverage (assets relative to equity) and earnings consistency, and "
+            "say that you are inferring."
+        )
+    net = (ttm or latest).get("net_income")
+    if net is not None and net < 0:
+        notes.append(
+            "Net income is negative, so P/E is not meaningful. Value it on price/sales, price/book, "
+            "cash burn against cash on hand, and the path to profitability."
+        )
+    if data.get("market") == "India" and not data.get("governance"):
+        notes.append(
+            "Board composition and executive pay are not in our data for Indian companies. "
+            "Use the promoter and institutional holding trend shown below as the governance signal."
+        )
+    if latest.get("operating_income_proxy"):
+        notes.append("No operating income line is reported by this company; pre-tax income is shown in its place.")
+    if unit_label not in ("USD", "INR Cr.") and cap_unit != unit_label:
+        notes.append(
+            f"Financial statements are reported in {unit_label}, while the share price and market cap are in "
+            f"{cap_unit}. Ratios and margins are unit-free and comparable; compare amounts only within "
+            "the same currency."
+        )
+    have = lambda key: latest.get(key) is not None
+    yahoo = lambda key: ratios.get(key) not in (None, "")
+    missing = []
+    for label, ok in (
+        ("revenue", have("revenue")),
+        ("net income", have("net_income")),
+        ("total debt", have("total_debt") or yahoo("Total Debt (latest quarter, Yahoo)")),
+        ("cash", have("cash") or yahoo("Cash & Equivalents (latest quarter, Yahoo)")),
+        ("operating cash flow", have("operating_cash_flow") or yahoo("Operating Cash Flow (TTM, Yahoo)")),
+    ):
+        if not ok:
+            missing.append(label)
+    if not is_financial:
+        if not (have("fcf") or yahoo("Free Cash Flow (TTM, Yahoo)")):
+            missing.append("free cash flow")
+        if not have("capex"):
+            missing.append("capex")
+    if missing:
+        notes.append(
+            "Not available from our data sources for this company: " + ", ".join(missing) + ". "
+            "That is a gap in our feed, not a fact about the business. Work from the figures that ARE shown, "
+            "derive what you need (for example free cash flow = operating cash flow minus capex; "
+            "net debt = debt minus cash), say plainly where you are assuming, and still give your view."
+        )
+    return ["", "DATA NOTES:"] + [f"- {n}" for n in notes] if notes else []
+
+
 def format_for_agents(data):
     """Render the normalized schema into the text block every agent prompt reads."""
     annual = data.get("annual", [])
@@ -157,6 +295,8 @@ def format_for_agents(data):
     prior = annual[-2] if len(annual) > 1 else {}
     currency = data.get("currency", "")
     unit_label = data.get("unit_label", currency)
+    cap_unit = data.get("market_cap_unit", unit_label)  # market cap can be USD while statements are TWD, DKK...
+    price_ccy = data.get("price_currency", currency)
 
     # SEC's total-debt tag is missing for some filers (e.g. Plug Power), which
     # rendered as "N/A" right next to a debt-to-equity ratio of 176% — and an
@@ -175,8 +315,8 @@ def format_for_agents(data):
     lines = [
         f"Company: {data.get('name', data['ticker'])} ({data['ticker']}), "
         f"{data.get('market', '')} listed, {data.get('sector', 'Sector N/A')}",
-        f"Market cap: {_fmt(data.get('market_cap'))} {unit_label} | "
-        f"Share price: {_fmt(data.get('price'))} {currency}",
+        f"Market cap: {_fmt(data.get('market_cap'))} {cap_unit} | "
+        f"Share price: {_fmt(data.get('price'))} {price_ccy}",
         "",
         f"Income statement (period ending {latest.get('period', 'N/A')}, {unit_label}):",
         f"- Revenue: {_fmt(latest.get('revenue'))} "
@@ -184,7 +324,7 @@ def format_for_agents(data):
         f"- Gross profit: {_fmt(latest.get('gross_profit'))} "
         f"(gross margin {_fmt(latest.get('gross_margin'), '%')})",
         f"- Operating income: {_fmt(latest.get('operating_income'))} "
-        f"(operating margin {_fmt(latest.get('operating_margin'), '%')})",
+        f"(operating margin {_fmt(latest.get('operating_margin'), '%')}){_proxy_note(latest)}",
         f"- Net income: {_fmt(latest.get('net_income'))} "
         f"(net margin {_fmt(latest.get('net_margin'), '%')})",
         f"- R&D spend: {_fmt(latest.get('rnd'))}",
@@ -205,6 +345,16 @@ def format_for_agents(data):
         f"- Approx. ROIC: {_fmt(latest.get('roic_approx'), '%')}",
         "(N/A means the figure was not available from the data source. It never means zero.)",
     ]
+
+    # Optional lines that are simply empty add noise, not information: a block
+    # full of N/A made agents comment on "a feed riddled with N/A" even when the
+    # missing item (R&D at a bank, gross profit where none is reported) was
+    # never applicable. Core lines stay visible so a real gap is still explicit.
+    droppable = ["- R&D spend: N/A", "- Gross profit: N/A", "- Dividends paid: N/A", "- Approx. ROIC: N/A"]
+    kind_text = f"{data.get('sector') or ''} {(data.get('ratios') or {}).get('Industry') or ''}".lower()
+    if any(word in kind_text for word in _FINANCIAL_WORDS):
+        droppable += ["- Capex: N/A", "- Free cash flow: N/A"]
+    lines = [line for line in lines if not line.startswith(tuple(droppable))]
 
     if data.get("business_summary"):
         lines[2:2] = ["", "Business: " + data["business_summary"]]
@@ -234,9 +384,13 @@ def format_for_agents(data):
         ]
 
     if len(annual) > 1:
-        first = annual[0]
-        years = len(annual) - 1
-        rev_first, rev_last = first.get("revenue"), latest.get("revenue")
+        # Use the first and last years that actually HAVE revenue: a half-empty
+        # oldest year (Yahoo's fifth column) used to make this print N/A.
+        with_rev = [(i, r) for i, r in enumerate(annual) if r.get("revenue")]
+        first = with_rev[0][1] if with_rev else annual[0]
+        years = (with_rev[-1][0] - with_rev[0][0]) if len(with_rev) >= 2 else 0
+        rev_first = first.get("revenue")
+        rev_last = with_rev[-1][1].get("revenue") if with_rev else latest.get("revenue")
         cagr = None
         if rev_first and rev_last and rev_first > 0 and years > 0:
             cagr = round(100 * ((rev_last / rev_first) ** (1 / years) - 1), 1)
@@ -250,12 +404,15 @@ def format_for_agents(data):
 
     quarters = data.get("quarters") or []
     if quarters:
-        lines += ["", f"Recent quarters ({unit_label}):", "Quarter | Sales | Op profit | OPM % | Net profit | EPS"]
+        has_npa = any(q.get("gnpa") is not None for q in quarters)
+        lines += ["", f"Recent quarters ({unit_label}):",
+                  "Quarter | Sales | Op profit | OPM % | Net profit | EPS" + (" | Gross NPA % | Net NPA %" if has_npa else "")]
         for q in quarters:
             lines.append(
                 f"{q.get('period')} | {_compact(q.get('sales'), unit_label)} | "
                 f"{_compact(q.get('operating_profit'), unit_label)} | {_fmt(q.get('opm'), '%')} | "
                 f"{_compact(q.get('net_profit'), unit_label)} | {_fmt(q.get('eps'))}"
+                + (f" | {_fmt(q.get('gnpa'))} | {_fmt(q.get('nnpa'))}" if has_npa else "")
             )
 
     growth = data.get("growth") or {}
@@ -272,7 +429,7 @@ def format_for_agents(data):
             lines.append(f"- {key}: {value}")
 
     own_pe = ratios.get("P/E Ratio (Trailing)", ratios.get("P/E Ratio"))
-    lines += _format_peers(data.get("peers"), own_pe, unit_label)
+    lines += _format_peers(data.get("peers"), own_pe, cap_unit)
 
     lines += describe_technicals(data.get("technicals"), currency)
 
@@ -280,6 +437,11 @@ def format_for_agents(data):
     if pros or cons:
         lines += ["", "Screener's automated checklist:"]
         lines += [f"- Pro: {x}" for x in pros[:3]] + [f"- Con: {x}" for x in cons[:3]]
+
+    lines += _capital_allocation(annual, unit_label)
+    lines += _management_lines(data.get("governance") or {})
+    lines += _derived_metrics(data, latest, ttm, cap_unit, unit_label)
+    lines += _data_notes(data, latest, ttm, ratios, cap_unit, unit_label)
 
     shareholding = data.get("shareholding") or []
     if shareholding:

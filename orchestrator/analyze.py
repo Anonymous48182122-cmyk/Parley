@@ -9,6 +9,8 @@ from data.common import format_for_agents
 from data.india import bse_fetcher
 from data.market_data import fetch_market_data
 from data.peers import fetch_peers
+from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps
+from data.yahoo_fundamentals import complete_with_yahoo
 from data.us import edgar_fetcher
 
 
@@ -32,7 +34,7 @@ def _merge_market_data(financials):
 
     # Price action and the business description: keep whatever the primary source
     # already supplied (Screener's own series for India), else use Yahoo's.
-    for key in ("technicals", "business_summary"):
+    for key in ("technicals", "business_summary", "governance"):
         if not financials.get(key) and market_data.get(key):
             financials[key] = market_data[key]
 
@@ -52,7 +54,11 @@ def fetch_financials(ticker, market=None):
         except ValueError:
             financials = bse_fetcher.fetch(ticker)
 
+    financials = complete_with_yahoo(financials)
+    financials = complete_with_nasdaq(financials)  # Yahoo is empty from cloud IPs; Nasdaq is the backup
     financials = _merge_market_data(financials)
+    financials = fill_market_gaps(financials)
+    financials = derive_ratios(financials)
     financials["peers"] = fetch_peers(
         financials["ticker"],
         financials.get("market"),
