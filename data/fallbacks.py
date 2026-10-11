@@ -232,9 +232,9 @@ def _quarterly_ratios(financials, put):
         # Yahoo's quarterly figures can be restated by spin-offs and discontinued operations (Sony's
         # four quarters sum to a loss in a year it earned over a trillion yen). When the trailing year
         # contradicts the fiscal year's sign, the quarterly series is not to be trusted.
-        fy_ni = ((financials.get("annual") or [{}])[-1]).get("net_income")
-        if ni is not None and fy_ni and (ni > 0) != (fy_ni > 0):
-            return False
+        recent = [r.get("net_income") for r in (financials.get("annual") or [])[-2:] if r.get("net_income")]
+        if ni is not None and any((ni > 0) != (v > 0) for v in recent):
+            return False  # either of the last two fiscal years says the opposite (restated years too)
     now = rows[-1]
     eq, assets, debt, cash = now.get("total_equity"), now.get("total_assets"), now.get("total_debt"), now.get("cash")
     mcap, price = financials.get("market_cap"), financials.get("price")
