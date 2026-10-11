@@ -118,10 +118,21 @@ def _fetch_quote(ticker):
                         if h.get("label") == "P/E Ratio"), None))
     except Exception:
         pass
+    estimates = []
     try:
         rows = ((_get(f"analyst/{symbol}/earnings-forecast").get("yearlyForecast") or {}).get("rows")) or []
         # the first fiscal year still in the future is the forward estimate
         forward_eps = _num(rows[0].get("consensusEPSForecast")) if rows else None
+        estimates = [{"year": r.get("fiscalEnd"), "eps": r.get("consensusEPSForecast"),
+                      "analysts": r.get("noOfEstimates")} for r in rows[:3]]
+    except Exception:
+        pass
+    surprises = []
+    try:
+        for r in (_get(f"quote/{symbol}/eps").get("earningsPerShare") or []):
+            if r.get("type") == "PreviousQuarter" and r.get("consensus") is not None:
+                surprises.append({"period": r.get("period"), "actual": r.get("earnings"),
+                                  "consensus": r.get("consensus")})
     except Exception:
         pass
 
@@ -132,6 +143,8 @@ def _fetch_quote(ticker):
         "annual_dividend": annual_dividend,
         "pe": pe,
         "forward_eps": forward_eps,
+        "eps_estimates": estimates,
+        "eps_surprises": surprises[-4:],
         "sector": sector if sector not in (None, "N/A", "") else None,
         "industry": industry if industry not in (None, "N/A", "") else None,
         "high_52w": high,
@@ -199,6 +212,7 @@ _STATEMENT_MAP = {
     "cash": ("balanceSheetTable", ["Cash and Cash Equivalents"]),
     "operating_cash_flow": ("cashFlowTable", ["Net Cash Flow-Operating"]),
     "capex": ("cashFlowTable", ["Capital Expenditures"]),
+    "buybacks": ("cashFlowTable", ["Sale and Purchase of Stock"]),  # net: only an outflow counts as a buyback
 }
 _ABS = {"capex", "interest_expense"}
 _DEBT_ROWS = ("Short-Term Debt / Current Portion of Long-Term Debt", "Long-Term Debt")
@@ -237,6 +251,8 @@ def _fetch_statements(ticker):
         for field, (table_name, labels) in _STATEMENT_MAP.items():
             src = cells(table_name, labels)
             value = _num(src.get(col)) if src else None
+            if field == "buybacks":
+                value = abs(value) if value is not None and value < 0 else None
             if value is not None:
                 value = abs(value) if field in _ABS else value
                 value = round(value * 1000, 2)  # Nasdaq reports thousands of dollars
@@ -251,7 +267,30 @@ def _fetch_statements(ticker):
     rows = [r for r in rows if r.get("revenue") is not None or r.get("net_income") is not None]
     if not rows:
         raise ValueError(f"Nasdaq statements for {ticker} were empty")
-    return {"rows": rows, "currency": "USD"}
+
+    # the latest year's line items that the summary fields leave out (receivables,
+    # inventory, current assets and liabilities, goodwill ...), for liquidity questions
+    latest_col = max(columns, key=lambda k: columns[k])
+
+    def detail(table_name, labels):
+        out = {}
+        for label in labels:
+            src = cells(table_name, [label])
+            value = _num(src.get(latest_col)) if src else None
+            if value is not None:
+                out[label] = round(value * 1000, 2)
+        return out
+
+    balance = detail("balanceSheetTable", [
+        "Net Receivables", "Inventory", "Total Current Assets", "Total Current Liabilities", "Accounts Payable",
+        "Short-Term Investments", "Goodwill", "Intangible Assets", "Long-Term Investments",
+        "Short-Term Debt / Current Portion of Long-Term Debt", "Long-Term Debt", "Total Liabilities"])
+    flows = detail("cashFlowTable", [
+        "Depreciation", "Net Cash Flows-Investing", "Net Cash Flows-Financing",
+        "Sale and Purchase of Stock", "Net Borrowings"])
+    return {"rows": rows, "currency": "USD",
+            "detail": {"period": columns[latest_col], "currency": "USD",
+                       "balance_sheet": balance, "cash_flow": flows}}
 
 
 def fetch_nasdaq_annual(ticker):

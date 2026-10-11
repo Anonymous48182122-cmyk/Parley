@@ -150,6 +150,12 @@ def _format_peers(peers, own_pe, unit_label):
     return lines
 
 
+def _detail_value(value, detail, unit_label):
+    """Detail rows with their own currency (Nasdaq's, in full dollars) are shortened to B/M;
+    Screener's, already in crores, print as they are."""
+    return _compact(value, detail["currency"]) if detail.get("currency") else _fmt(value)
+
+
 def _capital_allocation(annual, unit_label):
     """What management does with the cash: buybacks, dividends, stock comp, and
     whether the share count is shrinking or being diluted."""
@@ -373,14 +379,14 @@ def format_for_agents(data):
     if detail.get("balance_sheet"):
         lines += [
             "",
-            f"Balance sheet detail ({detail.get('period')}, {unit_label}):",
-            "- " + "; ".join(f"{k} {_fmt(v)}" for k, v in detail["balance_sheet"].items()),
+            f"Balance sheet detail ({detail.get('period')}, {detail.get('currency') or unit_label}):",
+            "- " + "; ".join(f"{k} {_detail_value(v, detail, unit_label)}" for k, v in detail["balance_sheet"].items()),
         ]
     if detail.get("cash_flow"):
         lines += [
             "",
-            f"Cash flow detail (same period, {unit_label}; CFO/OP is the percent of operating profit that became cash):",
-            "- " + "; ".join(f"{k} {_fmt(v)}" for k, v in detail["cash_flow"].items()),
+            f"Cash flow detail (same period, {detail.get('currency') or unit_label}; CFO/OP is the percent of operating profit that became cash):",
+            "- " + "; ".join(f"{k} {_detail_value(v, detail, unit_label)}" for k, v in detail["cash_flow"].items()),
         ]
 
     if len(annual) > 1:
@@ -414,6 +420,22 @@ def format_for_agents(data):
                 f"{_compact(q.get('net_profit'), unit_label)} | {_fmt(q.get('eps'))}"
                 + (f" | {_fmt(q.get('gnpa'))} | {_fmt(q.get('nnpa'))}" if has_npa else "")
             )
+
+    surprises = data.get("eps_surprises") or []
+    if surprises:
+        parts = []
+        for s in surprises:
+            actual, cons = s.get("actual"), s.get("consensus")
+            if actual is None or not cons:
+                continue
+            gap = (actual - cons) / abs(cons) * 100
+            parts.append(f"{s.get('period')}: EPS {actual} vs {cons} expected ({'beat' if gap >= 0 else 'miss'} {abs(gap):.1f}%)")
+        if parts:
+            lines += ["", "Recent quarterly earnings vs analyst consensus (per share, USD):", "- " + "; ".join(parts)]
+    estimates = data.get("eps_estimates") or []
+    if estimates:
+        lines += ["- Analyst consensus EPS for coming fiscal years: " + "; ".join(
+            f"{e.get('year')} {e.get('eps')} ({e.get('analysts')} analysts)" for e in estimates)]
 
     growth = data.get("growth") or {}
     if growth:

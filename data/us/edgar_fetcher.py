@@ -62,6 +62,10 @@ TAG_FALLBACKS = {
     ],
     "dividends": ["PaymentsOfDividendsCommonStock", "PaymentsOfDividends"],
     "shares_outstanding": ["CommonStockSharesOutstanding"],
+    "interest_expense": ["InterestExpense", "InterestExpenseDebt", "InterestExpenseNonoperating"],
+    "buybacks": ["PaymentsForRepurchaseOfCommonStock"],
+    "sbc": ["ShareBasedCompensation"],
+    "shares_avg": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
 }
 
 # Foreign private issuers that report under IFRS (Novo Nordisk, TSMC, SAP,
@@ -85,6 +89,9 @@ IFRS_TAG_FALLBACKS = {
         "PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
     ],
     "dividends": ["DividendsPaidClassifiedAsFinancingActivities", "DividendsPaid"],
+    "interest_expense": ["InterestExpense", "FinanceCosts"],
+    "buybacks": ["PurchaseOfTreasuryShares"],
+    "sbc": ["AdjustmentsForSharebasedPayments"],
 }
 
 

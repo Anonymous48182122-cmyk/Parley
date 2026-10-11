@@ -22,12 +22,37 @@ def _note(financials, text):
         notes.append(text)
 
 
+def _note_exchange_rate(financials, usd_rows):
+    """A company that reports in yen or euros but trades in dollars: Nasdaq publishes the
+    same years converted to USD, so the ratio of the two revenues is the rate in use.
+    Handing agents that number lets them compare the dollar share price with local-currency
+    statements instead of saying a conversion is not provided."""
+    from data.yahoo_fundamentals import period_date
+    try:
+        native = financials["annual"][-1]
+        d = period_date(native.get("period"))
+        match = next((r for r in usd_rows if d and period_date(r["period"]) and
+                      abs((period_date(r["period"]) - d).days) <= 50), None)
+        if match and native.get("revenue") and match.get("revenue"):
+            rate = native["revenue"] / match["revenue"]
+            code = financials.get("unit_label")
+            _note(financials, f"exchange rate implied by the filings: 1 USD = {rate:,.2f} {code} "
+                              f"(use it to compare the USD share price and market cap with the {code} statements)")
+    except Exception:
+        pass
+
+
 def complete_with_nasdaq(financials):
     """US only: fill statement gaps (or replace empty statements) from Nasdaq."""
     if financials.get("market") != "US":
         return financials
     try:
         data = fetch_nasdaq_annual(financials["ticker"])
+        if data.get("detail") and not financials.get("balance_detail"):
+            financials["balance_detail"] = data["detail"]
+        native = str(financials.get("unit_label") or "")
+        if native and native != "USD" and financials.get("annual"):
+            _note_exchange_rate(financials, data.get("rows") or [])
         return apply_statement_rows(financials, data.get("rows") or [], data.get("currency"), "Nasdaq")
     except Exception:
         return financials
@@ -88,6 +113,11 @@ def fill_market_gaps(financials):
             sic = fetch_sic_description(ticker)
             if sic:
                 financials["sector"], used = sic, True
+
+        if q.get("eps_surprises") and not financials.get("eps_surprises"):
+            financials["eps_surprises"] = q["eps_surprises"]
+        if q.get("eps_estimates") and not financials.get("eps_estimates"):
+            financials["eps_estimates"] = q["eps_estimates"]
 
         put("Industry", q.get("industry"))
         put("52-Week High", q.get("high_52w"))
@@ -183,6 +213,12 @@ def derive_ratios(financials):
                 put("Dividend Yield", f"{round(div / mcap * 100, 2)}%")
             if eq and eq > 0:
                 put("Price to Book", round(mcap / eq, 2))
+                if financials.get("price"):
+                    put("Book Value per Share", round(eq / (mcap / financials["price"]), 2))
+            nq = fetch_nasdaq_quote(financials["ticker"]) if financials.get("market") == "US" else {}
+            if nq.get("annual_dividend") and financials.get("price") and last.get("dividends") is None:
+                last["dividends"] = round(nq["annual_dividend"] * mcap / financials["price"], 2)
+                _note(financials, "dividends paid estimated as annual dividend per share x current share count")
 
         elif mcap and financials.get("market") == "US":
             # an ADR reporting in yen or euros: Nasdaq's dollar-converted statements make P/E possible
