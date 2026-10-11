@@ -291,6 +291,8 @@ def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
             "derive what you need (for example free cash flow = operating cash flow minus capex; "
             "net debt = debt minus cash), say plainly where you are assuming, and still give your view."
         )
+    # where figures came from or were estimated (exchange rate, computed ratios, derived EPS)
+    notes += [n for n in data.get("data_sources") or [] if n not in notes and "gaps filled" not in n]
     return ["", "DATA NOTES:"] + [f"- {n}" for n in notes] if notes else []
 
 
