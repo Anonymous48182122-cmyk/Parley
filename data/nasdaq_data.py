@@ -49,6 +49,11 @@ def _get(path, params=None, retries=2):
     raise last
 
 
+def _sym(ticker):
+    """Nasdaq writes share classes with a dot (BRK.B); Yahoo and our callers use a hyphen."""
+    return ticker.upper().replace("-", ".")
+
+
 def _num(text):
     """'$1,234.50', '-$920,000', '12.5%', '--', 'N/A' -> float or None."""
     if text is None:
@@ -72,7 +77,7 @@ def _summary_value(summary, key):
 # ---- quote / profile -------------------------------------------------------
 
 def _fetch_quote(ticker):
-    symbol = ticker.upper()
+    symbol = _sym(ticker)
     summary = _get(f"quote/{symbol}/summary", {"assetclass": "stocks"}).get("summaryData") or {}
     market_cap = _num(_summary_value(summary, "MarketCap"))
 
@@ -150,7 +155,7 @@ def fetch_nasdaq_quote(ticker):
 def _fetch_history(ticker, assetclass="stocks"):
     today = date.today()
     data = _get(
-        f"quote/{ticker.upper()}/historical",
+        f"quote/{_sym(ticker)}/historical",
         {"assetclass": assetclass, "fromdate": (today - timedelta(days=430)).isoformat(),
          "todate": today.isoformat(), "limit": 400},
     )
@@ -213,7 +218,7 @@ def _table_columns(table):
 
 
 def _fetch_statements(ticker):
-    data = _get(f"company/{ticker.upper()}/financials", {"frequency": 1})
+    data = _get(f"company/{_sym(ticker)}/financials", {"frequency": 1})
     tables = {k: (data or {}).get(k) or {} for k in ("incomeStatementTable", "balanceSheetTable", "cashFlowTable")}
     columns = _table_columns(tables["incomeStatementTable"]) or _table_columns(tables["balanceSheetTable"])
     if not columns:
