@@ -148,8 +148,8 @@ def fill_market_gaps(financials):
                 financials["technicals"], used = tech, True
                 spy = fetch_nasdaq_history("SPY", "etf")
                 beta = _beta(history, spy) if spy else None
-                if beta is not None and ratios.get("Beta") in (None, ""):
-                    ratios["Beta"] = beta
+                if beta is not None and ratios.get("Beta") in (None, "") and ratios.get("Beta (1Y vs S&P 500)") is None:
+                    ratios["Beta (1Y vs S&P 500)"] = beta
                     _note(financials, "Beta is against the S&P 500 (SPY) over about a year of daily returns")
         if used:
             _note(financials, "price, market cap and sector from Nasdaq (Yahoo Finance was unavailable)")

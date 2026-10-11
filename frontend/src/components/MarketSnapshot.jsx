@@ -161,7 +161,7 @@ export default function MarketSnapshot({ data }) {
         <Stat label="ROE" value={asPercent(pick(ratios, "Return on Equity", "ROE"))} />
         <Stat label="Book Value" value={pick(ratios, "Book Value per Share")} />
         <Stat label="Debt / Equity" value={pick(ratios, "Debt to Equity")} />
-        <Stat label="Beta" value={pick(ratios, "Beta")} />
+        <Stat label="Beta" value={pick(ratios, "Beta", "Beta (1Y vs S&P 500)")} />
         <Stat label="Sector" value={sector} />
         <Stat label="Industry" value={pick(ratios, "Industry")} />
       </div>
