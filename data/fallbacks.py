@@ -11,7 +11,8 @@ agents already have (every market). Each is best-effort and never raises.
 
 from statistics import mean
 
-from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_history, fetch_nasdaq_quote, fetch_nasdaq_universe
+from data.nasdaq_data import (fetch_nasdaq_annual, fetch_nasdaq_history, fetch_nasdaq_quarterly,
+                              fetch_nasdaq_quote, fetch_nasdaq_universe)
 from data.technicals import compute_technicals
 from data.yahoo_fundamentals import apply_statement_rows
 
@@ -162,6 +163,75 @@ def _pct(value):
     return f"{round(value * 100, 2)}%"
 
 
+def _money_text(value):
+    for cutoff, suffix in ((1e9, "B"), (1e6, "M")):
+        if abs(value) >= cutoff:
+            return f"{value / cutoff:,.2f}{suffix}"
+    return f"{value:,.0f}"
+
+
+def _quarterly_ratios(financials, put):
+    """US: the ratios as they are quoted, on trailing-twelve-month earnings and the latest
+    quarter's balance sheet, from Nasdaq's quarterly statements. (The annual figures lag by
+    up to a year: Eli Lilly's fiscal-year debt/equity read 160 while the latest quarter is 162,
+    and its P/E on last year's earnings read 54 against 42 on the trailing twelve months.)"""
+    from data.yahoo_fundamentals import period_date
+
+    rows = fetch_nasdaq_quarterly(financials["ticker"]).get("rows") or []
+    if len(rows) < 4:
+        return False
+    rows = rows[-4:]
+    dates = [period_date(r["period"]) for r in rows]
+    if None in dates or any(not 60 <= (b - a).days <= 125 for a, b in zip(dates, dates[1:])):
+        return False  # not four consecutive quarters
+
+    def total(key):
+        vals = [r.get(key) for r in rows]
+        return None if any(v is None for v in vals) else sum(vals)
+
+    ni, rev, op, gp = total("net_income"), total("revenue"), total("operating_income"), total("gross_profit")
+    now = rows[-1]
+    eq, assets, debt, cash = now.get("total_equity"), now.get("total_assets"), now.get("total_debt"), now.get("cash")
+    mcap, price = financials.get("market_cap"), financials.get("price")
+    lender = any(w in str(financials.get("sector") or "").lower() for w in ("financ", "bank", "insur"))
+
+    if ni is not None and eq and eq > 0:
+        put("Return on Equity", f"{round(ni / eq * 100, 2)}%")
+    if ni is not None and assets:
+        put("Return on Assets", f"{round(ni / assets * 100, 2)}%")
+    if ni is not None and rev:
+        put("Net Profit Margin", f"{round(ni / rev * 100, 2)}%")
+    if gp is not None and rev and not lender:
+        put("Gross Margin", f"{round(gp / rev * 100, 2)}%")
+    if op is not None and rev:
+        put("Operating Margin", f"{round(op / rev * 100, 2)}%")
+    if debt is not None and eq and eq > 0 and not lender:
+        put("Debt to Equity", round(debt / eq * 100, 2))
+    if mcap and ni and ni > 0:
+        put("P/E Ratio (Trailing)", round(mcap / ni, 2))
+    if mcap and eq and eq > 0:
+        put("Price to Book", round(mcap / eq, 2))
+        if price:
+            put("Book Value per Share", round(eq / (mcap / price), 2))
+    if cash is not None:
+        put("Cash & Equivalents (latest quarter)", _money_text(cash))
+    if debt is not None:
+        put("Total Debt (latest quarter)", _money_text(debt))
+
+    # a trailing-twelve-month block for the agents, when the statements are in dollars too
+    if str(financials.get("unit_label")) == "USD" and not financials.get("ttm") and rev:
+        shares = (mcap / price) if (mcap and price) else None
+        financials["ttm"] = {
+            "revenue": rev, "operating_income": op, "net_income": ni,
+            "operating_margin": round(op / rev * 100, 1) if op is not None else None,
+            "net_margin": round(ni / rev * 100, 1) if ni is not None else None,
+            "eps_diluted": round(ni / shares, 2) if (ni is not None and shares) else None,
+        }
+    _note(financials, f"P/E, ROE and margins use trailing-twelve-month earnings and debt, equity and cash use the "
+                      f"balance sheet at {rows[-1]['period']} (latest quarter), from Nasdaq")
+    return True
+
+
 def derive_ratios(financials):
     """Fill ratio gaps from the statements the agents already have. Uses the last
     fiscal year, so P/E and yield describe that year and not the trailing twelve months."""
@@ -181,6 +251,12 @@ def derive_ratios(financials):
             if value is not None and not taken:
                 ratios[key] = value
                 derived.append(key)
+
+        if financials.get("market") == "US" and financials.get("market_cap"):
+            try:
+                _quarterly_ratios(financials, put)
+            except Exception:
+                pass
 
         ni, eq, rev = last.get("net_income"), last.get("total_equity"), last.get("revenue")
         assets, debt = last.get("total_assets"), last.get("total_debt")

@@ -231,8 +231,8 @@ def _table_columns(table):
     return out
 
 
-def _fetch_statements(ticker):
-    data = _get(f"company/{_sym(ticker)}/financials", {"frequency": 1})
+def _fetch_statements(ticker, frequency=1):
+    data = _get(f"company/{_sym(ticker)}/financials", {"frequency": frequency})
     tables = {k: (data or {}).get(k) or {} for k in ("incomeStatementTable", "balanceSheetTable", "cashFlowTable")}
     columns = _table_columns(tables["incomeStatementTable"]) or _table_columns(tables["balanceSheetTable"])
     if not columns:
@@ -291,6 +291,17 @@ def _fetch_statements(ticker):
     return {"rows": rows, "currency": "USD",
             "detail": {"period": columns[latest_col], "currency": "USD",
                        "balance_sheet": balance, "cash_flow": flows}}
+
+
+def fetch_nasdaq_quarterly(ticker):
+    """The last four quarters, same shape as the annual rows, in dollars; {} on failure.
+    Gives trailing-twelve-month earnings and the latest quarter's balance sheet, which
+    is what P/E, ROE and debt-to-equity are quoted on."""
+    try:
+        return cached_fetch(f"nasdaq_finq_{ticker.upper()}", NASDAQ_STATEMENTS_TTL_HOURS,
+                            lambda: _fetch_statements(ticker, 2))
+    except Exception:
+        return {}
 
 
 def fetch_nasdaq_annual(ticker):

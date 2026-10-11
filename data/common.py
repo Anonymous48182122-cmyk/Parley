@@ -273,8 +273,8 @@ def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
     for label, ok in (
         ("revenue", have("revenue")),
         ("net income", have("net_income")),
-        ("total debt", have("total_debt") or yahoo("Total Debt (latest quarter, Yahoo)")),
-        ("cash", have("cash") or yahoo("Cash & Equivalents (latest quarter, Yahoo)")),
+        ("total debt", have("total_debt") or yahoo("Total Debt (latest quarter, Yahoo)") or yahoo("Total Debt (latest quarter)")),
+        ("cash", have("cash") or yahoo("Cash & Equivalents (latest quarter, Yahoo)") or yahoo("Cash & Equivalents (latest quarter)")),
         ("operating cash flow", have("operating_cash_flow") or yahoo("Operating Cash Flow (TTM, Yahoo)")),
     ):
         if not ok:
