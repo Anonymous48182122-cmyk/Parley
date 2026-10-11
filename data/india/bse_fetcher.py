@@ -242,6 +242,7 @@ def _build_annual_rows(soup, max_years=10):
     eq_cap, reserves = _row(bs, "Equity Capital"), _row(bs, "Reserves")
     borrowings, assets = _row(bs, "Borrowings", "Borrowing"), _row(bs, "Total Assets", "Total Liabilities")
     interest_row = _row(pl, "Interest")
+    pbt_row = _row(pl, "Profit before tax")
     ocf_row, fcf_row = _row(cf, "Cash from Operating Activity"), _row(cf, "Free Cash Flow")
 
     def build(i, header):
@@ -250,11 +251,17 @@ def _build_annual_rows(soup, max_years=10):
         ec, rs = _at(eq_cap, b), _at(reserves, b)
         equity = ((ec or 0) + (rs or 0)) if (ec is not None or rs is not None) else None
         net, ocf, fcf, pay = _at(net_p, i), _at(ocf_row, c), _at(fcf_row, c), _at(payout, i)
+        operating = _at(op, i)
+        proxy = None
+        if operating is None and _at(pbt_row, i) is not None:
+            # banks and NBFCs have no operating profit line; pre-tax profit is the closest figure
+            operating, proxy = _at(pbt_row, i), "pre-tax income"
         row = {
             "period": _period_label(header),
             "revenue": _at(sales, i),
             "gross_profit": None,
-            "operating_income": _at(op, i),
+            "operating_income": operating,
+            **({"operating_income_proxy": proxy} if proxy else {}),
             "net_income": net,
             "rnd": None,
             "eps_diluted": _at(eps, i),
@@ -446,7 +453,7 @@ def fetch(ticker, _allow_parent_lookup=True):
         return parsed
 
     ticker_upper = ticker.upper()
-    parsed = cached_fetch(f"in_screener_v3_{ticker_upper}", ttl_hours=24, fetch_fn=do_fetch)
+    parsed = cached_fetch(f"in_screener_v4_{ticker_upper}", ttl_hours=24, fetch_fn=do_fetch)
     result = {
         "ticker": ticker_upper,
         "name": parsed.get("name") or ticker_upper,

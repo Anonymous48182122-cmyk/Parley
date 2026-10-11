@@ -99,6 +99,19 @@ def _throttled_get(url):
     return response
 
 
+def fetch_sic_description(ticker):
+    """The SEC's industry label for the company ("Fire, Marine & Casualty Insurance"),
+    or None. Used as the sector when no market-data source has one."""
+    try:
+        cik, _ = resolve_cik(ticker)
+        data = cached_fetch(
+            f"sec_submissions_{str(cik).zfill(10)}", 24 * 7,
+            lambda: _throttled_get(f"https://data.sec.gov/submissions/CIK{str(cik).zfill(10)}.json").json())
+        return (data.get("sicDescription") or "").strip() or None
+    except Exception:
+        return None
+
+
 def get_ticker_map():
     def fetch():
         return _throttled_get(TICKER_MAP_URL).json()
@@ -196,12 +209,35 @@ def _extract_series(facts, tags, ifrs_tags=(), unit=None):
     return unit_key, {item["end"]: item["val"] for item in series}
 
 
+# Companies that report debt as several line items (convertible notes, bank loans,
+# bonds) have no single total tag, so the pieces are added up.
+DEBT_COMPONENTS = ["ConvertibleDebtNoncurrent", "ConvertibleDebtCurrent", "LongTermLoansFromBank",
+                   "SeniorLongTermNotes", "SeniorNotesCurrent", "ShortTermBorrowings"]
+IFRS_DEBT_COMPONENTS = ["LongtermBorrowings", "CurrentPortionOfLongtermBorrowings", "ShorttermBorrowings",
+                        "NoncurrentPortionOfNoncurrentBondsIssued",
+                        "CurrentBondsIssuedAndCurrentPortionOfNoncurrentBondsIssued"]
+
+
+def _summed_debt(facts, unit):
+    totals = {}
+    for tag in DEBT_COMPONENTS:
+        for end, val in _extract_series(facts, [tag], (), unit)[1].items():
+            totals[end] = totals.get(end, 0) + val
+    for tag in IFRS_DEBT_COMPONENTS:
+        for end, val in _extract_series(facts, [], [tag], unit)[1].items():
+            totals[end] = totals.get(end, 0) + val
+    return totals
+
+
 def _build_annual_rows(facts, max_years=10):
     unit = _reporting_unit(facts)
     series_by_metric = {
         metric: _extract_series(facts, tags, IFRS_TAG_FALLBACKS.get(metric, ()), unit)[1]
         for metric, tags in TAG_FALLBACKS.items()
     }
+
+    if not series_by_metric.get("total_debt"):
+        series_by_metric["total_debt"] = _summed_debt(facts, unit)
 
     anchor = series_by_metric.get("revenue") or series_by_metric.get("net_income") or {}
     end_dates = sorted(anchor.keys())[-max_years:]

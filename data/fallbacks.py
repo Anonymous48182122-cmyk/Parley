@@ -11,7 +11,7 @@ agents already have (every market). Each is best-effort and never raises.
 
 from statistics import mean
 
-from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_history, fetch_nasdaq_quote
+from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_history, fetch_nasdaq_quote, fetch_nasdaq_universe
 from data.technicals import compute_technicals
 from data.yahoo_fundamentals import apply_statement_rows
 
@@ -73,6 +73,21 @@ def fill_market_gaps(financials):
         def put(key, value):
             if value is not None and ratios.get(key) in (None, ""):
                 ratios[key] = value
+
+        if financials.get("sector") in (None, "N/A") or not q.get("industry"):
+            # the stock list carries a sector and industry even where the profile has none (BRK-B)
+            sym = ticker.upper().replace("-", ".")
+            row = next((u for u in fetch_nasdaq_universe() if u["symbol"].upper() == sym), None)
+            if row:
+                if financials.get("sector") in (None, "N/A") and row.get("sector"):
+                    financials["sector"], used = row["sector"], True
+                q = {**q, "industry": q.get("industry") or row.get("industry")}
+
+        if financials.get("sector") in (None, "N/A"):
+            from data.us.edgar_fetcher import fetch_sic_description
+            sic = fetch_sic_description(ticker)
+            if sic:
+                financials["sector"], used = sic, True
 
         put("Industry", q.get("industry"))
         put("52-Week High", q.get("high_52w"))
@@ -174,6 +189,14 @@ def derive_ratios(financials):
             usd = (fetch_nasdaq_annual(financials["ticker"]).get("rows") or [{}])[-1].get("net_income")
             if usd and usd > 0:
                 put("P/E Ratio (Trailing)", round(mcap / usd, 2))
+
+        price = financials.get("price")
+        if last.get("eps_diluted") is None and ni and mcap and price and same_ccy and financials.get("market") == "US":
+            # no reported EPS in the filing data: net income over today's share count
+            # (market cap / price), good enough to size earnings per share
+            last["eps_diluted"] = round(ni / (mcap / price), 2)
+            last["eps_proxy"] = True
+            _note(financials, "latest EPS estimated as net income / current shares (market cap / price)")
 
         if derived:
             _note(financials, "some ratios (" + ", ".join(derived[:6]) + ") computed from the last fiscal year's statements")
