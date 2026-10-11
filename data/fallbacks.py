@@ -170,6 +170,48 @@ def _money_text(value):
     return f"{value:,.0f}"
 
 
+_MONEY_FIELDS = ("revenue", "gross_profit", "operating_income", "net_income",
+                 "total_assets", "total_equity", "total_debt", "cash")
+
+
+def _consecutive(rows, period_date):
+    dates = [period_date(r["period"]) for r in rows]
+    return None not in dates and all(60 <= (b - a).days <= 125 for a, b in zip(dates, dates[1:]))
+
+
+def _four_quarters(financials, period_date):
+    """The last four consecutive quarters in US dollars, and where they came from.
+
+    Nasdaq first (already dollars). Many foreign filers have none there, so Yahoo's quarterly
+    statements are used, in the company's own currency, and converted at today's exchange rate,
+    which is the rate the dollar price and market cap are quoted at."""
+    from data.yahoo_fundamentals import fetch_fx_rate, fetch_yahoo_quarterly
+
+    rows = (fetch_nasdaq_quarterly(financials["ticker"]).get("rows") or [])[-4:]
+    if len(rows) == 4 and _consecutive(rows, period_date):
+        return rows, "Nasdaq"
+
+    data = fetch_yahoo_quarterly(financials["ticker"], financials.get("market"))
+    ylist = (data.get("rows") or [])[-4:]
+    if len(ylist) < 4 or not _consecutive(ylist, period_date):
+        return None, None
+    # the filings' own currency is the reliable one: Yahoo's .info, where its financial currency
+    # lives, is exactly what the cloud host cannot read
+    unit = str(financials.get("unit_label") or "")
+    code = unit if (len(unit) == 3 and unit.isalpha()) else (data.get("currency") or "USD")
+    fx = fetch_fx_rate(code)
+    if not fx:
+        return None, None
+    usd = []
+    for r in ylist:
+        out = dict(r)
+        for key in _MONEY_FIELDS:
+            if out.get(key) is not None:
+                out[key] = out[key] / fx
+        usd.append(out)
+    return usd, f"Yahoo quarterly statements converted from {code} at {fx:,.2f} per USD"
+
+
 def _quarterly_ratios(financials, put):
     """US: the ratios as they are quoted, on trailing-twelve-month earnings and the latest
     quarter's balance sheet, from Nasdaq's quarterly statements. (The annual figures lag by
@@ -177,19 +219,22 @@ def _quarterly_ratios(financials, put):
     and its P/E on last year's earnings read 54 against 42 on the trailing twelve months.)"""
     from data.yahoo_fundamentals import period_date
 
-    rows = fetch_nasdaq_quarterly(financials["ticker"]).get("rows") or []
-    if len(rows) < 4:
+    rows, source = _four_quarters(financials, period_date)
+    if not rows:
         return False
-    rows = rows[-4:]
-    dates = [period_date(r["period"]) for r in rows]
-    if None in dates or any(not 60 <= (b - a).days <= 125 for a, b in zip(dates, dates[1:])):
-        return False  # not four consecutive quarters
 
     def total(key):
         vals = [r.get(key) for r in rows]
         return None if any(v is None for v in vals) else sum(vals)
 
     ni, rev, op, gp = total("net_income"), total("revenue"), total("operating_income"), total("gross_profit")
+    if source != "Nasdaq":
+        # Yahoo's quarterly figures can be restated by spin-offs and discontinued operations (Sony's
+        # four quarters sum to a loss in a year it earned over a trillion yen). When the trailing year
+        # contradicts the fiscal year's sign, the quarterly series is not to be trusted.
+        fy_ni = ((financials.get("annual") or [{}])[-1]).get("net_income")
+        if ni is not None and fy_ni and (ni > 0) != (fy_ni > 0):
+            return False
     now = rows[-1]
     eq, assets, debt, cash = now.get("total_equity"), now.get("total_assets"), now.get("total_debt"), now.get("cash")
     mcap, price = financials.get("market_cap"), financials.get("price")
@@ -233,7 +278,7 @@ def _quarterly_ratios(financials, put):
             "eps_diluted": round(ni / shares, 2) if (ni is not None and shares) else None,
         }
     _note(financials, f"P/E, ROE and margins use trailing-twelve-month earnings and debt, equity and cash use the "
-                      f"balance sheet at {rows[-1]['period']} (latest quarter), from Nasdaq")
+                      f"balance sheet at {rows[-1]['period']} (latest quarter), from {source}")
     return True
 
 

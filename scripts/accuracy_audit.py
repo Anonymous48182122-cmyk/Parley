@@ -4,7 +4,8 @@ Prices, market caps, P/E and the 52-week range should agree within about 15%. Kn
 differences are not errors: Yahoo's debt/equity includes lease liabilities, its operating margin is
 the latest quarter's (ours is trailing twelve months) and its ROE uses a slightly different average.
 
-Run from the repo root:  python scripts/accuracy_audit.py [TICKER ...]
+Run from the repo root:  python scripts/accuracy_audit.py [TICKER[:India] ...]
+Tickers default to US; add :India for Indian stocks (compared with Yahoo's .NS listing).
 """
 import os, shutil, sys, tempfile
 
@@ -12,14 +13,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout.reconfigure(encoding="utf-8")
 import yfinance as yf
 
-TICKERS = sys.argv[1:] or ["AAPL", "MSFT", "NVDA", "XOM", "KO", "JNJ", "LLY", "JPM", "V", "PG", "HD", "CVX", "PFE",
+ARGS = sys.argv[1:] or ["AAPL", "MSFT", "NVDA", "XOM", "KO", "JNJ", "LLY", "JPM", "V", "PG", "HD", "CVX", "PFE",
                            "WMT", "COST", "AMD", "NFLX", "DIS", "BA", "CAT", "MCD", "NKE", "UNH", "TSLA", "GOOGL"]
+
+TARGETS = [(a.split(":")[0], a.split(":")[1] if ":" in a else "US") for a in ARGS]
+TICKERS = [t for t, _ in TARGETS]
+MARKET = dict(TARGETS)
 
 # Yahoo's values first, while Yahoo still works
 truth = {}
 for t in TICKERS:
     try:
-        i = yf.Ticker(t).info
+        i = yf.Ticker(t + ".NS" if MARKET[t] == "India" else t).info
         truth[t] = {"pe": i.get("trailingPE"), "roe": i.get("returnOnEquity"), "de": i.get("debtToEquity"),
                     "om": i.get("operatingMargins"), "pm": i.get("profitMargins"),
                     "price": i.get("currentPrice") or i.get("regularMarketPrice"), "cap": i.get("marketCap"),
@@ -27,8 +32,17 @@ for t in TICKERS:
     except Exception as e:
         print("no Yahoo values for", t, e)
 
-# then make Yahoo unavailable, as it is from the cloud host, with a cache that has no Yahoo entries
+# then reproduce what the cloud host sees: Yahoo's quote data (.info) comes back empty while its
+# price history and statements still work (checked with GET /health/sources on the live server)
 import data.common as common
+
+_RealTicker = yf.Ticker
+
+
+class _NoInfoTicker(_RealTicker):
+    @property
+    def info(self):
+        raise RuntimeError("Yahoo .info blocked (simulated)")
 
 
 class _Blocked:
@@ -36,7 +50,8 @@ class _Blocked:
         raise RuntimeError("Yahoo blocked (simulated)")
 
 
-for name in ("Ticker", "Sector", "Industry", "Search", "Lookup"):
+yf.Ticker = _NoInfoTicker
+for name in ("Sector", "Industry", "Search", "Lookup"):
     if hasattr(yf, name):
         setattr(yf, name, _Blocked)
 src, tmp = common.CACHE_DIR, tempfile.mkdtemp(prefix="accuracy_cache_")
@@ -60,9 +75,11 @@ def num(v):
 for t in TICKERS:
     if t not in truth:
         continue
-    f = fetch_financials(t, "US")
+    f = fetch_financials(t, MARKET[t])
     r, y = f["ratios"], truth[t]
-    ours = {"pe": num(r.get("P/E Ratio (Trailing)")), "roe": num(r.get("Return on Equity")),
+    if MARKET[t] == "India" and y["cap"]:
+        y["cap"] /= 1e7  # Yahoo reports rupees, Screener crores
+    ours = {"pe": num(r.get("P/E Ratio (Trailing)", r.get("P/E Ratio"))), "roe": num(r.get("Return on Equity", r.get("ROE"))),
             "de": num(r.get("Debt to Equity")), "om": num(r.get("Operating Margin")),
             "pm": num(r.get("Net Profit Margin")), "price": f.get("price"), "cap": f.get("market_cap"),
             "hi": num(r.get("52-Week High")), "lo": num(r.get("52-Week Low")), "bv": num(r.get("Book Value per Share"))}

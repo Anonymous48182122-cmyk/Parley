@@ -270,7 +270,8 @@ def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
         notes.append(
             f"Financial statements are reported in {unit_label}, while the share price and market cap are in "
             f"{cap_unit}. Ratios and margins are unit-free and comparable; compare amounts only within "
-            "the same currency."
+            "the same currency. Per-share figures such as book value are per US-listed share (ADS), the "
+            "unit the dollar price is quoted in; one ADS can be several ordinary shares."
         )
     have = lambda key: latest.get(key) is not None
     yahoo = lambda key: ratios.get(key) not in (None, "")

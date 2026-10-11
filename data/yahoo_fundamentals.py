@@ -241,3 +241,62 @@ def apply_statement_rows(financials, yrows, currency, source):
     if notes:
         financials.setdefault("data_sources", []).extend(notes)
     return financials
+
+
+# ---- quarterly statements and exchange rates --------------------------------
+
+_Q_FIELDS = {
+    "revenue": ("income", ["Total Revenue", "Operating Revenue"]),
+    "gross_profit": ("income", ["Gross Profit"]),
+    "operating_income": ("income", ["Operating Income", "Total Operating Income As Reported"]),
+    "net_income": ("income", ["Net Income", "Net Income Common Stockholders"]),
+    "total_assets": ("balance", ["Total Assets"]),
+    "total_equity": ("balance", ["Stockholders Equity", "Common Stock Equity"]),
+    "total_debt": ("balance", ["Total Debt"]),
+    "cash": ("balance", ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"]),
+}
+
+
+def _fetch_quarterly(ticker, market):
+    stock = yf.Ticker(_symbol(ticker, market))
+    frames = {"income": stock.quarterly_income_stmt, "balance": stock.quarterly_balance_sheet}
+    if all(f is None or f.empty for f in frames.values()):
+        raise ValueError(f"Yahoo returned no quarterly statements for {ticker}")
+    try:
+        currency = (stock.info or {}).get("financialCurrency")
+    except Exception:
+        currency = None
+    columns = sorted({c for f in frames.values() if f is not None and not f.empty for c in f.columns})
+    rows = []
+    for col in columns[-5:]:
+        row = {"period": str(col.date())}
+        for name, (stmt, labels) in _Q_FIELDS.items():
+            row[name] = _cell(frames[stmt], labels, col)
+        rows.append(row)
+    return {"rows": rows, "currency": currency}
+
+
+def fetch_yahoo_quarterly(ticker, market):
+    """{"rows": [...oldest to newest...], "currency": "TWD"} in the company's own currency, or {}."""
+    try:
+        return cached_fetch(f"yq_{market}_{ticker.upper()}", YAHOO_FUNDAMENTALS_TTL_HOURS,
+                            lambda: _fetch_quarterly(ticker, market))
+    except Exception:
+        return {}
+
+
+def fetch_fx_rate(code):
+    """Units of `code` per US dollar right now (TWD 31.4), from Yahoo's currency pair; None on failure."""
+    if not code or code == "USD":
+        return 1.0
+
+    def fetch():
+        closes = yf.Ticker(f"{code}=X").history(period="5d")["Close"].dropna()
+        if closes.empty:
+            raise ValueError(f"no rate for {code}")
+        return float(closes.iloc[-1])
+
+    try:
+        return cached_fetch(f"fx_{code}", 6, fetch)
+    except Exception:
+        return None
