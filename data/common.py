@@ -259,6 +259,11 @@ def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
             "Board composition and executive pay are not in our data for Indian companies. "
             "Use the promoter and institutional holding trend shown below as the governance signal."
         )
+    if "Debt to Equity" in ratios:
+        notes.append(
+            "Debt to equity counts borrowings (short and long term debt) only. Figures that also include "
+            "lease liabilities, such as Yahoo's, run higher."
+        )
     if latest.get("operating_income_proxy"):
         notes.append("No operating income line is reported by this company; pre-tax income is shown in its place.")
     if unit_label not in ("USD", "INR Cr.") and cap_unit != unit_label:
@@ -450,7 +455,10 @@ def format_for_agents(data):
         lines.append("")
         lines.append("Additional ratios:")
         for key, value in ratios.items():
-            lines.append(f"- {key}: {value}")
+            if key == "Debt to Equity" and isinstance(value, (int, float)):
+                lines.append(f"- {key}: {value} (a percent: {value / 100:.2f}x total debt to equity)")
+            else:
+                lines.append(f"- {key}: {value}")
 
     own_pe = ratios.get("P/E Ratio (Trailing)", ratios.get("P/E Ratio"))
     lines += _format_peers(data.get("peers"), own_pe, cap_unit)

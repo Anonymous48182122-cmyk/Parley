@@ -34,6 +34,14 @@ function pick(ratios, ...keys) {
   return null;
 }
 
+// Debt to equity arrives as a percent (162.07 means 1.62 times), which reads as a
+// wrong number next to the 1.62 every other site shows.
+function formatDebtToEquity(value) {
+  const n = typeof value === "string" ? parseFloat(value) : value;
+  if (n == null || Number.isNaN(n)) return null;
+  return `${(n / 100).toFixed(2)}x`;
+}
+
 function RangeBar({ low, high, current, currency }) {
   if (low == null || high == null || current == null || high <= low) return null;
   const pct = Math.min(100, Math.max(0, ((current - low) / (high - low)) * 100));
@@ -160,7 +168,7 @@ export default function MarketSnapshot({ data }) {
         <Stat label="ROCE" value={asPercent(pick(ratios, "ROCE", "ROCE %"))} />
         <Stat label="ROE" value={asPercent(pick(ratios, "Return on Equity", "ROE"))} />
         <Stat label="Book Value" value={pick(ratios, "Book Value per Share")} />
-        <Stat label="Debt / Equity" value={pick(ratios, "Debt to Equity")} />
+        <Stat label="Debt / Equity" value={formatDebtToEquity(pick(ratios, "Debt to Equity"))} />
         <Stat label="Beta" value={pick(ratios, "Beta", "Beta (1Y vs S&P 500)")} />
         <Stat label="Sector" value={sector} />
         <Stat label="Industry" value={pick(ratios, "Industry")} />

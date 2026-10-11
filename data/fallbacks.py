@@ -195,8 +195,13 @@ def _quarterly_ratios(financials, put):
     mcap, price = financials.get("market_cap"), financials.get("price")
     lender = any(w in str(financials.get("sector") or "").lower() for w in ("financ", "bank", "insur"))
 
-    if ni is not None and eq and eq > 0:
-        put("Return on Equity", f"{round(ni / eq * 100, 2)}%")
+    # return on equity is earnings over the AVERAGE equity of the period (the first and last
+    # quarter-end here), which is how it is quoted; the latest equity alone understates it
+    # for a company whose equity grew through the year
+    first_eq = rows[0].get("total_equity")
+    avg_eq = (eq + first_eq) / 2 if (eq and first_eq and first_eq > 0) else eq
+    if ni is not None and avg_eq and avg_eq > 0:
+        put("Return on Equity", f"{round(ni / avg_eq * 100, 2)}%")
     if ni is not None and assets:
         put("Return on Assets", f"{round(ni / assets * 100, 2)}%")
     if ni is not None and rev:

@@ -10,6 +10,7 @@ from data.india import bse_fetcher
 from data.market_data import fetch_market_data
 from data.peers import fetch_peers
 from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps
+from data.validate import validate_financials
 from data.yahoo_fundamentals import complete_with_yahoo
 from data.us import edgar_fetcher
 
@@ -65,7 +66,7 @@ def fetch_financials(ticker, market=None):
         own_name=financials.get("name"),
         own_market_cap=financials.get("market_cap"),
     )
-    return financials
+    return validate_financials(financials)  # last: drop impossible values, flag disagreements
 
 
 def fetch_and_format(ticker, market=None):
