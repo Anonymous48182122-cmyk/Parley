@@ -89,6 +89,13 @@ def health():
     return {"ok": True}
 
 
+def _screener_reachable():
+    import requests
+    import data.netfix  # noqa: F401
+    from data.india.bse_fetcher import HEADERS
+    return requests.get("https://www.screener.in/company/TCS/consolidated/", headers=HEADERS, timeout=15).status_code == 200
+
+
 @app.get("/health/sources")
 def health_sources(ticker: str = "AAPL"):
     """Which outside data sources this server can actually reach right now. Yahoo
@@ -111,6 +118,7 @@ def health_sources(ticker: str = "AAPL"):
         "yahoo_info": check(lambda: yf.Ticker(symbol).info.get("marketCap")),
         "yahoo_history": check(lambda: len(yf.Ticker(symbol).history(period="1mo"))),
         "yahoo_statements": check(lambda: not yf.Ticker(symbol).income_stmt.empty),
+        "screener": check(lambda: _screener_reachable()),
         "nasdaq_quote": check(lambda: nasdaq_data._fetch_quote(symbol)),
         "nasdaq_history": check(lambda: nasdaq_data._fetch_history(symbol)),
         "nasdaq_statements": check(lambda: nasdaq_data._fetch_statements(symbol)),

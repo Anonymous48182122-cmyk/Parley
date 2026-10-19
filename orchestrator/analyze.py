@@ -5,11 +5,13 @@ schema (see data/common.py), so downstream code never needs to know which
 market it came from.
 """
 
+import requests
+
 from data.common import format_for_agents
 from data.india import bse_fetcher
 from data.market_data import fetch_market_data
 from data.peers import fetch_peers
-from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps
+from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps, india_skeleton
 from data.validate import validate_financials
 from data.yahoo_fundamentals import complete_with_yahoo
 from data.us import edgar_fetcher
@@ -48,7 +50,11 @@ def fetch_financials(ticker, market=None):
     if market == "US":
         financials = edgar_fetcher.fetch(ticker)
     elif market == "India":
-        financials = bse_fetcher.fetch(ticker)
+        try:
+            financials = bse_fetcher.fetch(ticker)
+        except requests.exceptions.RequestException:
+            # Screener unreachable (not "no such company", which is a ValueError): carry on with Yahoo
+            financials = india_skeleton(ticker)
     else:
         try:
             financials = edgar_fetcher.fetch(ticker)
@@ -56,6 +62,8 @@ def fetch_financials(ticker, market=None):
             financials = bse_fetcher.fetch(ticker)
 
     financials = complete_with_yahoo(financials)
+    if not financials.get("annual") and financials.get("qualitative", "").startswith("Screener.in could not"):
+        raise ValueError(f"Could not reach Screener.in or Yahoo Finance for {ticker}; try again shortly")
     financials = complete_with_nasdaq(financials)  # Yahoo is empty from cloud IPs; Nasdaq is the backup
     financials = _merge_market_data(financials)
     financials = fill_market_gaps(financials)

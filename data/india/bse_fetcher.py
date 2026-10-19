@@ -17,6 +17,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
+import data.netfix  # noqa: F401  (IPv4-only name resolution for the cloud host)
 from data.common import cached_fetch, compute_derived, format_for_agents, is_data_sparse
 from data.technicals import compute_technicals
 
@@ -65,13 +66,25 @@ def _get_html(ticker, statement_type):
     url = BASE_URL.format(ticker=ticker.upper(), statement_type=statement_type)
     # Screener throttles bursts with 429 / 5xx. A throttled response used to be
     # read as "this company has no page", so back off and retry instead.
-    response = requests.get(url, headers=HEADERS, timeout=20)
+    response = _get_with_retry(url)
     for delay in (2, 5):
         if response.status_code != 429 and response.status_code < 500:
             break
         time.sleep(delay)
-        response = requests.get(url, headers=HEADERS, timeout=20)
+        response = _get_with_retry(url)
     return response
+
+
+def _get_with_retry(url):
+    """requests.get that also retries a dropped or refused connection a couple of times."""
+    last = None
+    for delay in (0, 2, 4):
+        time.sleep(delay)
+        try:
+            return requests.get(url, headers=HEADERS, timeout=20)
+        except requests.exceptions.ConnectionError as exc:
+            last = exc
+    raise last
 
 
 def _has_figures(html):

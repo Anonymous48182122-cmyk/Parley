@@ -365,3 +365,30 @@ def derive_ratios(financials):
     except Exception:
         pass
     return financials
+
+
+def india_skeleton(ticker):
+    """Bare-bones Indian financials for when Screener.in cannot be reached at all: Yahoo's
+    statements (filled in by complete_with_yahoo afterwards) and its price history for the
+    price and price action. Less than Screener gives, but an analysis rather than an error."""
+    import yfinance as yf
+
+    from data.technicals import compute_technicals
+
+    f = {
+        "ticker": ticker.upper(), "name": ticker.upper(), "market": "India", "currency": "INR",
+        "unit_label": "INR Cr.", "sector": "N/A", "price": None, "market_cap": None, "annual": [],
+        "ratios": {}, "shareholding": [],
+        "qualitative": "Screener.in could not be reached, so these figures come from Yahoo Finance "
+                       "statements and price history only; shareholding, ratios and quarterly detail are missing.",
+    }
+    try:
+        closes = yf.Ticker(f"{ticker.upper()}.NS").history(period="14mo")["Close"].dropna()
+        series = [(str(d.date()), float(c)) for d, c in closes.items()]
+        f["technicals"] = compute_technicals(series)
+        if series:
+            f["price"] = round(series[-1][1], 2)
+    except Exception:
+        pass
+    _note(f, "Screener.in was unreachable; statements and price history are from Yahoo Finance")
+    return f
