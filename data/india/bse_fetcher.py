@@ -18,6 +18,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import data.netfix  # noqa: F401  (IPv4-only name resolution for the cloud host)
+from data.screener_client import screener_get
 from data.common import cached_fetch, compute_derived, format_for_agents, is_data_sparse
 from data.technicals import compute_technicals
 
@@ -81,7 +82,7 @@ def _get_with_retry(url):
     for delay in (0, 2, 4):
         time.sleep(delay)
         try:
-            return requests.get(url, headers=HEADERS, timeout=20)
+            return screener_get(url, headers=HEADERS, timeout=20)
         except requests.exceptions.ConnectionError as exc:
             last = exc
     raise last
@@ -395,7 +396,7 @@ def _price_series(html, statement_type):
         f"https://www.screener.in/api/company/{match.group(1)}/chart/"
         f"?q=Price-DMA50-DMA200-Volume&days=400&consolidated={flag}"
     )
-    response = requests.get(url, headers={**HEADERS, "X-Requested-With": "XMLHttpRequest"}, timeout=20)
+    response = screener_get(url, headers={**HEADERS, "X-Requested-With": "XMLHttpRequest"}, timeout=20)
     response.raise_for_status()
     for dataset in response.json().get("datasets", []):
         if dataset.get("metric") == "Price":

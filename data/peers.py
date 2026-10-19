@@ -22,6 +22,7 @@ import yfinance as yf
 
 from data.common import cached_fetch
 from data.india.bse_fetcher import HEADERS, parse_number
+from data.screener_client import screener_get
 from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_quote, fetch_nasdaq_universe
 
 PEERS_TTL_HOURS = 6
@@ -40,13 +41,13 @@ def _cap_distance(cap, own_cap):
 # --------------------------------------------------------------------- India
 
 def _screener_warehouse_id(ticker):
-    html = requests.get(
+    html = screener_get(
         f"https://www.screener.in/company/{ticker.upper()}/consolidated/", headers=HEADERS, timeout=20
     ).text
     match = re.search(r'data-warehouse-id="(\d+)"', html)
     if not match:
         # Standalone-only companies have no consolidated page.
-        html = requests.get(
+        html = screener_get(
             f"https://www.screener.in/company/{ticker.upper()}/", headers=HEADERS, timeout=20
         ).text
         match = re.search(r'data-warehouse-id="(\d+)"', html)
@@ -59,7 +60,7 @@ def _india_peers(ticker, own_name, own_cap):
     warehouse_id = _screener_warehouse_id(ticker)
     if not warehouse_id:
         return []
-    response = requests.get(
+    response = screener_get(
         f"https://www.screener.in/api/company/{warehouse_id}/peers/",
         headers={**HEADERS, "X-Requested-With": "XMLHttpRequest"},
         timeout=20,
