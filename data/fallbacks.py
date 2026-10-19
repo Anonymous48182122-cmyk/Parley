@@ -392,3 +392,17 @@ def india_skeleton(ticker):
         pass
     _note(f, "Screener.in was unreachable; statements and price history are from Yahoo Finance")
     return f
+
+
+def finish_india_skeleton(financials):
+    """After Yahoo's statements are in: a market cap from price x share count, so P/E, price to
+    book and the rest can still be worked out when Screener (which publishes it) is unreachable."""
+    try:
+        if financials.get("market_cap") is None and financials.get("price"):
+            shares = next((r.get("shares_avg") for r in reversed(financials.get("annual") or []) if r.get("shares_avg")), None)
+            if shares:
+                financials["market_cap"] = round(financials["price"] * shares / 1e7)  # rupees -> crores
+                _note(financials, "market cap estimated as price x diluted share count (Screener unreachable)")
+    except Exception:
+        pass
+    return financials
