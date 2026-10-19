@@ -96,6 +96,29 @@ def _screener_reachable():
     return requests.get("https://www.screener.in/company/TCS/consolidated/", headers=HEADERS, timeout=15).status_code == 200
 
 
+@app.get("/health/net")
+def health_net(host: str = "www.screener.in"):
+    """Try to open a TCP connection to every address `host` resolves to, so a
+    'Network is unreachable' can be traced to a specific address family or IP."""
+    import socket
+
+    results = []
+    try:
+        infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+    except Exception as exc:  # noqa: BLE001
+        return {"host": host, "dns_error": str(exc)}
+    for family, _, _, _, sockaddr in infos[:6]:
+        started = time.time()
+        try:
+            with socket.create_connection(sockaddr[:2], timeout=8):
+                outcome = "connected"
+        except Exception as exc:  # noqa: BLE001
+            outcome = f"{type(exc).__name__}: {exc}"
+        results.append({"address": sockaddr[0], "family": "IPv6" if family == socket.AF_INET6 else "IPv4",
+                        "result": outcome, "seconds": round(time.time() - started, 1)})
+    return {"host": host, "attempts": results}
+
+
 @app.get("/health/sources")
 def health_sources(ticker: str = "AAPL"):
     """Which outside data sources this server can actually reach right now. Yahoo
@@ -110,7 +133,7 @@ def health_sources(ticker: str = "AAPL"):
             result = fn()
             return {"ok": bool(result), "seconds": round(time.time() - started, 1)}
         except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "seconds": round(time.time() - started, 1), "error": str(exc)[:160]}
+            return {"ok": False, "seconds": round(time.time() - started, 1), "error": str(exc)[:500]}
 
     symbol = ticker.upper()
     return {
