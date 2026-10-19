@@ -300,3 +300,34 @@ def fetch_fx_rate(code):
         return cached_fetch(f"fx_{code}", 6, fetch)
     except Exception:
         return None
+
+
+def add_latest_quarter_balance(financials):
+    """Cash and debt from Yahoo's latest quarterly balance sheet, as ratio entries, when the annual
+    row has none. Annual columns can miss the latest period (a March year-end against Yahoo's
+    December column), which left Indian stocks with no cash figure although the quarter has one."""
+    try:
+        market = financials.get("market")
+        annual = financials.get("annual") or []
+        latest = annual[-1] if annual else {}
+        ratios = financials.setdefault("ratios", {})
+        need_cash = latest.get("cash") is None and not any(k.startswith("Cash & Equivalents") for k in ratios)
+        need_debt = latest.get("total_debt") is None and not any(k.startswith("Total Debt") for k in ratios)
+        if market not in ("US", "India") or not (need_cash or need_debt):
+            return financials
+        rows = fetch_yahoo_quarterly(financials["ticker"], market).get("rows") or []
+        if not rows:
+            return financials
+        newest = rows[-1]
+        if market == "India":
+            text = lambda v: f"{v / 1e7:,.0f} Cr"
+        else:
+            text = lambda v: f"{v / 1e9:,.2f}B" if abs(v) >= 1e9 else f"{v / 1e6:,.2f}M"
+        label = f"latest quarter {newest['period']}, Yahoo"
+        if need_cash and newest.get("cash") is not None:
+            ratios[f"Cash & Equivalents ({label})"] = text(newest["cash"])
+        if need_debt and newest.get("total_debt") is not None:
+            ratios[f"Total Debt ({label})"] = text(newest["total_debt"])
+    except Exception:
+        pass
+    return financials

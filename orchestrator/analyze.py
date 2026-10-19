@@ -13,7 +13,7 @@ from data.market_data import fetch_market_data
 from data.peers import fetch_peers
 from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps, finish_india_skeleton, india_skeleton
 from data.validate import validate_financials
-from data.yahoo_fundamentals import complete_with_yahoo
+from data.yahoo_fundamentals import add_latest_quarter_balance, complete_with_yahoo
 from data.us import edgar_fetcher
 
 
@@ -66,6 +66,7 @@ def fetch_financials(ticker, market=None):
         raise ValueError(f"Could not reach Screener.in or Yahoo Finance for {ticker}; try again shortly")
     if financials.get("qualitative", "").startswith("Screener.in could not"):
         financials = finish_india_skeleton(financials)
+    financials = add_latest_quarter_balance(financials)
     financials = complete_with_nasdaq(financials)  # Yahoo is empty from cloud IPs; Nasdaq is the backup
     financials = _merge_market_data(financials)
     financials = fill_market_gaps(financials)
