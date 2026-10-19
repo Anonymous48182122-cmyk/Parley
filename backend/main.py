@@ -90,10 +90,11 @@ def health():
 
 
 def _screener_reachable():
-    import requests
-    import data.netfix  # noqa: F401
+    """Fetch a real Screener page the way the app does (direct, else through the relay)."""
     from data.india.bse_fetcher import HEADERS
-    return requests.get("https://www.screener.in/company/TCS/consolidated/", headers=HEADERS, timeout=15).status_code == 200
+    from data.screener_client import screener_get
+    page = screener_get("https://www.screener.in/company/TCS/consolidated/", headers=HEADERS, timeout=20)
+    return page.status_code == 200 and 'id="top-ratios"' in page.text
 
 
 @app.get("/health/net")
