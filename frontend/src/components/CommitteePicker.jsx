@@ -1,111 +1,57 @@
-import { useMemo, useState } from "react";
-import { AGENT_META, AGENT_ORDER, LARGE_COMMITTEE, MIN_AGENTS, PRESETS } from "../agentMeta.js";
+import { useMemo, useRef, useState } from "react";
+import { AGENT_META, AGENT_ORDER, LARGE_COMMITTEE, MIN_AGENTS, PRESETS, agentColor } from "../agentMeta.js";
+import { AGENT_BIOS } from "../agentBios.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 import AgentBioModal from "./AgentBioModal.jsx";
 
-// Mirrors agents/prompts.py's _rounds_for: smaller committees get more
-// back and forth per agent, larger ones stay to one turn each. Shown so the
-// size of a committee has a visible tradeoff before the debate starts.
+// Mirrors agents/prompts.py's _rounds_for: smaller committees get more back and
+// forth per agent, larger ones stay to one turn each.
 function roundsFor(n) {
   if (n <= 4) return 3;
   if (n <= 6) return 2;
   return 1;
 }
 
-const TABS = [
-  { id: "all", label: "All" },
-  { id: "investor", label: "Investors" },
-  { id: "legend", label: "Founders and Legends" },
-  { id: "special", label: "Special roles" },
+const GROUPS = [
+  { kind: "investor", label: "Investors" },
+  { kind: "legend", label: "Founders and Legends" },
+  { kind: "special", label: "Special roles" },
 ];
 
-const LEGEND_NOTE =
-  "Builders, not stock pickers. These are AI interpretations of how they thought and built, not their actual views.";
+// Seat order around the table: investors, then the founders, then the special roles,
+// so each group sits together as an arc.
+const SEATS = GROUPS.flatMap((g) => AGENT_ORDER.filter((k) => AGENT_META[k].kind === g.kind));
 
 function sameSet(selected, keys) {
   return selected.size === keys.length && keys.every((k) => selected.has(k));
 }
 
-// A short row of overlapping portraits: the committee at a glance.
-function AvatarStack({ keys, max = 7 }) {
-  const shown = keys.slice(0, max);
-  const extra = keys.length - shown.length;
-  return (
-    <div className="avatar-stack" aria-hidden="true">
-      {shown.map((k) => (
-        <span key={k} className="avatar-stack-item">
-          <AgentAvatar agentKey={k} size="md" />
-        </span>
-      ))}
-      {extra > 0 && <span className="avatar-stack-more">+{extra}</span>}
-    </div>
-  );
-}
-
-function AgentTile({ agentKey, checked, onToggle, onShowBio }) {
-  const meta = AGENT_META[agentKey];
-  return (
-    <div
-      role="checkbox"
-      aria-checked={checked}
-      tabIndex={0}
-      onClick={() => onToggle(agentKey)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle(agentKey);
-        }
-      }}
-      className={`agent-tile${checked ? " agent-tile--on" : ""}`}
-    >
-      {/* The portrait is its own target: a quiet "look closer" that does not
-          fight the tile's select and deselect click. */}
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          onShowBio(agentKey);
-        }}
-        title={`About ${meta.name}`}
-        className="agent-tile-avatar"
-      >
-        <AgentAvatar agentKey={agentKey} size="md" />
-      </span>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="agent-tile-name">{meta.name}</div>
-        <div className="agent-tile-role">{meta.role}</div>
-      </div>
-      <span className="agent-tile-check" aria-hidden="true">
-        {checked ? "✓" : ""}
-      </span>
-    </div>
-  );
+function firstSentence(text) {
+  if (!text) return "";
+  const end = text.indexOf(". ");
+  return end === -1 ? text : text.slice(0, end + 1);
 }
 
 export default function CommitteePicker({ selected, onChange }) {
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState("all");
-  const [query, setQuery] = useState("");
+  const [focus, setFocus] = useState(null);
   const [bioAgent, setBioAgent] = useState(null);
+  const stageRef = useRef(null);
 
-  const chosen = useMemo(() => AGENT_ORDER.filter((k) => selected.has(k)), [selected]);
-  const n = chosen.length;
+  const n = selected.size;
   const turns = n * roundsFor(n);
   const activePreset = PRESETS.find((p) => sameSet(selected, p.keys));
+  const tooFew = n < MIN_AGENTS;
+  const tooMany = n > LARGE_COMMITTEE;
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return AGENT_ORDER.filter((k) => {
-      const meta = AGENT_META[k];
-      if (meta.kind === "cio") return false;
-      if (tab !== "all" && meta.kind !== tab) return false;
-      return !q || meta.name.toLowerCase().includes(q) || meta.role.toLowerCase().includes(q);
-    });
-  }, [tab, query]);
-
-  const countIn = (kind) => {
-    const keys = AGENT_ORDER.filter((k) => kind === "all" || AGENT_META[k].kind === kind);
-    return { on: keys.filter((k) => selected.has(k)).length, total: keys.length };
-  };
+  // Seat positions on a circle, starting from the top and going clockwise.
+  const seats = useMemo(
+    () =>
+      SEATS.map((key, i) => {
+        const angle = ((-90 + (360 / SEATS.length) * i) * Math.PI) / 180;
+        return { key, x: 50 + 41 * Math.cos(angle), y: 50 + 41 * Math.sin(angle) };
+      }),
+    []
+  );
 
   function toggle(key) {
     const next = new Set(selected);
@@ -114,42 +60,113 @@ export default function CommitteePicker({ selected, onChange }) {
     onChange(next);
   }
 
-  function setMany(keys, on) {
+  function toggleGroup(kind) {
+    const keys = SEATS.filter((k) => AGENT_META[k].kind === kind);
+    const allOn = keys.every((k) => selected.has(k));
     const next = new Set(selected);
-    keys.forEach((k) => (on ? next.add(k) : next.delete(k)));
+    keys.forEach((k) => (allOn ? next.delete(k) : next.add(k)));
     onChange(next);
   }
 
-  const tooFew = n < MIN_AGENTS;
-  const tooMany = n > LARGE_COMMITTEE;
+  const focusMeta = focus ? AGENT_META[focus] : null;
+  const focusOn = focus ? selected.has(focus) : false;
 
   return (
-    <section aria-label="Your committee">
-      <div className="committee-summary">
-        <AvatarStack keys={chosen} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="committee-summary-title">
-            {tooFew ? "Pick at least 3 agents" : `${n} agents in your committee`}
-          </div>
-          <div
-            className="committee-summary-sub"
-            style={{ color: tooFew ? "var(--danger)" : tooMany ? "var(--gold)" : undefined }}
-          >
-            {tooFew
-              ? `${n} selected. A debate needs at least ${MIN_AGENTS} voices.`
-              : tooMany
-              ? `${turns} debate turns. Big committees run long and thin out each voice. Six to ten gives the sharpest debate.`
-              : `${turns} debate turns. ${activePreset ? `${activePreset.label} committee.` : "Custom committee."}`}
-          </div>
+    <section aria-label="Your committee" className="table-section">
+      <div className="table-heading">
+        <h2>The table</h2>
+        <p>Tap a portrait to seat or dismiss them.</p>
+      </div>
+
+      <div
+        className="table-stage"
+        ref={stageRef}
+        onMouseLeave={() => setFocus(null)}
+      >
+        <div className="table-surface" aria-hidden="true">
+          <span className="table-ring table-ring--outer" />
+          <span className="table-ring table-ring--inner" />
         </div>
-        <button
-          type="button"
-          className="button-secondary"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Done" : "Customize"}
-        </button>
+
+        <div className="table-center" aria-live="polite">
+          {focusMeta ? (
+            <div className="table-focus fade-in" key={focus} style={{ "--focus-color": agentColor(focus) }}>
+              <div className="table-focus-avatar">
+                <AgentAvatar agentKey={focus} size="fill" />
+              </div>
+              <div className="table-focus-name">{focusMeta.name}</div>
+              <div className="table-focus-role">{focusMeta.role}</div>
+              <div className="table-focus-bio">{firstSentence(AGENT_BIOS[focus])}</div>
+              <div className="table-focus-actions">
+                <span className={`table-focus-state${focusOn ? " is-on" : ""}`}>
+                  {focusOn ? "Seated" : "Not seated"}
+                </span>
+                <button type="button" className="link-button" onClick={() => setBioAgent(focus)}>
+                  How they think
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="table-summary">
+              <div className={`table-count${tooFew ? " is-warn" : ""}`}>{n}</div>
+              <div className="table-count-label">{n === 1 ? "voice at the table" : "voices at the table"}</div>
+              <div
+                className="table-count-sub"
+                style={{ color: tooFew ? "var(--danger)" : tooMany ? "var(--gold)" : undefined }}
+              >
+                {tooFew
+                  ? `A debate needs at least ${MIN_AGENTS}`
+                  : tooMany
+                  ? `${turns} turns. Six to ten debates sharpest`
+                  : `${turns} debate turns${activePreset ? ` · ${activePreset.label}` : ""}`}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {seats.map(({ key, x, y }) => {
+          const on = selected.has(key);
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={on}
+              aria-label={`${AGENT_META[key].name}, ${AGENT_META[key].role}. ${on ? "Seated" : "Not seated"}.`}
+              className={`seat${on ? " seat--on" : ""}${focus === key ? " seat--focus" : ""}`}
+              style={{ left: `${x}%`, top: `${y}%`, "--seat-color": agentColor(key) }}
+              onClick={() => {
+                toggle(key);
+                setFocus(key);
+              }}
+              onMouseEnter={() => setFocus(key)}
+              onFocus={() => setFocus(key)}
+              onBlur={() => setFocus((cur) => (cur === key ? null : cur))}
+            >
+              <AgentAvatar agentKey={key} size="fill" />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="table-groups" role="group" aria-label="Seat a whole group">
+        {GROUPS.map((g) => {
+          const keys = SEATS.filter((k) => AGENT_META[k].kind === g.kind);
+          const on = keys.filter((k) => selected.has(k)).length;
+          return (
+            <button
+              key={g.kind}
+              type="button"
+              className={`group-chip${on === keys.length ? " group-chip--all" : on > 0 ? " group-chip--some" : ""}`}
+              onClick={() => toggleGroup(g.kind)}
+            >
+              <span className="group-chip-dot" />
+              {g.label}
+              <span className="group-chip-count">
+                {on}/{keys.length}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="preset-row" role="group" aria-label="Committee presets">
@@ -167,72 +184,10 @@ export default function CommitteePicker({ selected, onChange }) {
         ))}
       </div>
 
-      {open && (
-        <div className="committee-panel fade-in">
-          <div className="committee-panel-top">
-            <input
-              type="search"
-              className="committee-search"
-              placeholder="Find an agent"
-              aria-label="Find an agent"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            <div className="committee-tabs" role="tablist">
-              {TABS.map((t) => {
-                const c = countIn(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={tab === t.id}
-                    className={`committee-tab${tab === t.id ? " committee-tab--active" : ""}`}
-                    onClick={() => setTab(t.id)}
-                  >
-                    {t.label}
-                    <span className="committee-tab-count">
-                      {c.on}/{c.total}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {tab === "legend" && <div className="committee-note">{LEGEND_NOTE}</div>}
-
-          <div className="committee-panel-actions">
-            <span>Tap a portrait to see how they think.</span>
-            <span style={{ display: "flex", gap: 14 }}>
-              <button type="button" className="link-button" onClick={() => setMany(visible, true)}>
-                Select shown
-              </button>
-              <button type="button" className="link-button" onClick={() => setMany(visible, false)}>
-                Clear shown
-              </button>
-            </span>
-          </div>
-
-          {visible.length === 0 ? (
-            <div className="committee-empty">No agent matches "{query}".</div>
-          ) : (
-            <div className="agent-grid-scroll">
-              <div className="agent-grid">
-                {visible.map((key) => (
-                  <AgentTile
-                    key={key}
-                    agentKey={key}
-                    checked={selected.has(key)}
-                    onToggle={toggle}
-                    onShowBio={setBioAgent}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <p className="table-note">
+        Founders and legends are builders, not stock pickers. They are AI interpretations of how they
+        thought and built, not their actual views.
+      </p>
 
       <AgentBioModal agentKey={bioAgent} onClose={() => setBioAgent(null)} />
     </section>

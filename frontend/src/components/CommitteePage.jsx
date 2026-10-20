@@ -10,6 +10,7 @@ import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
+import SpeakerRail from "./SpeakerRail.jsx";
 import WhatChanged from "./WhatChanged.jsx";
 
 function SaveToHistory({ ticker, job, crossExams }) {
@@ -412,13 +413,22 @@ export default function CommitteePage() {
           {Object.keys(job.stage1 || {}).length > 0 && (
             <section id="stage1" className="scroll-anchor" style={{ marginBottom: 40 }}>
               <SectionLabel>Independent First Pass</SectionLabel>
-              <AgentCommitteeStrip stage1={job.stage1} />
+              <AgentCommitteeStrip stage1={job.stage1} total={(job.agents || []).length} />
             </section>
           )}
 
           {(job.debate || []).length > 0 && (
             <section id="debate" className="scroll-anchor" style={{ marginBottom: 40 }}>
               <SectionLabel>Live Debate</SectionLabel>
+              <SpeakerRail
+                agents={job.agents}
+                debate={job.debate}
+                speaking={
+                  job.status === "running" && job.current_stage === "debate"
+                    ? (job.turn_plan || [])[job.debate.length]
+                    : null
+                }
+              />
               <div className="card">
                 {job.debate.map((turn) => (
                   <DebateMessage
@@ -454,7 +464,7 @@ export default function CommitteePage() {
 
           {job.cio_memo && (
             <section id="cio-memo" className="scroll-anchor">
-              <CIOMemo text={job.cio_memo} verdict={job.verdict} conviction={job.conviction} />
+              <CIOMemo text={job.cio_memo} verdict={job.verdict} conviction={job.conviction} stage1={job.stage1} />
               <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
             </section>
           )}

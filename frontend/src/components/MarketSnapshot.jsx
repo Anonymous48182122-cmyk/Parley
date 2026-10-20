@@ -1,3 +1,5 @@
+import Sparkline from "./Sparkline.jsx";
+
 const CURRENCY_SYMBOLS = { USD: "$", INR: "₹" };
 
 function formatPrice(price, currency) {
@@ -15,7 +17,7 @@ function formatMarketCap(marketCap, unitLabel) {
     if (abs >= 1e6) return `$${(marketCap / 1e6).toFixed(2)}M`;
     return `$${marketCap.toLocaleString()}`;
   }
-  // India: yfinance/Screener already report this in crores, matching unit_label.
+  // India: Screener already reports this in crores, matching unit_label.
   return `₹${marketCap.toLocaleString("en-IN")} Cr.`;
 }
 
@@ -25,8 +27,8 @@ function asPercent(value) {
   return typeof value === "string" ? value : `${value}%`;
 }
 
-// First of several possible keys that actually has a value, since the two data
-// sources name the same measure differently (and either one can be missing).
+// First of several possible keys that actually has a value, since the data sources name
+// the same measure differently (and either one can be missing).
 function pick(ratios, ...keys) {
   for (const key of keys) {
     if (ratios[key] != null && ratios[key] !== "") return ratios[key];
@@ -34,8 +36,8 @@ function pick(ratios, ...keys) {
   return null;
 }
 
-// Debt to equity arrives as a percent (162.07 means 1.62 times), which reads as a
-// wrong number next to the 1.62 every other site shows.
+// Debt to equity arrives as a percent (162.07 means 1.62 times), which reads as a wrong
+// number next to the 1.62 every other site shows.
 function formatDebtToEquity(value) {
   const n = typeof value === "string" ? parseFloat(value) : value;
   if (n == null || Number.isNaN(n)) return null;
@@ -53,43 +55,16 @@ function RangeBar({ low, high, current, currency }) {
   const pct = Math.min(100, Math.max(0, ((current - low) / (high - low)) * 100));
   const belowHigh = ((high - current) / high) * 100;
   const symbol = CURRENCY_SYMBOLS[currency] || "";
-  let caption;
-  if (belowHigh < 0.5) caption = "At its 52-week high";
-  else caption = `${belowHigh.toFixed(1)}% below its 52-week high`;
+  const caption = belowHigh < 0.5 ? "At its 52 week high" : `${belowHigh.toFixed(1)}% below its 52 week high`;
 
   return (
-    <div style={{ marginTop: 18 }}>
-      <div
-        style={{
-          position: "relative",
-          height: 4,
-          borderRadius: 2,
-          background: "var(--border-strong)",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            left: `calc(${pct}% - 6px)`,
-            top: -4,
-            width: 12,
-            height: 12,
-            borderRadius: "50%",
-            background: "var(--gold)",
-            border: "2px solid var(--surface)",
-          }}
-        />
+    <div className="range">
+      <div className="range-title">52 week range</div>
+      <div className="range-track">
+        <div className="range-fill" style={{ width: `${pct}%` }} />
+        <div className="range-dot" style={{ left: `${pct}%` }} />
       </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: "0.72rem",
-          color: "var(--text-faint)",
-          marginTop: 6,
-          gap: 8,
-        }}
-      >
+      <div className="range-labels">
         <span>
           {symbol}
           {low.toLocaleString()}
@@ -107,18 +82,9 @@ function RangeBar({ low, high, current, currency }) {
 function Stat({ label, value }) {
   if (value == null || value === "") return null;
   return (
-    <div>
-      <div
-        style={{
-          fontSize: "0.7rem",
-          color: "var(--text-faint)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: "0.95rem", marginTop: 2 }}>{value}</div>
+    <div className="stat">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
     </div>
   );
 }
@@ -127,12 +93,10 @@ function Move({ label, value }) {
   if (value == null) return null;
   const up = value >= 0;
   return (
-    <span style={{ fontSize: "0.78rem", color: "var(--text-faint)" }}>
-      {label}{" "}
-      <span style={{ color: up ? "var(--success)" : "var(--danger)", fontWeight: 600 }}>
-        {up ? "+" : ""}
-        {value}%
-      </span>
+    <span className={`move ${up ? "move--up" : "move--down"}`}>
+      <span className="move-label">{label}</span>
+      {up ? "+" : ""}
+      {value}%
     </span>
   );
 }
@@ -142,66 +106,72 @@ export default function MarketSnapshot({ data }) {
 
   const ratios = data.ratios || {};
   const tech = data.technicals || {};
-  // Show the card whenever there is anything to show. It used to disappear
-  // whenever price and market cap were both missing, which hid the ratios and
-  // price action that were still available.
+  // Show the card whenever there is anything to show; it used to vanish whenever price and
+  // market cap were both missing, which hid the ratios and price action still available.
   const hasAnything =
     data.price != null ||
     data.market_cap != null ||
     Object.keys(ratios).length > 0 ||
     Object.keys(tech).length > 0;
   if (!hasAnything) return null;
+
   // the last daily close stands in for the live price when only the history came through
   const price = data.price ?? tech.last ?? null;
+  const currency = data.price_currency ?? data.currency;
+  const symbol = CURRENCY_SYMBOLS[currency] || "";
   const sector = data.sector && data.sector !== "N/A" ? data.sector : null;
 
-  // The range prefers the exchange's own 52-week figures and falls back to the
-  // one computed from daily closes, so a stock missing either source still gets one.
+  // The range prefers the exchange's own 52 week figures and falls back to the one computed
+  // from daily closes, so a stock missing either source still gets one.
   const low = ratios["52-Week Low"] ?? tech.low_52w ?? null;
   const high = ratios["52-Week High"] ?? tech.high_52w ?? null;
-  const hasMoves = [tech.ret_1m, tech.ret_3m, tech.ret_6m, tech.ret_1y, tech.vs_dma200].some(
-    (v) => v != null
-  );
+  const hasMoves = [tech.ret_1m, tech.ret_3m, tech.ret_6m, tech.ret_1y, tech.vs_dma200].some((v) => v != null);
+  const industry = pick(ratios, "Industry");
 
   return (
-    <div className="card fade-in" style={{ marginBottom: 28 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "18px 26px" }}>
-        <Stat label="Price" value={formatPrice(price, data.price_currency ?? data.currency)} />
-        <Stat label="Market Cap" value={formatMarketCap(data.market_cap, data.market_cap_unit ?? data.unit_label)} />
-        <Stat label="P/E" value={pick(ratios, "P/E Ratio (Trailing)", "P/E Ratio")} />
-        <Stat label="Forward P/E" value={pick(ratios, "P/E Ratio (Forward)")} />
-        <Stat label="Dividend Yield" value={pick(ratios, "Dividend Yield")} />
-        <Stat label="ROCE" value={asPercent(pick(ratios, "ROCE", "ROCE %"))} />
-        <Stat label="ROE" value={asPercent(pick(ratios, "Return on Equity", "ROE"))} />
-        <Stat label="Book Value" value={pick(ratios, "Book Value per Share")} />
-        <Stat label="Debt / Equity" value={formatDebtToEquity(pick(ratios, "Debt to Equity"))} />
-        <Stat label="Beta" value={pick(ratios, "Beta", "Beta (1Y vs S&P 500)")} />
-        <Stat label="Sector" value={sector} />
-        <Stat label="Industry" value={pick(ratios, "Industry")} />
+    <div className="card snapshot fade-in">
+      <div className="snapshot-hero">
+        <div className="snapshot-price">
+          <div className="snapshot-eyebrow">
+            {sector || "Price"}
+            {industry && sector ? <span> · {industry}</span> : null}
+          </div>
+          <div className="snapshot-price-value">{formatPrice(price, currency)}</div>
+          {tech.as_of && <div className="snapshot-asof">As of the {formatAsOf(tech.as_of)} close</div>}
+          {hasMoves && (
+            <div className="snapshot-moves">
+              <Move label="1M" value={tech.ret_1m} />
+              <Move label="3M" value={tech.ret_3m} />
+              <Move label="6M" value={tech.ret_6m} />
+              <Move label="1Y" value={tech.ret_1y} />
+            </div>
+          )}
+        </div>
+        {tech.closes?.length > 5 && (
+          <div className="snapshot-chart">
+            <Sparkline values={tech.closes} symbol={symbol} />
+          </div>
+        )}
       </div>
 
-      {tech.as_of && (
-        <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginTop: 14 }}>
-          Price as of the {formatAsOf(tech.as_of)} close
-        </div>
-      )}
+      <div className="stat-grid">
+        <Stat label="Market cap" value={formatMarketCap(data.market_cap, data.market_cap_unit ?? data.unit_label)} />
+        <Stat label="P/E" value={pick(ratios, "P/E Ratio (Trailing)", "P/E Ratio")} />
+        <Stat label="Forward P/E" value={pick(ratios, "P/E Ratio (Forward)")} />
+        <Stat label="Dividend yield" value={pick(ratios, "Dividend Yield")} />
+        <Stat label="ROCE" value={asPercent(pick(ratios, "ROCE", "ROCE %"))} />
+        <Stat label="ROE" value={asPercent(pick(ratios, "Return on Equity", "ROE"))} />
+        <Stat label="Book value" value={pick(ratios, "Book Value per Share")} />
+        <Stat label="Debt / equity" value={formatDebtToEquity(pick(ratios, "Debt to Equity"))} />
+        <Stat label="Beta" value={pick(ratios, "Beta", "Beta (1Y vs S&P 500)")} />
+      </div>
 
-      <RangeBar low={low} high={high} current={price} currency={data.price_currency ?? data.currency} />
+      <RangeBar low={low} high={high} current={price} currency={currency} />
 
-      {hasMoves && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 14 }}>
-          <Move label="1M" value={tech.ret_1m} />
-          <Move label="3M" value={tech.ret_3m} />
-          <Move label="6M" value={tech.ret_6m} />
-          <Move label="1Y" value={tech.ret_1y} />
-          {tech.vs_dma200 != null && (
-            <span style={{ fontSize: "0.78rem", color: "var(--text-faint)" }}>
-              {tech.vs_dma200 >= 0 ? "Above" : "Below"} 200-day average by{" "}
-              <span style={{ color: "var(--text-dim)", fontWeight: 600 }}>
-                {Math.abs(tech.vs_dma200)}%
-              </span>
-            </span>
-          )}
+      {tech.vs_dma200 != null && (
+        <div className="snapshot-dma">
+          {tech.vs_dma200 >= 0 ? "Above" : "Below"} its 200 day average by{" "}
+          <strong>{Math.abs(tech.vs_dma200)}%</strong>
         </div>
       )}
     </div>

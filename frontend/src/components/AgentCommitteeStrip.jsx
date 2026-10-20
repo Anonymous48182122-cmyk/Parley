@@ -3,11 +3,13 @@ import { AGENT_ORDER, AGENT_META, agentColor } from "../agentMeta.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 import BioAvatar from "./BioAvatar.jsx";
 import FormattedText from "./FormattedText.jsx";
+import VoteBoard from "./VoteBoard.jsx";
+import { parseStance } from "../stance.js";
 
 // Collapses Stage 1's 9 independent write-ups into one compact chip row —
 // shared by the live CommitteePage and the read-only ReplayPage so both
 // render Stage 1 identically instead of diverging.
-export default function AgentCommitteeStrip({ stage1 }) {
+export default function AgentCommitteeStrip({ stage1, total }) {
   const [expanded, setExpanded] = useState(null);
   const available = AGENT_ORDER.filter((key) => stage1[key]);
 
@@ -15,6 +17,7 @@ export default function AgentCommitteeStrip({ stage1 }) {
 
   return (
     <div>
+      <VoteBoard stage1={stage1} total={total} />
       <div className="committee-strip">
         {available.map((key) => (
           <button
@@ -27,6 +30,9 @@ export default function AgentCommitteeStrip({ stage1 }) {
           >
             <BioAvatar agentKey={key} size="sm" />
             <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{AGENT_META[key].name}</span>
+            <span className="chip-stance" style={{ color: parseStance(stage1[key]).color }}>
+              {parseStance(stage1[key]).label}
+            </span>
           </button>
         ))}
       </div>

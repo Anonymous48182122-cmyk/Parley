@@ -70,6 +70,8 @@ def compute_technicals(series):
         "volatility_1y": vol,
         "max_drawdown_1y": round(100 * max_dd, 1),
         "days_of_history": len(closes),
+        # the last ~half year of closes, for the chart on the stock card
+        "closes": [round(c, 2) for c in closes[-130:]],
     }
 
 
