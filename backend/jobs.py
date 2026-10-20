@@ -6,8 +6,11 @@ CIO memo, so GET /analysis/{ticker} always reflects live progress.
 """
 
 import json
+import logging
 import threading
 import time
+
+import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
 from agents.runner import AgentCallError, run_committee
@@ -15,6 +18,28 @@ from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
 
 ANALYSIS_TTL_HOURS = 48
+
+log = logging.getLogger("parley.jobs")
+
+
+def friendly_error(exc, ticker, stage):
+    """What the user sees when a run fails: short, plain, and about what to do next. The technical
+    detail (connection pool names, model lists) goes to the server log instead of the screen."""
+    log.error("analysis of %s failed while %s: %s: %s", ticker, stage, type(exc).__name__, exc)
+    text = str(exc).lower()
+    if isinstance(exc, AgentCallError):
+        return "Our AI models are busy right now. Please try again in a few minutes."
+    if isinstance(exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
+        return "We could not reach one of our data sources just now. This is usually brief. Please try again in a minute."
+    if stage == "data" and isinstance(exc, ValueError):
+        if any(k in text for k in ("no page for ticker", "not found", "no cik", "could not resolve", "no such")):
+            return f"We could not find a company with the ticker {ticker}. Please check the spelling and the market, US or India."
+        if "could not reach" in text:
+            return "We could not reach our data sources for this company. Please try again in a minute."
+        return "We could not get financial data for this company right now. It may be newly listed or have no recent filings."
+    if stage == "data":
+        return "Something went wrong while getting the financial data. Please try again in a minute."
+    return "Something went wrong while the committee was working. Please try again."
 
 
 def normalize_agents(agent_keys):
@@ -197,14 +222,14 @@ def _run_job(ticker_key, market, agent_keys):
         with _lock:
             job = _jobs[ticker_key]
             job["status"] = "error"
-            job["error"] = f"Could not fetch financial data: {exc}"
+            job["error"] = friendly_error(exc, ticker_key, "data")
             job["completed_at"] = time.time()
         return
     except Exception as exc:
         with _lock:
             job = _jobs[ticker_key]
             job["status"] = "error"
-            job["error"] = f"Unexpected error fetching data: {exc}"
+            job["error"] = friendly_error(exc, ticker_key, "data")
             job["completed_at"] = time.time()
         return
 
@@ -222,13 +247,13 @@ def _run_job(ticker_key, market, agent_keys):
         with _lock:
             job = _jobs[ticker_key]
             job["status"] = "error"
-            job["error"] = str(exc)
+            job["error"] = friendly_error(exc, ticker_key, "committee")
             job["completed_at"] = time.time()
     except Exception as exc:
         with _lock:
             job = _jobs[ticker_key]
             job["status"] = "error"
-            job["error"] = f"Unexpected error during committee run: {exc}"
+            job["error"] = friendly_error(exc, ticker_key, "committee")
             job["completed_at"] = time.time()
 
 
