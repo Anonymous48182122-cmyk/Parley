@@ -5,12 +5,13 @@ import { AGENT_META, agentColor } from "../agentMeta.js";
 
 const SIZE_PX = { sm: 28, md: 34, lg: 56 };
 
-// Real investors get a commissioned illustrated portrait (frontend/public/avatars/*.webp)
+// Real people (investors and founders) get a commissioned illustrated portrait (frontend/public/avatars/*.webp)
 // instead of a bot avatar — the Historian, Future Agent, Devil's Advocate, and CIO
 // aren't real people, so they keep the procedurally generated bot.
 const PORTRAIT_AGENTS = new Set([
   "buffett", "munger", "lynch", "jhunjhunwala", "simons", "ackman",
   "graham", "marks", "pabrai", "burry", "sperandeo", "damani",
+  "musk", "bezos", "jobs", "dhirubhai", "thiel",
 ]);
 
 // Procedurally generated "AI bot" avatars (DiceBear, MIT-licensed, fully
