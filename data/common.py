@@ -10,6 +10,7 @@ import statistics
 import time
 from pathlib import Path
 
+from data.groups import group_note
 from data.technicals import describe_technicals
 
 CACHE_DIR = Path(__file__).parent / "cache"
@@ -120,13 +121,28 @@ def _year_by_year(annual, unit_label, max_rows=8):
     return out
 
 
-def _format_peers(peers, own_pe, unit_label):
+def _format_peers(peers, own_pe, unit_label, own_cap=None, is_group=False):
     """Peer table for the agent prompt, plus the median peer P/E next to the
     company's own — the single number that turns "P/E 40" into "expensive
-    versus a peer median of 22"."""
+    versus a peer median of 22". That number only means something when the peers
+    really are comparable, so it is withheld for a diversified group (whose peers
+    describe one segment) and flagged when the company dwarfs its peers."""
     if not peers:
         return []
-    lines = ["", "Peer comparison (same-industry companies of comparable size):"]
+    peer_caps = [p["market_cap"] for p in peers if p.get("market_cap")]
+    typical = statistics.median(peer_caps) if len(peer_caps) >= 2 else None
+    ratio = (own_cap / typical) if (own_cap and typical) else None
+    much_larger = ratio is not None and ratio >= 3
+
+    if is_group:
+        header = ("Peer comparison (these companies resemble only ONE part of this group; "
+                  "they are NOT a fair yardstick for the whole company):")
+    elif much_larger:
+        header = (f"Peer comparison (same-industry companies, but this company is about {ratio:.0f} "
+                  "times larger than the typical peer here, so treat their multiples as a loose reference only):")
+    else:
+        header = "Peer comparison (same-industry companies of comparable size):"
+    lines = ["", header]
     for peer in peers:
         parts = []
         if peer.get("pe") is not None:
@@ -143,10 +159,34 @@ def _format_peers(peers, own_pe, unit_label):
                 parts.append(f"{label} {peer[key]}%")
         lines.append(f"- {peer['name']}: " + ", ".join(parts))
     peer_pes = [p["pe"] for p in peers if p.get("pe") and p["pe"] > 0]
-    if len(peer_pes) >= 2:
+    if is_group:
+        lines.append("No single peer median is given: a group is valued by its parts, not by one industry's multiple.")
+    elif len(peer_pes) >= 2:
         median = round(statistics.median(peer_pes), 1)
         own = f"{own_pe}" if own_pe is not None else "N/A"
-        lines.append(f"Peer median P/E: {median} (this company: {own})")
+        caveat = " Loose reference only, the peers are much smaller." if much_larger else ""
+        lines.append(f"Peer median P/E: {median} (this company: {own}).{caveat}")
+    return lines
+
+
+def _format_segment_comps(comps, own_pe):
+    """One current data point per segment of a diversified group, so agents can reason about the
+    parts with real figures instead of one misleading peer median."""
+    if not comps:
+        return []
+    lines = ["", "Segment reference points (what the market pays for each kind of business inside this group; "
+                 "rough proxies, not like for like):"]
+    for c in comps:
+        parts = []
+        if c.get("pe") is not None:
+            parts.append(f"P/E {c['pe']}")
+        if c.get("roce") is not None:
+            parts.append(f"ROCE {c['roce']}%")
+        if c.get("market_cap") is not None:
+            parts.append(f"mkt cap {_compact(c['market_cap'], 'INR Cr.')} Cr")
+        lines.append(f"- {c['segment']}: {c['name']}" + (" (" + ", ".join(parts) + ")" if parts else ""))
+    lines.append(f"Compare these spreads with this company's own P/E ({own_pe if own_pe is not None else 'N/A'}): "
+                 "a blended multiple between the segment multiples is what you would expect.")
     return lines
 
 
@@ -276,6 +316,10 @@ def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
             "Board composition and executive pay are not in our data for Indian companies. "
             "Use the promoter and institutional holding trend shown below as the governance signal."
         )
+    group = group_note(data.get("ticker"))
+    if group:
+        notes.append(group + " Value it segment by segment, with the segment reference points if they are "
+                     "given, and do not judge it against a single peer median.")
     if "Debt to Equity" in ratios:
         notes.append(
             "Debt to equity counts borrowings (short and long term debt) only. Figures that also include "
@@ -479,7 +523,9 @@ def format_for_agents(data):
                 lines.append(f"- {key}: {value}")
 
     own_pe = ratios.get("P/E Ratio (Trailing)", ratios.get("P/E Ratio"))
-    lines += _format_peers(data.get("peers"), own_pe, cap_unit)
+    lines += _format_peers(data.get("peers"), own_pe, cap_unit, own_cap=data.get("market_cap"),
+                           is_group=bool(group_note(data.get("ticker"))))
+    lines += _format_segment_comps(data.get("segment_comps"), own_pe)
 
     lines += describe_technicals(data.get("technicals"), currency)
 

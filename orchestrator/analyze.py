@@ -11,6 +11,7 @@ from data.common import format_for_agents
 from data.india import bse_fetcher
 from data.market_data import fetch_market_data
 from data.peers import fetch_peers
+from data.groups import fetch_segment_comps
 from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps, finish_india_skeleton, india_skeleton
 from data.validate import validate_financials
 from data.yahoo_fundamentals import add_latest_quarter_balance, complete_with_yahoo
@@ -77,6 +78,7 @@ def fetch_financials(ticker, market=None):
         own_name=financials.get("name"),
         own_market_cap=financials.get("market_cap"),
     )
+    financials["segment_comps"] = fetch_segment_comps(financials["ticker"], financials.get("market"))
     return validate_financials(financials)  # last: drop impossible values, flag disagreements
 
 
