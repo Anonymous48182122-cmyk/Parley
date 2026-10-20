@@ -72,6 +72,86 @@ const STAGE_LABELS = {
   cio: "CIO synthesizing the memo",
 };
 
+// One plain sentence per stage, so a wait always says what is happening and why.
+const STAGE_BLURBS = {
+  fetching_data: "Reading the filings, prices and ratios for this company.",
+  stage1: "Each agent forms a view on their own, before hearing anyone else.",
+  debate: "Now they argue with each other, live.",
+  cio: "The CIO writes the memo and keeps the disagreement in it.",
+};
+
+// Counts seconds while `active`, so long waits can explain themselves.
+function useElapsedSeconds(active) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      setSecs(0);
+      return undefined;
+    }
+    const started = Date.now();
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return secs;
+}
+
+// The free server sleeps when idle, and the first request after that can take close to
+// a minute. Say so instead of leaving a silent, empty page.
+function WaitingHint({ secs }) {
+  if (secs < 8) return null;
+  return (
+    <div className="fade-in" style={{ marginTop: 10, color: "var(--text-faint)", fontSize: "0.8rem", lineHeight: 1.55 }}>
+      {secs < 45
+        ? "Still working. The first request after a quiet spell can take up to a minute while the server wakes up."
+        : "Nearly there. Thanks for waiting, the server was asleep and is catching up."}
+    </div>
+  );
+}
+
+// Placeholder shaped like the stock card, so the page does not jump when the real one arrives.
+function SnapshotSkeleton() {
+  return (
+    <div className="card" style={{ marginBottom: 28 }} aria-hidden="true">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "18px 26px" }}>
+        {[88, 104, 64, 76, 92, 70].map((w, i) => (
+          <div key={i}>
+            <div className="skeleton" style={{ height: 9, width: 54, marginBottom: 9 }} />
+            <div className="skeleton" style={{ height: 18, width: w }} />
+          </div>
+        ))}
+      </div>
+      <div className="skeleton" style={{ height: 4, marginTop: 26, borderRadius: 2 }} />
+    </div>
+  );
+}
+
+// Who is in the room, shown before the analysis even starts.
+function RoomAvatars({ agents }) {
+  if (!agents || agents.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "14px 0 4px" }} aria-label="Committee members">
+      {agents.slice(0, 12).map((k) => (
+        <span key={k} title={AGENT_META[k]?.name ?? k}>
+          <AgentAvatar agentKey={k} size="md" />
+        </span>
+      ))}
+      {agents.length > 12 && (
+        <span style={{ alignSelf: "center", fontSize: "0.78rem", color: "var(--text-faint)" }}>
+          +{agents.length - 12}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// "Failed to fetch" is a browser word, not an explanation.
+function friendlyError(message) {
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(message || "")) {
+    return "We could not reach the Parley server. Check your connection, then try again.";
+  }
+  return message || "Something unexpected happened. Please try again.";
+}
+
 // Drives the persistent "where am I" strip — deliberately reuses the same
 // job.current_stage/status fields the poll loop already tracks, rather than
 // scroll-spying the page, since that's a more reliable progress signal than
@@ -143,7 +223,10 @@ export default function CommitteePage() {
   const [fatalError, setFatalError] = useState(null);
   const [crossExams, setCrossExams] = useState({});
   const [previousEntry, setPreviousEntry] = useState(null);
+  const [attempt, setAttempt] = useState(0);
   const pollRef = useRef(null);
+  const waiting = !job || (job.status === "running" && job.current_stage === "fetching_data");
+  const elapsed = useElapsedSeconds(waiting && !fatalError);
   // From the committee picker on SearchPage — absent on a direct link/refresh,
   // in which case the backend falls back to its own default committee.
   const requestedAgents = location.state?.agents;
@@ -202,7 +285,7 @@ export default function CommitteePage() {
       cancelled = true;
       clearInterval(pollRef.current);
     };
-  }, [ticker, requestedAgents]);
+  }, [ticker, requestedAgents, attempt]);
 
   async function handleRetry() {
     clearInterval(pollRef.current);
@@ -263,13 +346,23 @@ export default function CommitteePage() {
           <div style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 6 }}>
             Something went wrong
           </div>
-          <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>{fatalError}</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "0.9rem", marginBottom: 14 }}>
+            {friendlyError(fatalError)}
+          </div>
+          <button className="button-primary" onClick={() => setAttempt((a) => a + 1)}>
+            Try again
+          </button>
         </div>
       )}
 
       {!job && !fatalError && (
-        <div className="pulse" style={{ color: "var(--text-dim)" }}>
-          Convening the committee…
+        <div className="fade-in">
+          <SnapshotSkeleton />
+          <div className="pulse" style={{ color: "var(--text-dim)" }}>
+            Convening the committee…
+          </div>
+          <RoomAvatars agents={requestedAgents} />
+          <WaitingHint secs={elapsed} />
         </div>
       )}
 
@@ -289,7 +382,7 @@ export default function CommitteePage() {
 
       {job && job.status !== "error" && (
         <>
-          <MarketSnapshot data={job.market_data} />
+          {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}
           <WhatChanged previous={previousEntry} current={job} />
           <PhaseStrip job={job} />
 
@@ -306,6 +399,13 @@ export default function CommitteePage() {
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${job.progress * 100}%` }} />
               </div>
+              {STAGE_BLURBS[job.current_stage] && (
+                <div style={{ marginTop: 10, color: "var(--text-faint)", fontSize: "0.8rem" }}>
+                  {STAGE_BLURBS[job.current_stage]}
+                </div>
+              )}
+              {job.current_stage === "fetching_data" && <WaitingHint secs={elapsed} />}
+              {job.current_stage === "fetching_data" && <RoomAvatars agents={job.agents} />}
             </div>
           )}
 
