@@ -42,6 +42,12 @@ function formatDebtToEquity(value) {
   return `${(n / 100).toFixed(2)}x`;
 }
 
+function formatAsOf(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
 function RangeBar({ low, high, current, currency }) {
   if (low == null || high == null || current == null || high <= low) return null;
   const pct = Math.min(100, Math.max(0, ((current - low) / (high - low)) * 100));
@@ -173,6 +179,12 @@ export default function MarketSnapshot({ data }) {
         <Stat label="Sector" value={sector} />
         <Stat label="Industry" value={pick(ratios, "Industry")} />
       </div>
+
+      {tech.as_of && (
+        <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginTop: 14 }}>
+          Price as of the {formatAsOf(tech.as_of)} close
+        </div>
+      )}
 
       <RangeBar low={low} high={high} current={price} currency={data.price_currency ?? data.currency} />
 

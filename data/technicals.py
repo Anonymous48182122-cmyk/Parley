@@ -50,7 +50,9 @@ def compute_technicals(series):
         max_dd = min(max_dd, c / peak - 1)
 
     span = high - low
+    as_of = next((str(d)[:10] for d, c in reversed(series) if c is not None), None)  # date of the last close
     return {
+        "as_of": as_of,
         "last": round(last, 2),
         "high_52w": round(high, 2),
         "low_52w": round(low, 2),
@@ -76,7 +78,7 @@ def describe_technicals(t, currency=""):
     if not t:
         return []
     cur = f" {currency}" if currency else ""
-    lines = ["", "Price action (daily closes):"]
+    lines = ["", "Price action (daily closes" + (f", latest close {t['as_of']}" if t.get("as_of") else "") + "):"]
     lines.append(
         f"- 52-week range: {t['low_52w']} to {t['high_52w']}{cur}; last {t['last']}, "
         f"{abs(t['pct_below_high'])}% below the high and {t['pct_above_low']}% above the low "
