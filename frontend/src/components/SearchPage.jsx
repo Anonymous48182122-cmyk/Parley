@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_AGENTS, MIN_AGENTS } from "../agentMeta.js";
 import CommitteePicker from "./CommitteePicker.jsx";
@@ -44,6 +45,16 @@ function loadSavedCommittee() {
   }
 }
 
+// A few specks of gold drifting up through the spotlight. Fixed positions and timings, so it
+// looks the same every visit and costs nothing to render.
+const DUST = Array.from({ length: 16 }, (_, i) => ({
+  left: `${(i * 37 + 11) % 100}%`,
+  top: `${150 + ((i * 53) % 260)}px`,
+  delay: `${(i * 1.3) % 12}s`,
+  duration: `${11 + (i % 5) * 2.5}s`,
+  size: 2 + (i % 3),
+}));
+
 export default function SearchPage() {
   const navigate = useNavigate();
   const [selected, setSelected] = useState(loadSavedCommittee);
@@ -60,11 +71,28 @@ export default function SearchPage() {
   function goToTicker(value) {
     const clean = value.trim().toUpperCase();
     if (!clean || selected.size < MIN_AGENTS) return;
-    navigate(`/analysis/${encodeURIComponent(clean)}`, { state: { agents: [...selected] } });
+    const go = () => navigate(`/analysis/${encodeURIComponent(clean)}`, { state: { agents: [...selected] } });
+    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (document.startViewTransition && !calm) {
+      // the page cross-fades into the boardroom instead of cutting
+      document.startViewTransition(() => flushSync(go));
+    } else {
+      go();
+    }
   }
 
   return (
-    <div className="container">
+    <div className="container" style={{ position: "relative" }}>
+      <div className="hero-atmosphere" aria-hidden="true">
+        <div className="hero-spot" />
+        {DUST.map((d, i) => (
+          <span
+            key={i}
+            className="dust"
+            style={{ left: d.left, top: d.top, width: d.size, height: d.size, animationDelay: d.delay, animationDuration: d.duration }}
+          />
+        ))}
+      </div>
       <div style={{ textAlign: "center", marginTop: 32, marginBottom: 44 }}>
         <div className="pill" style={{ marginBottom: 24 }}>
           Your committee · One live debate

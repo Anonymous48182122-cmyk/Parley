@@ -11,6 +11,7 @@ import SectionLabel from "./SectionLabel.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
 import SpeakerRail from "./SpeakerRail.jsx";
+import BoardroomScene from "./BoardroomScene.jsx";
 import WhatChanged from "./WhatChanged.jsx";
 
 function SaveToHistory({ ticker, job, crossExams }) {
@@ -122,25 +123,6 @@ function SnapshotSkeleton() {
         ))}
       </div>
       <div className="skeleton" style={{ height: 4, marginTop: 26, borderRadius: 2 }} />
-    </div>
-  );
-}
-
-// Who is in the room, shown before the analysis even starts.
-function RoomAvatars({ agents }) {
-  if (!agents || agents.length === 0) return null;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "14px 0 4px" }} aria-label="Committee members">
-      {agents.slice(0, 12).map((k) => (
-        <span key={k} title={AGENT_META[k]?.name ?? k}>
-          <AgentAvatar agentKey={k} size="md" />
-        </span>
-      ))}
-      {agents.length > 12 && (
-        <span style={{ alignSelf: "center", fontSize: "0.78rem", color: "var(--text-faint)" }}>
-          +{agents.length - 12}
-        </span>
-      )}
     </div>
   );
 }
@@ -358,12 +340,9 @@ export default function CommitteePage() {
 
       {!job && !fatalError && (
         <div className="fade-in">
-          <SnapshotSkeleton />
-          <div className="pulse" style={{ color: "var(--text-dim)" }}>
-            Convening the committee…
-          </div>
-          <RoomAvatars agents={requestedAgents} />
+          <BoardroomScene job={null} agents={requestedAgents} ticker={ticker} />
           <WaitingHint secs={elapsed} />
+          <SnapshotSkeleton />
         </div>
       )}
 
@@ -383,6 +362,7 @@ export default function CommitteePage() {
 
       {job && job.status !== "error" && (
         <>
+          {job.status === "running" && <BoardroomScene job={job} agents={requestedAgents} ticker={ticker} />}
           {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}
           <WhatChanged previous={previousEntry} current={job} />
           <PhaseStrip job={job} />
@@ -406,7 +386,6 @@ export default function CommitteePage() {
                 </div>
               )}
               {job.current_stage === "fetching_data" && <WaitingHint secs={elapsed} />}
-              {job.current_stage === "fetching_data" && <RoomAvatars agents={job.agents} />}
             </div>
           )}
 
