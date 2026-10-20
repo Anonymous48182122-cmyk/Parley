@@ -335,3 +335,41 @@ def fetch_nasdaq_universe():
         return cached_fetch("nasdaq_universe", 24, _fetch_universe)
     except Exception:
         return []
+
+
+# ---- insider trading (Form 4) ----------------------------------------------
+
+def _fetch_insiders(ticker):
+    data = _get(f"company/{_sym(ticker)}/insider-trades",
+                {"limit": 15, "type": "all", "sortColumn": "lastDate", "sortOrder": "DESC"})
+
+    def table(name):
+        out = {}
+        for r in ((data.get(name) or {}).get("rows") or []):
+            out[r.get("insiderTrade")] = (_num(r.get("months3")), _num(r.get("months12")))
+        return out
+
+    trades, shares = table("numberOfTrades"), table("numberOfSharesTraded")
+    if not trades:
+        raise ValueError(f"no insider data for {ticker}")
+
+    def pair(tbl, key):
+        v = tbl.get(key) or (None, None)
+        return {"3m": v[0], "12m": v[1]}
+
+    recent = []
+    for r in ((data.get("transactionTable") or {}).get("table", {}).get("rows") or [])[:5]:
+        recent.append({"who": (r.get("insider") or "").title(), "relation": r.get("relation"),
+                       "date": r.get("lastDate"), "type": r.get("transactionType"),
+                       "shares": _num(r.get("sharesTraded")), "price": _num(r.get("lastPrice"))})
+    return {"buys": pair(trades, "Number of Open Market Buys"), "sells": pair(trades, "Number of Sells"),
+            "shares_bought": pair(shares, "Number of Shares Bought"), "shares_sold": pair(shares, "Number of Shares Sold"),
+            "recent": recent}
+
+
+def fetch_nasdaq_insiders(ticker):
+    """Form 4 activity: counts and shares bought/sold over 3 and 12 months plus the latest filings; {} on failure."""
+    try:
+        return cached_fetch(f"nasdaq_insiders_{ticker.upper()}", 6, lambda: _fetch_insiders(ticker))
+    except Exception:
+        return {}

@@ -12,7 +12,7 @@ agents already have (every market). Each is best-effort and never raises.
 from statistics import mean
 
 from data.nasdaq_data import (fetch_nasdaq_annual, fetch_nasdaq_history, fetch_nasdaq_quarterly,
-                              fetch_nasdaq_quote, fetch_nasdaq_universe)
+                              fetch_nasdaq_insiders, fetch_nasdaq_quote, fetch_nasdaq_universe)
 from data.technicals import compute_technicals
 from data.yahoo_fundamentals import apply_statement_rows
 
@@ -114,6 +114,12 @@ def fill_market_gaps(financials):
             sic = fetch_sic_description(ticker)
             if sic:
                 financials["sector"], used = sic, True
+
+        gov = financials.setdefault("governance", {})
+        if not gov.get("insiders_6m") and not gov.get("insiders_nasdaq"):
+            insiders = fetch_nasdaq_insiders(ticker)
+            if insiders:
+                gov["insiders_nasdaq"] = insiders
 
         if q.get("eps_surprises") and not financials.get("eps_surprises"):
             financials["eps_surprises"] = q["eps_surprises"]

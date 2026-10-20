@@ -192,6 +192,23 @@ def _management_lines(gov):
             f"vs {n(ins.get('sell_trans'))} sales ({n(ins.get('sell_shares'))} shares)"
             + (f"; net {net * 100:+.2f}% of insider holdings" if net is not None else "")
         )
+    nq = gov.get("insiders_nasdaq")
+    if nq:
+        def n(v):
+            return "n/a" if v is None else f"{v:,.0f}"
+        out.append(
+            "- Insider trading (Form 4 filings): last 3 months "
+            f"{n(nq['buys']['3m'])} open-market buys ({n(nq['shares_bought']['3m'])} shares) vs "
+            f"{n(nq['sells']['3m'])} sales ({n(nq['shares_sold']['3m'])} shares); last 12 months "
+            f"{n(nq['buys']['12m'])} buys vs {n(nq['sells']['12m'])} sales ({n(nq['shares_sold']['12m'])} shares sold). "
+            "Many sales are scheduled plans, so purchases carry more signal than sales."
+        )
+        recent = [
+            f"{t['who']} ({t['relation']}) {str(t['type']).lower()} {n(t['shares'])} shares on {t['date']}"
+            for t in nq.get("recent", [])[:4]
+        ]
+        if recent:
+            out.append("- Latest insider filings: " + "; ".join(recent))
     return ["", "Management and insiders:"] + out if out else []
 
 
