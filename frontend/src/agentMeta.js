@@ -17,6 +17,11 @@ export const AGENT_ORDER = [
   "future",
   "bull_advocate",
   "devils_advocate",
+  "musk",
+  "bezos",
+  "jobs",
+  "dhirubhai",
+  "thiel",
 ];
 
 // A debate needs at least this many agents to be a debate — mirrors
@@ -47,6 +52,11 @@ export const AGENT_META = {
   future: { name: "The Future Agent", monogram: "FA", role: "10-20yr Horizon", kind: "special" },
   bull_advocate: { name: "The Bull Advocate", monogram: "BU", role: "Bull Case", kind: "special" },
   devils_advocate: { name: "The Devil's Advocate", monogram: "DA", role: "Bear Case", kind: "special" },
+  musk: { name: "Elon Musk", monogram: "EM", role: "First Principles Builder", kind: "legend" },
+  bezos: { name: "Jeff Bezos", monogram: "JB", role: "Long Term Flywheel", kind: "legend" },
+  jobs: { name: "Steve Jobs", monogram: "SJ", role: "Product & Focus", kind: "legend" },
+  dhirubhai: { name: "Dhirubhai Ambani", monogram: "DA", role: "Scale & Shareholders", kind: "legend" },
+  thiel: { name: "Peter Thiel", monogram: "PT", role: "Monopoly & Secrets", kind: "legend" },
   cio: { name: "The CIO", monogram: "CIO", role: "Synthesizer", kind: "special" },
 };
 

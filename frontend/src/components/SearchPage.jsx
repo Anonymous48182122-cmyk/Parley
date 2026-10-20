@@ -81,7 +81,7 @@ export default function SearchPage() {
             lineHeight: 1.6,
           }}
         >
-          Pick a stock and pick your committee. Watch legendary investor frameworks argue
+          Pick a stock and pick your committee. Watch legendary investors and founders argue
           about it in real time, then read a CIO memo that keeps the disagreement instead
           of averaging it away.
         </p>

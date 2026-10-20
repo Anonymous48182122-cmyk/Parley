@@ -17,7 +17,7 @@ function roundsFor(n) {
 // checkbox grid grouped into the two AGENT_META "kind"s, since mixing real
 // investors and the fictional framework roles in one undifferentiated list
 // would blur what's actually being picked.
-function Group({ title, keys, selected, onToggle, onShowBio }) {
+function Group({ title, note, keys, selected, onToggle, onShowBio }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <h3
@@ -31,6 +31,11 @@ function Group({ title, keys, selected, onToggle, onShowBio }) {
       >
         {title}
       </h3>
+      {note && (
+        <div style={{ fontSize: "0.72rem", color: "var(--text-faint)", marginBottom: 10, marginTop: -6 }}>
+          {note}
+        </div>
+      )}
       <div
         style={{
           display: "grid",
@@ -106,6 +111,7 @@ function Group({ title, keys, selected, onToggle, onShowBio }) {
 export default function CommitteePicker({ selected, onChange, onReset, defaultAgents }) {
   const investors = AGENT_ORDER.filter((k) => AGENT_META[k].kind === "investor");
   const special = AGENT_ORDER.filter((k) => AGENT_META[k].kind === "special");
+  const legends = AGENT_ORDER.filter((k) => AGENT_META[k].kind === "legend");
   const [bioAgent, setBioAgent] = useState(null);
 
   function toggle(key) {
@@ -164,6 +170,14 @@ export default function CommitteePicker({ selected, onChange, onReset, defaultAg
       </div>
 
       <Group title="Real Investors" keys={investors} selected={selected} onToggle={toggle} onShowBio={setBioAgent} />
+      <Group
+        title="Founders and Legends"
+        note="Builders, not stock pickers. AI interpretations of how they thought and built, not their actual views."
+        keys={legends}
+        selected={selected}
+        onToggle={toggle}
+        onShowBio={setBioAgent}
+      />
       <Group title="Special Roles" keys={special} selected={selected} onToggle={toggle} onShowBio={setBioAgent} />
 
       <AgentBioModal agentKey={bioAgent} onClose={() => setBioAgent(null)} />

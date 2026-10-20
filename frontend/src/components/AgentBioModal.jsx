@@ -80,6 +80,22 @@ export default function AgentBioModal({ agentKey, onClose }) {
         <div style={{ fontSize: "0.95rem", lineHeight: 1.7, color: "var(--text-dim)" }}>
           {bio}
         </div>
+
+        {meta.kind === "legend" && (
+          <div
+            style={{
+              marginTop: 18,
+              paddingTop: 14,
+              borderTop: "1px solid var(--border)",
+              fontSize: "0.78rem",
+              lineHeight: 1.6,
+              color: "var(--text-faint)",
+            }}
+          >
+            This is an AI interpretation of how {meta.name} thought and built, drawn from public
+            writing and interviews. It is not their actual opinion of this or any stock.
+          </div>
+        )}
       </div>
     </div>,
     document.body
