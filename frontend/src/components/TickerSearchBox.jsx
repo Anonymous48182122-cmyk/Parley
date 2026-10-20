@@ -74,7 +74,7 @@ export default function TickerSearchBox({ onSelect }) {
       <div className="search-row" style={{ display: "flex", gap: 10 }}>
         <input
           type="text"
-          placeholder="Search by ticker or company — e.g. Apple, Reliance, PLTR"
+          placeholder="Search a ticker or company"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}

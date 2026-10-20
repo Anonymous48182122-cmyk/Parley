@@ -35,6 +35,20 @@ export const DEFAULT_AGENTS = [
   "ackman", "historian", "future", "bull_advocate", "devils_advocate",
 ];
 
+// One tap committees for the picker. "classic" is the default roster; the rest are
+// themed sets so nobody has to tick eight boxes to get a sensible debate.
+export const PRESETS = [
+  { id: "classic", label: "Classic", keys: DEFAULT_AGENTS },
+  { id: "value", label: "Value", keys: ["buffett", "munger", "graham", "marks", "pabrai", "damani"] },
+  { id: "growth", label: "Growth and builders", keys: ["lynch", "jhunjhunwala", "bezos", "thiel", "musk", "jobs"] },
+  { id: "founders", label: "Founders", keys: ["musk", "bezos", "jobs", "dhirubhai", "thiel"] },
+  { id: "contrarian", label: "Contrarians", keys: ["burry", "marks", "sperandeo", "simons", "historian", "devils_advocate"] },
+  { id: "everyone", label: "Everyone", keys: AGENT_ORDER },
+];
+
+// Beyond this many the debate gets long and each voice gets thinner.
+export const LARGE_COMMITTEE = 12;
+
 export const AGENT_META = {
   buffett: { name: "Warren Buffett", monogram: "WB", role: "Master Capital Allocator", kind: "investor" },
   munger: { name: "Charlie Munger", monogram: "CM", role: "Chief Thinker", kind: "investor" },

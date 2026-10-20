@@ -508,3 +508,313 @@ input::placeholder {
   color: var(--text);
   background: rgba(255, 255, 255, 0.055);
 }
+
+/* ---- Committee picker ------------------------------------------------- */
+
+.committee-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface));
+}
+
+.committee-summary-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.committee-summary-sub {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.avatar-stack {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.avatar-stack-item {
+  display: inline-flex;
+  margin-left: -10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface-raised);
+}
+
+.avatar-stack-item:first-child {
+  margin-left: 0;
+}
+
+.avatar-stack-more {
+  margin-left: -10px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 0 0 2px var(--surface-raised);
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 0;
+}
+
+.preset-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.preset-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.preset-pill--active {
+  border-color: rgba(201, 160, 78, 0.6);
+  background: var(--gold-soft);
+  color: var(--text);
+}
+
+.preset-pill-count {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+.preset-pill--active .preset-pill-count {
+  color: var(--gold);
+}
+
+.committee-panel {
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.committee-panel-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.committee-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.2s var(--ease);
+}
+
+.committee-search:focus {
+  border-color: rgba(201, 160, 78, 0.6);
+}
+
+.committee-search::placeholder {
+  color: var(--text-faint);
+}
+
+.committee-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.committee-tab {
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.committee-tab:hover {
+  color: var(--text);
+}
+
+.committee-tab--active {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.committee-tab-count {
+  margin-left: 7px;
+  font-size: 0.7rem;
+  color: var(--text-faint);
+}
+
+.committee-note {
+  margin-top: 12px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(201, 160, 78, 0.5);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.committee-panel-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 10px;
+  font-size: 0.74rem;
+  color: var(--text-faint);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--gold);
+  font-size: 0.76rem;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.committee-empty {
+  padding: 22px 8px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+}
+
+.agent-grid-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+  margin-right: -4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+
+.agent-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  opacity: 0.62;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+
+.agent-tile:hover {
+  opacity: 0.9;
+  border-color: var(--border-strong);
+}
+
+.agent-tile:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.agent-tile--on {
+  opacity: 1;
+  border-color: rgba(201, 160, 78, 0.55);
+  background: var(--gold-soft);
+}
+
+.agent-tile-avatar {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.agent-tile-name {
+  font-weight: 600;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-tile-role {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-tile-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--bg);
+  border: 1.5px solid var(--border-strong);
+}
+
+.agent-tile--on .agent-tile-check {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+@media (max-width: 480px) {
+  .agent-grid-scroll {
+    max-height: 56vh;
+  }
+  .agent-grid {
+    grid-template-columns: 1fr;
+  }
+  .committee-summary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .committee-summary > div {
+    width: 100%;
+  }
+  .committee-summary > .button-secondary {
+    width: 100%;
+  }
+}
