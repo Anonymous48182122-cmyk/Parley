@@ -3,7 +3,7 @@ import { useId, useRef, useState } from "react";
 // A small interactive price chart: a filled line over the recent closes, green when the
 // stretch ended higher than it began and red when lower. Move across it to read the price
 // at any point and how it compares with today.
-export default function Sparkline({ values, symbol = "", height = 96 }) {
+export default function Sparkline({ values, symbol = "", height = 96, compact = false }) {
   const gradId = useId().replace(/:/g, "");
   const wrapRef = useRef(null);
   const [hover, setHover] = useState(null);
@@ -34,6 +34,27 @@ export default function Sparkline({ values, symbol = "", height = 96 }) {
   const shown = hover ?? values.length - 1;
   const price = values[shown];
   const vsNow = ((price - last) / last) * 100;
+
+  if (compact) {
+    // just the line and its end point: for cards, where there is no room to read values
+    return (
+      <div className="sparkline sparkline--compact" style={{ height }} aria-hidden="true">
+        <div className="sparkline-plot" style={{ cursor: "inherit" }}>
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height="100%">
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+                <stop offset="100%" stopColor={color} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d={area} fill={`url(#${gradId})`} />
+            <path d={line} fill="none" stroke={color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+          </svg>
+          <span className="sparkline-dot" style={{ left: "100%", top: `${(y(last) / H) * 100}%`, background: color }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="sparkline" style={{ height }}>

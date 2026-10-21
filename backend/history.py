@@ -70,7 +70,7 @@ def list_history(user_id: str = Depends(get_current_user)):
     result = (
         _get_client()
         .table("saved_debates")
-        .select("id,ticker,market,cio_memo,verdict,conviction,created_at")
+        .select("id,ticker,market,cio_memo,verdict,conviction,created_at,market_data")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .execute()
