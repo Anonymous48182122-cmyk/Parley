@@ -67,6 +67,35 @@ function SaveToHistory({ ticker, job, crossExams }) {
 
 const POLL_INTERVAL_MS = 1500;
 
+// A free server sleeps, restarts and sometimes answers a status check with an error page. One
+// failed check must not throw away an analysis that is still running (or already finished), so
+// polling carries on through a run of failures and only gives up after about thirty seconds.
+const MAX_POLL_FAILURES = 20;
+
+function makePoller({ ticker, pollRef, isCancelled, setJob, setFatalError, setReconnecting }) {
+  let failures = 0;
+  return async function poll() {
+    try {
+      const data = await getAnalysis(ticker);
+      if (isCancelled()) return;
+      failures = 0;
+      setReconnecting(false);
+      setJob(data);
+      if (data.status !== "running") clearInterval(pollRef.current);
+    } catch (err) {
+      if (isCancelled()) return;
+      failures += 1;
+      if (failures >= MAX_POLL_FAILURES) {
+        setReconnecting(false);
+        setFatalError(err.message);
+        clearInterval(pollRef.current);
+      } else {
+        setReconnecting(true);
+      }
+    }
+  };
+}
+
 const STAGE_LABELS = {
   fetching_data: "Fetching financials…",
   stage1: "Independent first pass",
@@ -207,6 +236,7 @@ export default function CommitteePage() {
   const [crossExams, setCrossExams] = useState({});
   const [previousEntry, setPreviousEntry] = useState(null);
   const [attempt, setAttempt] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
   const pollRef = useRef(null);
   const waiting = !job || (job.status === "running" && job.current_stage === "fetching_data");
   const elapsed = useElapsedSeconds(waiting && !fatalError);
@@ -234,21 +264,17 @@ export default function CommitteePage() {
     let cancelled = false;
     setJob(null);
     setFatalError(null);
+    setReconnecting(false);
     setCrossExams({});
 
-    async function poll() {
-      try {
-        const data = await getAnalysis(ticker);
-        if (cancelled) return;
-        setJob(data);
-        if (data.status !== "running") {
-          clearInterval(pollRef.current);
-        }
-      } catch (err) {
-        if (!cancelled) setFatalError(err.message);
-        clearInterval(pollRef.current);
-      }
-    }
+    const poll = makePoller({
+      ticker,
+      pollRef,
+      isCancelled: () => cancelled,
+      setJob,
+      setFatalError,
+      setReconnecting,
+    });
 
     async function begin() {
       try {
@@ -285,16 +311,10 @@ export default function CommitteePage() {
       const initial = await startAnalysis(ticker, undefined, job?.agents || requestedAgents);
       setJob(initial);
       if (initial.status === "running") {
-        pollRef.current = setInterval(async () => {
-          try {
-            const data = await getAnalysis(ticker);
-            setJob(data);
-            if (data.status !== "running") clearInterval(pollRef.current);
-          } catch (err) {
-            setFatalError(err.message);
-            clearInterval(pollRef.current);
-          }
-        }, POLL_INTERVAL_MS);
+        pollRef.current = setInterval(
+          makePoller({ ticker, pollRef, isCancelled: () => false, setJob, setFatalError, setReconnecting }),
+          POLL_INTERVAL_MS
+        );
       }
     } catch (err) {
       setFatalError(err.message);
@@ -383,6 +403,11 @@ export default function CommitteePage() {
               {STAGE_BLURBS[job.current_stage] && (
                 <div style={{ marginTop: 10, color: "var(--text-faint)", fontSize: "0.8rem" }}>
                   {STAGE_BLURBS[job.current_stage]}
+                </div>
+              )}
+              {reconnecting && (
+                <div className="fade-in" style={{ marginTop: 10, color: "var(--gold)", fontSize: "0.8rem" }}>
+                  Connection hiccup. Still trying to reach the server, your analysis is safe.
                 </div>
               )}
               {job.current_stage === "fetching_data" && <WaitingHint secs={elapsed} />}
