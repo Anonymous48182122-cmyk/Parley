@@ -2401,3 +2401,30 @@ input::placeholder {
   font-size: 0.85rem;
   color: var(--danger);
 }
+
+.exam-picker {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.exam-picker .ask-audience-label {
+  margin-bottom: 4px;
+}
+
+.exam-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.exam-row .ask-audience {
+  flex: 1;
+  min-width: 0;
+}
+
+.exam-row .button-secondary {
+  flex-shrink: 0;
+}

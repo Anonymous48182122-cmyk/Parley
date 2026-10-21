@@ -80,28 +80,35 @@ export default function DebateMessage({
         )}
 
         {allowCrossExam && examOpen && (
-          <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-            <select
-              value={examiner}
-              onChange={(e) => setExaminer(e.target.value)}
-              style={{
-                background: "var(--surface-raised)",
-                color: "var(--text)",
-                border: "1px solid var(--border-strong)",
-                borderRadius: "var(--radius-sm)",
-                padding: "8px 10px",
-                fontSize: "0.85rem",
-              }}
-            >
-              {agents.filter((k) => k !== agentKey).map((k) => (
-                <option key={k} value={k}>
-                  {AGENT_META[k].name}
-                </option>
-              ))}
-            </select>
-            <button className="button-secondary" disabled={asking} onClick={handleAsk}>
-              {asking ? "Asking…" : "Ask"}
-            </button>
+          <div className="exam-picker fade-in">
+            <div className="ask-audience-label">
+              Who should question <strong>{meta.name}</strong>?{" "}
+              <strong style={{ color: agentColor(examiner) }}>{AGENT_META[examiner]?.name}</strong>
+            </div>
+            <div className="exam-row">
+              <div className="ask-audience" role="radiogroup" aria-label="Who should cross-examine?">
+                {agents
+                  .filter((k) => k !== agentKey)
+                  .map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      role="radio"
+                      aria-checked={examiner === k}
+                      aria-label={AGENT_META[k]?.name}
+                      title={AGENT_META[k]?.name}
+                      className={`ask-seat${examiner === k ? " ask-seat--on" : ""}`}
+                      style={{ "--seat-color": agentColor(k) }}
+                      onClick={() => setExaminer(k)}
+                    >
+                      <AgentAvatar agentKey={k} size="fill" />
+                    </button>
+                  ))}
+              </div>
+              <button className="button-secondary" disabled={asking} onClick={handleAsk}>
+                {asking ? "Asking…" : "Ask"}
+              </button>
+            </div>
           </div>
         )}
 
@@ -120,7 +127,7 @@ export default function DebateMessage({
             <AgentAvatar agentKey={exam.agent} size="sm" style={{ marginTop: 2 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginBottom: 2 }}>
-                CROSS-EXAM — {AGENT_META[exam.agent]?.name ?? exam.agent}
+                Cross-examined by {AGENT_META[exam.agent]?.name ?? exam.agent}
               </div>
               <div style={{ fontSize: "0.9rem", fontStyle: "italic", color: "var(--text-dim)" }}>
                 <Highlighted text={exam.text} />
