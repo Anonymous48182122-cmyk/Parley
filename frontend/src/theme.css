@@ -2180,3 +2180,224 @@ input::placeholder {
   color: var(--gold);
   font-weight: 700;
 }
+
+/* ---- Join the debate ------------------------------------------------------- */
+
+.ask {
+  margin-bottom: 40px;
+}
+
+.ask-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.ask-head h2 {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+.ask-head span {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.ask-intro {
+  margin-bottom: 18px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.ask-entry {
+  margin-bottom: 22px;
+}
+
+.ask-you {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ask-you span {
+  max-width: 85%;
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--gold-soft);
+  border: 1px solid rgba(201, 160, 78, 0.35);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.ask-answer {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--answer-color);
+  border-radius: 4px 16px 16px 4px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.ask-answer-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--answer-color);
+}
+
+.ask-answer-text {
+  margin-top: 2px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.ask-pending {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.ask-composer-wrap {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.ask-audience-label {
+  margin-bottom: 10px;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+}
+
+.ask-audience-label strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.ask-audience {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 2px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.ask-all {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.ask-all--on {
+  border-color: rgba(201, 160, 78, 0.6);
+  background: var(--gold-soft);
+  color: var(--text);
+}
+
+.ask-seat {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface);
+  opacity: 0.55;
+  filter: grayscale(0.8);
+  transition: transform 0.25s var(--ease), opacity 0.25s var(--ease), filter 0.25s var(--ease), box-shadow 0.25s var(--ease),
+    border-color 0.25s var(--ease);
+}
+
+.ask-seat .agent-avatar {
+  box-shadow: none;
+}
+
+.ask-seat:hover:not(:disabled) {
+  opacity: 1;
+  filter: none;
+  transform: translateY(-2px);
+}
+
+.ask-seat--on {
+  opacity: 1;
+  filter: none;
+  border-color: var(--seat-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--seat-color) 24%, transparent), 0 8px 20px -8px var(--seat-color);
+  transform: scale(1.1);
+}
+
+.ask-seat:disabled,
+.ask-all:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.ask-starters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 10px 0 12px;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.ask-starters::-webkit-scrollbar {
+  display: none;
+}
+
+.ask-starter {
+  flex-shrink: 0;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+.ask-starter:hover {
+  color: var(--text);
+  border-color: rgba(201, 160, 78, 0.55);
+  background: var(--gold-soft);
+}
+
+.ask-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ask-form input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ask-form .button-primary {
+  flex-shrink: 0;
+}
+
+.ask-error {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--danger);
+}
