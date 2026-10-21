@@ -1367,20 +1367,11 @@ input::placeholder {
 
 .scene-light {
   position: absolute;
-  inset: 0;
+  inset: -20% -10% 30% -10%;
   pointer-events: none;
-  background: conic-gradient(
-    at 50% -8%,
-    transparent 152deg,
-    rgba(201, 160, 78, 0.3) 170deg,
-    rgba(255, 235, 190, 0.5) 180deg,
-    rgba(201, 160, 78, 0.3) 190deg,
-    transparent 208deg
-  );
-  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 80%);
-  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent 80%);
-  transform-origin: 50% 0;
-  animation: scene-sway 9s ease-in-out infinite alternate;
+  background: radial-gradient(ellipse 48% 60% at 50% 0%, rgba(214, 176, 96, 0.2), rgba(201, 160, 78, 0.08) 52%, transparent 78%);
+  filter: blur(10px);
+  animation: glow-breathe 8s ease-in-out infinite alternate;
 }
 
 @keyframes scene-sway {
@@ -1717,21 +1708,13 @@ input::placeholder {
 
 .hero-spot {
   position: absolute;
-  top: -80px;
+  top: -110px;
   left: 50%;
-  width: 780px;
-  height: 780px;
-  margin-left: -390px;
-  background: conic-gradient(
-    at 50% 0%,
-    transparent 156deg,
-    rgba(201, 160, 78, 0.24) 172deg,
-    rgba(255, 235, 190, 0.38) 180deg,
-    rgba(201, 160, 78, 0.24) 188deg,
-    transparent 204deg
-  );
-  transform-origin: 50% 0;
-  animation: scene-sway 11s ease-in-out infinite alternate;
+  width: 1100px;
+  height: 640px;
+  margin-left: -550px;
+  background: radial-gradient(ellipse 50% 55% at 50% 0%, rgba(214, 176, 96, 0.22), rgba(201, 160, 78, 0.09) 52%, transparent 76%);
+  animation: glow-breathe 9s ease-in-out infinite alternate;
 }
 
 .dust {
@@ -1788,5 +1771,14 @@ input::placeholder {
   from {
     opacity: 0;
     transform: scale(1.015);
+  }
+}
+
+@keyframes glow-breathe {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
   }
 }
