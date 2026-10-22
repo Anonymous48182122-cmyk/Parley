@@ -6,6 +6,12 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  // True from the moment someone arrives through a password reset link until they have chosen a
+  // new password. The reset link signs them in with a short lived session, so without this they
+  // would land on the normal page, signed in, never having been asked for the new password.
+  const [recovering, setRecovering] = useState(
+    typeof window !== "undefined" && /type=recovery/.test(window.location.hash)
+  );
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -13,8 +19,9 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
     });
 
     return () => subscription.subscription.unsubscribe();
@@ -32,6 +39,12 @@ export function AuthProvider({ children }) {
         options: { redirectTo: window.location.origin },
       }),
     signOut: () => supabase.auth.signOut(),
+    recovering,
+    finishRecovery: () => setRecovering(false),
+    // emails a reset link that returns to the sign in page, where the new password is chosen
+    requestPasswordReset: (email) =>
+      supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth` }),
+    updatePassword: (password) => supabase.auth.updateUser({ password }),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

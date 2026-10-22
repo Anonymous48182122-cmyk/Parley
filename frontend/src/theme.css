@@ -2447,3 +2447,21 @@ input::placeholder {
     transition: none;
   }
 }
+
+.auth-link {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--gold);
+  font-size: 0.78rem;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-link--center {
+  align-self: center;
+  color: var(--text-dim);
+}

@@ -9,8 +9,11 @@ function friendlyAuthError(message) {
   if (/invalid login credentials/i.test(m)) return "That email and password do not match. Check them and try again.";
   if (/email not confirmed/i.test(m)) return "Please confirm your email first. We sent you a link when you signed up.";
   if (/already (been )?registered|already exists/i.test(m)) return "That email already has an account. Try signing in instead.";
+  if (/different from the old password|same as the old/i.test(m)) return "Choose a password you have not used before.";
   if (/password should be at least|weak password/i.test(m)) return "Use at least 6 characters for your password.";
-  if (/rate limit|too many/i.test(m)) return "Too many tries. Please wait a minute and try again.";
+  if (/session missing|token.*(expired|invalid)|link.*(expired|invalid)|expired/i.test(m))
+    return "That reset link has expired or was already used. Ask for a new one below.";
+  if (/rate limit|too many|security purposes/i.test(m)) return "Too many tries. Please wait a minute and try again.";
   if (/failed to fetch|network|load failed/i.test(m)) return "We could not reach the server. Check your connection and try again.";
   if (/unable to validate email|invalid email/i.test(m)) return "That does not look like a valid email address.";
   return m || "Something went wrong. Please try again.";
@@ -27,22 +30,33 @@ function GoogleMark() {
   );
 }
 
+const HEADINGS = {
+  signin: ["Welcome back", "Keep every committee call, and see how it aged."],
+  signup: ["Create your account", "Keep every committee call, and see how it aged."],
+  forgot: ["Reset your password", "Enter your email and we will send you a link to choose a new one."],
+  reset: ["Choose a new password", "Pick something you have not used before. You will be signed in right after."],
+};
+
 export default function AuthPage() {
-  const { signUp, signIn, signInWithGoogle } = useAuth();
+  const { signUp, signIn, signInWithGoogle, requestPasswordReset, updatePassword, recovering, finishRecovery } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState("signin"); // "signin" | "signup"
+  const [chosen, setChosen] = useState("signin"); // "signin" | "signup" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  // arriving through a reset link always means "choose a new password", whatever was selected
+  const mode = recovering ? "reset" : chosen;
   const signup = mode === "signup";
+  const [title, subtitle] = HEADINGS[mode];
 
   function switchMode(next) {
-    setMode(next);
+    setChosen(next);
     setError(null);
     setInfo(null);
   }
@@ -51,12 +65,31 @@ export default function AuthPage() {
     e.preventDefault();
     setError(null);
     setInfo(null);
+
+    if (mode === "reset" && password !== confirm) {
+      setError("The two passwords do not match.");
+      return;
+    }
+
     setBusy(true);
     try {
-      if (signup) {
+      if (mode === "signup") {
         const { error: err } = await signUp(email, password);
         if (err) throw err;
         setInfo("Check your email to confirm your account, then sign in.");
+      } else if (mode === "forgot") {
+        const { error: err } = await requestPasswordReset(email);
+        if (err) throw err;
+        // the same answer whether or not the email has an account, so this cannot be used to find out
+        setInfo("If an account exists for that email, a reset link is on its way. It can take a minute to arrive.");
+      } else if (mode === "reset") {
+        const { error: err } = await updatePassword(password);
+        if (err) throw err;
+        setInfo("Password updated. Taking you in.");
+        setTimeout(() => {
+          finishRecovery();
+          navigate("/");
+        }, 1100);
       } else {
         const { error: err } = await signIn(email, password);
         if (err) throw err;
@@ -79,90 +112,137 @@ export default function AuthPage() {
     }
   }
 
+  const choosing = mode === "signin" || mode === "signup";
+  const submitLabel = { signin: "Sign in", signup: "Create account", forgot: "Send reset link", reset: "Save new password" }[mode];
+
   return (
     <div className="container auth">
       <div className="auth-head">
         <img src="/icon-192.png" alt="Parley" className="auth-logo" />
-        <h1>{signup ? "Create your account" : "Welcome back"}</h1>
-        <p>Keep every committee call, and see how it aged.</p>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
       </div>
 
       <div className="card auth-card fade-in">
-        <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!signup}
-            className={`auth-tab${!signup ? " auth-tab--active" : ""}`}
-            onClick={() => switchMode("signin")}
-          >
-            Sign in
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={signup}
-            className={`auth-tab${signup ? " auth-tab--active" : ""}`}
-            onClick={() => switchMode("signup")}
-          >
-            Create account
-          </button>
-        </div>
+        {choosing && (
+          <>
+            <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!signup}
+                className={`auth-tab${!signup ? " auth-tab--active" : ""}`}
+                onClick={() => switchMode("signin")}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={signup}
+                className={`auth-tab${signup ? " auth-tab--active" : ""}`}
+                onClick={() => switchMode("signup")}
+              >
+                Create account
+              </button>
+            </div>
 
-        <button type="button" className="auth-google" onClick={handleGoogle}>
-          <GoogleMark /> Continue with Google
-        </button>
+            <button type="button" className="auth-google" onClick={handleGoogle}>
+              <GoogleMark /> Continue with Google
+            </button>
 
-        <div className="auth-or">
-          <span />
-          <em>or use your email</em>
-          <span />
-        </div>
+            <div className="auth-or">
+              <span />
+              <em>or use your email</em>
+              <span />
+            </div>
+          </>
+        )}
 
-        <form onSubmit={handleSubmit} className="auth-form" noValidate={false}>
-          <label className="auth-field">
-            <span>Email</span>
-            <input
-              type="email"
-              name="email"
-              autoComplete="email"
-              inputMode="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-            />
-          </label>
+        <form onSubmit={handleSubmit} className="auth-form">
+          {mode !== "reset" && (
+            <label className="auth-field">
+              <span>Email</span>
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                inputMode="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </label>
+          )}
 
-          <label className="auth-field">
-            <span>Password</span>
-            <div className="auth-password">
+          {mode !== "forgot" && (
+            <label className="auth-field">
+              <span>{mode === "reset" ? "New password" : "Password"}</span>
+              <div className="auth-password">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                  placeholder={mode === "signin" ? "Your password" : "At least 6 characters"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoFocus={mode === "reset"}
+                />
+                <button
+                  type="button"
+                  className="auth-show"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+              {mode === "signin" && (
+                <button type="button" className="auth-link" onClick={() => switchMode("forgot")}>
+                  Forgot your password?
+                </button>
+              )}
+            </label>
+          )}
+
+          {mode === "reset" && (
+            <label className="auth-field">
+              <span>Confirm new password</span>
               <input
                 type={showPassword ? "text" : "password"}
-                name="password"
-                autoComplete={signup ? "new-password" : "current-password"}
-                placeholder={signup ? "At least 6 characters" : "Your password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="confirm-password"
+                autoComplete="new-password"
+                placeholder="Type it again"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
                 required
                 minLength={6}
               />
-              <button
-                type="button"
-                className="auth-show"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-          </label>
+            </label>
+          )}
 
           {error && (
             <div className="auth-message auth-message--error" role="alert">
               {error}
+              {/expired|already used/i.test(error) && mode === "reset" && (
+                <div style={{ marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="auth-link"
+                    onClick={() => {
+                      finishRecovery();
+                      switchMode("forgot");
+                    }}
+                  >
+                    Get a new link
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {info && (
@@ -172,16 +252,24 @@ export default function AuthPage() {
           )}
 
           <button type="submit" className="button-primary" disabled={busy} style={{ width: "100%" }}>
-            {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}
+            {busy ? "Please wait…" : submitLabel}
           </button>
+
+          {mode === "forgot" && (
+            <button type="button" className="auth-link auth-link--center" onClick={() => switchMode("signin")}>
+              Back to sign in
+            </button>
+          )}
         </form>
       </div>
 
-      <ul className="auth-perks">
-        <li>Save any debate and reopen it later</li>
-        <li>See your Buy, Hold and Sell calls at a glance</li>
-        <li>Compare a stock now with what the committee said before</li>
-      </ul>
+      {choosing && (
+        <ul className="auth-perks">
+          <li>Save any debate and reopen it later</li>
+          <li>See your Buy, Hold and Sell calls at a glance</li>
+          <li>Compare a stock now with what the committee said before</li>
+        </ul>
+      )}
     </div>
   );
 }
