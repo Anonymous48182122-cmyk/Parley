@@ -9,3 +9,6 @@ frontend/dev-dist/
 uvicorn.log
 smoke_test_output.log
 .claude/launch.json
+
+# stray local databases (an empty netra.db appeared here from another app started in this folder)
+*.db

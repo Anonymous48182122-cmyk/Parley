@@ -8,9 +8,26 @@
 // Only company pages and the company data endpoints are relayed, and responses are cached at
 // the edge for an hour, so repeat analyses of a stock do not reach Screener at all.
 
+import { timingSafeEqual } from "node:crypto";
+
+// When SCREENER_RELAY_KEY is set on this project, only callers that send it get through, so the
+// relay is not an open door to Screener for the whole internet. Unset, it stays open (as before).
+function authorised(req) {
+  const required = process.env.SCREENER_RELAY_KEY;
+  if (!required) return true;
+  const sent = String(req.headers["x-relay-key"] || "");
+  const a = Buffer.from(sent);
+  const b = Buffer.from(required);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 const ALLOWED = /^\/(company\/[A-Za-z0-9&_.-]+\/(consolidated\/)?|api\/company\/\d+\/(chart|peers|schedules)\/)/;
 
 export default async function handler(req, res) {
+  if (!authorised(req)) {
+    res.status(401).json({ error: "unauthorised" });
+    return;
+  }
   const target = typeof req.query.u === "string" ? req.query.u : "";
   if (!ALLOWED.test(target) || target.includes("..") || target.includes("//")) {
     res.status(400).json({ error: "path not allowed" });
@@ -28,7 +45,11 @@ export default async function handler(req, res) {
     res.status(upstream.status);
     res.setHeader("Content-Type", upstream.headers.get("content-type") || "text/plain");
     if (upstream.status === 200) {
-      res.setHeader("Cache-Control", "public, s-maxage=3600, stale-while-revalidate=86400");
+      // a shared edge cache must never hand a keyed response to a caller without the key
+      res.setHeader(
+        "Cache-Control",
+        process.env.SCREENER_RELAY_KEY ? "private, no-store" : "public, s-maxage=3600, stale-while-revalidate=86400"
+      );
     }
     res.send(body);
   } catch (err) {

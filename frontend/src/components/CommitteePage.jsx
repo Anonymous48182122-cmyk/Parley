@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { AGENT_META } from "../agentMeta.js";
+import { AGENT_META, DEFAULT_AGENTS } from "../agentMeta.js";
 import { startAnalysis, getAnalysis, clearCache, saveToHistory, getLatestForTicker } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import AgentAvatar from "./AgentAvatar.jsx";
@@ -360,7 +360,7 @@ export default function CommitteePage() {
 
       {!job && !fatalError && (
         <div className="fade-in">
-          <BoardroomScene job={null} agents={requestedAgents} ticker={ticker} />
+          <BoardroomScene job={null} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />
           <WaitingHint secs={elapsed} />
           <SnapshotSkeleton />
         </div>
@@ -382,7 +382,7 @@ export default function CommitteePage() {
 
       {job && job.status !== "error" && (
         <>
-          {job.status === "running" && <BoardroomScene job={job} agents={requestedAgents} ticker={ticker} />}
+          {job.status === "running" && <BoardroomScene job={job} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />}
           {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}
           <WhatChanged previous={previousEntry} current={job} />
           <PhaseStrip job={job} />
