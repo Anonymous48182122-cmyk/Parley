@@ -2428,3 +2428,22 @@ input::placeholder {
 .exam-row .button-secondary {
   flex-shrink: 0;
 }
+
+.cio-sub-note {
+  margin-top: 3px;
+  font-size: 0.74rem;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.6s var(--ease) 0.9s;
+}
+
+.cio--shown .cio-sub-note {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cio-sub-note {
+    opacity: 1;
+    transition: none;
+  }
+}

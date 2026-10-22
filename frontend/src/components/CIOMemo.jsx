@@ -129,6 +129,7 @@ export default function CIOMemo({ text, verdict, conviction, stage1 }) {
           </div>
           <div className="cio-verdict">{verdict || "No call"}</div>
           <div className="cio-sub">Conviction {conviction ?? "unknown"} of 10</div>
+          <div className="cio-sub-note">How strongly the evidence backs this call, not how many agreed.</div>
           {votes.length > 0 && (
             <div className="cio-votes" aria-label="How the committee voted">
               {votes.map((k) => (
