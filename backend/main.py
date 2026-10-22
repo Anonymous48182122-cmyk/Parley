@@ -126,6 +126,7 @@ def health_sources(ticker: str = "AAPL"):
     Finance, for one, answers cloud IPs with empty data, which is invisible
     until a stock card goes blank, so this makes it checkable."""
     from data import nasdaq_data
+    from data.us import exec_pay
     import yfinance as yf
 
     def check(fn):
@@ -146,6 +147,7 @@ def health_sources(ticker: str = "AAPL"):
         "nasdaq_quote": check(lambda: nasdaq_data._fetch_quote(symbol)),
         "nasdaq_history": check(lambda: nasdaq_data._fetch_history(symbol)),
         "nasdaq_statements": check(lambda: nasdaq_data._fetch_statements(symbol)),
+        "sec_exec_pay": check(lambda: exec_pay._fetch(symbol)),
     }
 
 
