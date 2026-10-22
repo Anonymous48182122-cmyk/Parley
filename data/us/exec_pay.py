@@ -25,6 +25,8 @@ _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _CONTEXT = re.compile(r'<xbrli:context\s[^>]*?id="([^"]+)"[^>]*>(.*?)</xbrli:context>', re.S)
 _END = re.compile(r"<xbrli:(?:endDate|instant)>\s*(\d{4}-\d{2}-\d{2})\s*</xbrli:(?:endDate|instant)>")
 
+_PREDECESSOR_CIK = {"XOM": 34088}  # Exxon Mobil, before its 2026 holding company
+
 _FIELDS = {
     "ecd:PeoTotalCompAmt": "ceo_total",
     "ecd:PeoActuallyPaidCompAmt": "ceo_paid",
@@ -80,7 +82,14 @@ def _parse(text):
 
 def _fetch(ticker):
     cik, _ = edgar_fetcher.resolve_cik(ticker)
-    filed, url = _latest_proxy(cik)
+    try:
+        filed, url = _latest_proxy(cik)
+    except ValueError:
+        # a company that reorganised under a new holding company files its proxy statement under
+        # the old registrant until the new one has filed its first
+        if ticker.upper() not in _PREDECESSOR_CIK:
+            raise
+        filed, url = _latest_proxy(_PREDECESSOR_CIK[ticker.upper()])
     years, names = _parse(edgar_fetcher._throttled_get(url).text)
     rows = [{"period_end": end, **vals} for end, vals in sorted(years.items(), reverse=True) if vals.get("ceo_total")]
     if not rows:
