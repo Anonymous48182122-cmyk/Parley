@@ -13,3 +13,6 @@ smoke_test_output.log
 # stray local databases (an empty netra.db appeared here from another app started in this folder)
 *.db
 .vercel
+
+.vercel
+.env*
