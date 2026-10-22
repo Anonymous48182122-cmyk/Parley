@@ -70,8 +70,8 @@ DIVERSIFIED_GROUPS = {
 DIVERSIFIED_GROUPS["GOOG"] = DIVERSIFIED_GROUPS["GOOGL"]
 DIVERSIFIED_GROUPS["BRK.B"] = DIVERSIFIED_GROUPS["BRK-B"]
 
-# One comparator per segment, for groups where that is practical. Each is a loose proxy for what
-# the market pays for that kind of business, not a like for like peer.
+# One comparator per segment, for the well known groups. Each is a loose proxy for what the market
+# pays for that kind of business, picked as the clearest listed pure play, never a like for like peer.
 SEGMENT_COMPARATORS = {
     "RELIANCE": [
         ("Telecom and digital (Jio)", "BHARTIARTL"),
@@ -80,7 +80,50 @@ SEGMENT_COMPARATORS = {
         ("Oil and gas production", "ONGC"),
         ("Refining and marketing", "IOC"),
     ],
+    "ADANIENT": [
+        ("Airports", "GMRAIRPORT"),
+        ("Roads and highways", "IRB"),
+        ("Mining and resources", "COALINDIA"),
+        ("Solar manufacturing", "WAAREEENER"),
+    ],
+    "LT": [
+        ("Engineering and construction", "KEC"),
+        ("IT and technology services", "INFY"),
+        ("Defence and aerospace", "HAL"),
+        ("Financial services", "CHOLAFIN"),
+    ],
+    "GRASIM": [
+        ("Cement (through UltraTech)", "ULTRACEMCO"),
+        ("Paints", "ASIANPAINT"),
+        ("Chemicals (caustic soda)", "GUJALKALI"),
+    ],
+    "BAJAJFINSV": [
+        ("Lending (Bajaj Finance)", "BAJFINANCE"),
+        ("Life insurance", "SBILIFE"),
+        ("General insurance", "ICICIGI"),
+    ],
+    "ITC": [
+        ("Cigarettes", "GODFRYPHLP"),
+        ("Packaged foods and personal care", "HINDUNILVR"),
+        ("Paper and packaging", "JKPAPER"),
+    ],
+    "AMZN": [
+        ("Online retail", "WMT"),
+        ("Cloud computing", "MSFT"),
+        ("Digital advertising", "META"),
+    ],
+    "GOOGL": [
+        ("Digital advertising", "META"),
+        ("Cloud and software", "MSFT"),
+    ],
+    "BRK-B": [
+        ("Property and casualty insurance", "CB"),
+        ("Railroads", "UNP"),
+        ("Regulated utilities", "NEE"),
+    ],
 }
+SEGMENT_COMPARATORS["GOOG"] = SEGMENT_COMPARATORS["GOOGL"]
+SEGMENT_COMPARATORS["BRK.B"] = SEGMENT_COMPARATORS["BRK-B"]
 
 
 def group_note(ticker):
@@ -88,27 +131,49 @@ def group_note(ticker):
     return DIVERSIFIED_GROUPS.get((ticker or "").upper())
 
 
-def fetch_segment_comps(ticker, market):
-    """Current P/E, ROCE and size for each segment comparator, or [] when there is none or
-    nothing could be fetched. Best effort, like every fetcher in data/: never raises."""
-    pairs = SEGMENT_COMPARATORS.get((ticker or "").upper())
-    if not pairs or market != "India":
-        return []
+def _india_comp(comp):
     from data.india import bse_fetcher  # local: only the India path needs it
 
+    f = bse_fetcher.fetch(comp, _allow_parent_lookup=False)
+    ratios = f.get("ratios") or {}
+    return {"name": f.get("name") or comp, "pe": ratios.get("P/E Ratio"), "roce": ratios.get("ROCE"),
+            "market_cap": f.get("market_cap"), "unit": "INR Cr."}
+
+
+def _us_comp(symbol):
+    """P/E on trailing twelve month earnings (last fiscal year when the quarters are unavailable),
+    market cap and operating margin, from Nasdaq's public data."""
+    from data.nasdaq_data import fetch_nasdaq_annual, fetch_nasdaq_quarterly, fetch_nasdaq_quote
+    from data.yahoo_fundamentals import period_date
+
+    q = fetch_nasdaq_quote(symbol)
+    mcap = q.get("market_cap")
+    if not mcap:
+        raise ValueError(f"no quote for {symbol}")
+    rows = (fetch_nasdaq_quarterly(symbol).get("rows") or [])[-4:]
+    dates = [period_date(r["period"]) for r in rows]
+    consecutive = len(rows) == 4 and None not in dates and all(60 <= (b - a).days <= 125 for a, b in zip(dates, dates[1:]))
+    if not consecutive:
+        rows = (fetch_nasdaq_annual(symbol).get("rows") or [])[-1:]
+    ni = sum(r.get("net_income") or 0 for r in rows) if rows else None
+    rev = sum(r.get("revenue") or 0 for r in rows) if rows else None
+    op = sum(r.get("operating_income") or 0 for r in rows) if rows else None
+    return {"name": q.get("name") or symbol, "pe": round(mcap / ni, 1) if ni and ni > 0 else None,
+            "operating_margin": round(op / rev * 100, 1) if rev and op else None,
+            "market_cap": mcap, "unit": "USD"}
+
+
+def fetch_segment_comps(ticker, market):
+    """Current P/E and size for each segment comparator, or [] when there is none or nothing could
+    be fetched. Best effort, like every fetcher in data/: never raises."""
+    pairs = SEGMENT_COMPARATORS.get((ticker or "").upper())
+    if not pairs:
+        return []
     out = []
     for segment, comp in pairs:
         try:
-            f = bse_fetcher.fetch(comp, _allow_parent_lookup=False)
-            ratios = f.get("ratios") or {}
-            out.append({
-                "segment": segment,
-                "name": f.get("name") or comp,
-                "ticker": comp,
-                "pe": ratios.get("P/E Ratio"),
-                "roce": ratios.get("ROCE"),
-                "market_cap": f.get("market_cap"),
-            })
+            data = _india_comp(comp) if market == "India" else _us_comp(comp)
+            out.append({"segment": segment, "ticker": comp, **data})
         except Exception:
             continue
     return out

@@ -182,8 +182,13 @@ def _format_segment_comps(comps, own_pe):
             parts.append(f"P/E {c['pe']}")
         if c.get("roce") is not None:
             parts.append(f"ROCE {c['roce']}%")
+        if c.get("operating_margin") is not None:
+            parts.append(f"op margin {c['operating_margin']}%")
         if c.get("market_cap") is not None:
-            parts.append(f"mkt cap {_compact(c['market_cap'], 'INR Cr.')} Cr")
+            if c.get("unit") == "USD":
+                parts.append(f"mkt cap {_compact(c['market_cap'], 'USD')}")
+            else:
+                parts.append(f"mkt cap {_compact(c['market_cap'], 'INR Cr.')} Cr")
         lines.append(f"- {c['segment']}: {c['name']}" + (" (" + ", ".join(parts) + ")" if parts else ""))
     lines.append(f"Compare these spreads with this company's own P/E ({own_pe if own_pe is not None else 'N/A'}): "
                  "a blended multiple between the segment multiples is what you would expect.")
