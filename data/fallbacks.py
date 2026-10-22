@@ -176,8 +176,35 @@ def _money_text(value):
     return f"{value:,.0f}"
 
 
-_MONEY_FIELDS = ("revenue", "gross_profit", "operating_income", "net_income",
+_MONEY_FIELDS = ("revenue", "gross_profit", "operating_income", "net_income", "net_income_cont",
                  "total_assets", "total_equity", "total_debt", "cash")
+
+
+def _clean_earnings(reported, continuing):
+    """Earnings to build ratios on. When reported net income differs a lot from income from
+    continuing operations (a spin-off or sale booked as a discontinued operation: Sony's reported
+    year is a loss of about 330 billion yen against 1,055 billion yen from continuing business),
+    the reported figure says little about what the business earns, so ratios use the continuing
+    figure. Returns (value, whether the swap was made)."""
+    if reported is not None and continuing is not None and continuing != reported \
+            and abs(reported - continuing) > 0.25 * abs(continuing):
+        return continuing, True
+    return reported, False
+
+
+def _say_amount(financials, value):
+    unit = str(financials.get("unit_label") or "")
+    if "Cr" in unit:
+        return f"{value:,.0f} Cr"
+    if abs(value) >= 1e9:
+        return f"{value / 1e9:,.0f} billion {unit}".strip()
+    return f"{value / 1e6:,.0f} million {unit}".strip()
+
+
+def _note_distortion(financials, reported, continuing):
+    _note(financials, f"reported net income ({_say_amount(financials, reported)}) includes a large discontinued "
+                      f"operations or one off item; ratios use income from continuing operations "
+                      f"({_say_amount(financials, continuing)}), and the reported figure is still in the statements")
 
 
 def _consecutive(rows, period_date):
@@ -233,12 +260,19 @@ def _quarterly_ratios(financials, put):
         vals = [r.get(key) for r in rows]
         return None if any(v is None for v in vals) else sum(vals)
 
-    ni, rev, op, gp = total("net_income"), total("revenue"), total("operating_income"), total("gross_profit")
+    ni_reported, rev, op, gp = total("net_income"), total("revenue"), total("operating_income"), total("gross_profit")
+    ni, distorted = _clean_earnings(ni_reported, total("net_income_cont"))
+    if distorted:
+        _note_distortion(financials, ni_reported, ni)
     if source != "Nasdaq":
         # Yahoo's quarterly figures can be restated by spin-offs and discontinued operations (Sony's
         # four quarters sum to a loss in a year it earned over a trillion yen). When the trailing year
         # contradicts the fiscal year's sign, the quarterly series is not to be trusted.
-        recent = [r.get("net_income") for r in (financials.get("annual") or [])[-2:] if r.get("net_income")]
+        recent = [
+            _clean_earnings(r.get("net_income"), r.get("net_income_cont"))[0]
+            for r in (financials.get("annual") or [])[-2:]
+            if r.get("net_income")
+        ]
         if ni is not None and any((ni > 0) != (v > 0) for v in recent):
             return False  # either of the last two fiscal years says the opposite (restated years too)
     now = rows[-1]
@@ -314,8 +348,11 @@ def derive_ratios(financials):
             except Exception:
                 pass
 
-        ni, eq, rev = last.get("net_income"), last.get("total_equity"), last.get("revenue")
+        ni, distorted = _clean_earnings(last.get("net_income"), last.get("net_income_cont"))
+        eq, rev = last.get("total_equity"), last.get("revenue")
         assets, debt = last.get("total_assets"), last.get("total_debt")
+        if distorted:
+            _note_distortion(financials, last["net_income"], ni)
 
         if ni is not None and eq and eq > 0:
             put("Return on Equity", _pct(ni / eq))
@@ -354,7 +391,8 @@ def derive_ratios(financials):
 
         elif mcap and financials.get("market") == "US":
             # an ADR reporting in yen or euros: Nasdaq's dollar-converted statements make P/E possible
-            usd = (fetch_nasdaq_annual(financials["ticker"]).get("rows") or [{}])[-1].get("net_income")
+            usd_row = (fetch_nasdaq_annual(financials["ticker"]).get("rows") or [{}])[-1]
+            usd, _ = _clean_earnings(usd_row.get("net_income"), usd_row.get("net_income_cont"))
             if usd and usd > 0:
                 put("P/E Ratio (Trailing)", round(mcap / usd, 2))
 

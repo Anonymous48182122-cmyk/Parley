@@ -205,6 +205,7 @@ _STATEMENT_MAP = {
     "operating_income": ("incomeStatementTable", ["Operating Income"]),
     "pretax_income": ("incomeStatementTable", ["Earnings Before Tax"]),
     "net_income": ("incomeStatementTable", ["Net Income"]),
+    "net_income_cont": ("incomeStatementTable", ["Net Income-Cont. Operations"]),
     "rnd": ("incomeStatementTable", ["Research and Development"]),
     "interest_expense": ("incomeStatementTable", ["Interest Expense"]),
     "total_assets": ("balanceSheetTable", ["Total Assets"]),
