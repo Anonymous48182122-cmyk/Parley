@@ -116,6 +116,12 @@ def fill_market_gaps(financials):
                 financials["sector"], used = sic, True
 
         gov = financials.setdefault("governance", {})
+        if not gov.get("exec_pay"):
+            from data.us.exec_pay import fetch_exec_pay
+
+            pay = fetch_exec_pay(ticker)
+            if pay:
+                gov["exec_pay"] = pay
         if not gov.get("insiders_6m") and not gov.get("insiders_nasdaq"):
             insiders = fetch_nasdaq_insiders(ticker)
             if insiders:

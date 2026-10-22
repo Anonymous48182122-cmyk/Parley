@@ -7,6 +7,7 @@ market — see format_for_agents below.
 
 import json
 import statistics
+from datetime import datetime
 import time
 from pathlib import Path
 
@@ -221,12 +222,49 @@ def _capital_allocation(annual, unit_label):
     return ["", f"Capital allocation (latest fiscal year, {unit_label}):", "- " + "; ".join(parts)] if parts else []
 
 
-def _management_lines(gov):
+def _pay_amount(value):
+    if value is None:
+        return "n/a"
+    if abs(value) >= 1e9:
+        return f"${value / 1e9:,.1f}B"
+    return f"${value / 1e6:,.1f}M"
+
+
+def _pay_lines(pay, net_income=None):
+    """What the company pays its chief executive and other top executives, from its SEC proxy
+    statement. Total pay counts stock awards at their grant date value, which is why a single
+    multi year award can dwarf everything else (Tesla's 2025 award), so that is said every time."""
+    years = [y for y in pay.get("years", []) if y.get("ceo_total")]
+    if not years:
+        return []
+    latest = years[0]
+    try:
+        label = datetime.strptime(latest["period_end"], "%Y-%m-%d").strftime("%b %Y")
+    except ValueError:
+        label = latest["period_end"]
+    earlier = ", ".join(_pay_amount(y["ceo_total"]) for y in years[1:4])
+    parts = [f"the chief executive's total pay was {_pay_amount(latest['ceo_total'])} for the year to {label}"
+             + (f" (earlier years: {earlier})" if earlier else "")]
+    if latest.get("ceo_paid") is not None:
+        parts.append(f"pay actually realised, after share price moves, was {_pay_amount(latest['ceo_paid'])}")
+    if latest.get("others_avg_total") is not None:
+        parts.append(f"the other named executives averaged {_pay_amount(latest['others_avg_total'])}")
+    line = f"- Executive pay (SEC proxy statement filed {pay.get('filed')}): " + "; ".join(parts) + "."
+    out = [line]
+    if net_income and net_income > 0 and latest["ceo_total"] / net_income >= 0.001:
+        out.append(f"- That chief executive pay is {latest['ceo_total'] / net_income * 100:.2f}% of the company's latest annual net income.")
+    out.append("- Total pay counts stock awards at their value when granted, so it can sit far above what is paid in cash in a year.")
+    return out
+
+
+def _management_lines(gov, net_income=None):
     out = []
     officers = gov.get("officers")
     if officers:
         out.append("- Executive pay: " + "; ".join(
             f"{o.get('name')} ({o.get('title')}) {_compact(o['pay'], 'USD')}" for o in officers))
+    if gov.get("exec_pay"):
+        out += _pay_lines(gov["exec_pay"], net_income)
     ins = gov.get("insiders_6m")
     if ins:
         def n(v):
@@ -540,7 +578,10 @@ def format_for_agents(data):
         lines += [f"- Pro: {x}" for x in pros[:3]] + [f"- Con: {x}" for x in cons[:3]]
 
     lines += _capital_allocation(annual, unit_label)
-    lines += _management_lines(data.get("governance") or {})
+    lines += _management_lines(
+        data.get("governance") or {},
+        latest.get("net_income") if str(unit_label) == "USD" else None,
+    )
     lines += _derived_metrics(data, latest, ttm, cap_unit, unit_label)
     lines += _data_notes(data, latest, ttm, ratios, cap_unit, unit_label)
 
