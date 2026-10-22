@@ -192,8 +192,8 @@ def _clean_earnings(reported, continuing):
     return reported, False
 
 
-def _say_amount(financials, value):
-    unit = str(financials.get("unit_label") or "")
+def _say_amount(financials, value, unit=None):
+    unit = unit or str(financials.get("unit_label") or "")
     if "Cr" in unit:
         return f"{value:,.0f} Cr"
     if abs(value) >= 1e9:
@@ -201,10 +201,10 @@ def _say_amount(financials, value):
     return f"{value / 1e6:,.0f} million {unit}".strip()
 
 
-def _note_distortion(financials, reported, continuing):
-    _note(financials, f"reported net income ({_say_amount(financials, reported)}) includes a large discontinued "
-                      f"operations or one off item; ratios use income from continuing operations "
-                      f"({_say_amount(financials, continuing)}), and the reported figure is still in the statements")
+def _note_distortion(financials, reported, continuing, period="last fiscal year", unit=None):
+    _note(financials, f"{period}: reported net income ({_say_amount(financials, reported, unit)}) includes a large "
+                      f"discontinued operations or one off item; ratios use income from continuing operations "
+                      f"({_say_amount(financials, continuing, unit)}), and the reported figure is still in the statements")
 
 
 def _consecutive(rows, period_date):
@@ -263,7 +263,7 @@ def _quarterly_ratios(financials, put):
     ni_reported, rev, op, gp = total("net_income"), total("revenue"), total("operating_income"), total("gross_profit")
     ni, distorted = _clean_earnings(ni_reported, total("net_income_cont"))
     if distorted:
-        _note_distortion(financials, ni_reported, ni)
+        _note_distortion(financials, ni_reported, ni, period="trailing twelve months, in US dollars", unit="USD")
     if source != "Nasdaq":
         # Yahoo's quarterly figures can be restated by spin-offs and discontinued operations (Sony's
         # four quarters sum to a loss in a year it earned over a trillion yen). When the trailing year
