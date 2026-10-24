@@ -25,6 +25,7 @@ from google import genai
 from google.genai import errors as gemini_errors
 from google.genai import types
 
+from agents.stances import positions_table
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
     DEFAULT_AGENTS,
@@ -500,7 +501,7 @@ def _compact_cio_limits(system, n_agents, turns):
     from agents.prompts import CIO_PROMPT_TEMPLATE  # local: template is large
 
     budget = (_GROQ_MAX_REQUEST_TOKENS - _CIO_COMPACT_MAX_TOKENS) * _CHARS_PER_TOKEN
-    fixed = len(system) + len(CIO_PROMPT_TEMPLATE) + _CIO_COMPACT_DATA_CHARS + 600  # + slack
+    fixed = len(system) + len(CIO_PROMPT_TEMPLATE) + _CIO_COMPACT_DATA_CHARS + 600 + 120 * n_agents  # + slack and the positions table
     for turn_cap in (450, 340, 260):
         transcript = sum(min(len(t), turn_cap) + 25 for _, t in turns)
         per_agent = (budget - fixed - transcript) / max(n_agents, 1)
@@ -520,6 +521,7 @@ def run_cio(ticker, data, turns, stage1_analyses):
         )
         return CIO_PROMPT_TEMPLATE.format(
             ticker=ticker,
+            positions=positions_table(stage1_analyses, turns, AGENT_DISPLAY_NAMES),
             transcript=_format_transcript(turns, turn_limit),
             stage1_analyses=stage1_text,
             data=data[:data_limit] if data_limit else data,

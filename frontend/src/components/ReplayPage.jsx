@@ -119,7 +119,7 @@ export default function ReplayPage() {
       {Object.keys(entry.stage1 || {}).length > 0 && (
         <section style={{ marginBottom: 40 }}>
           <SectionLabel>Independent First Pass</SectionLabel>
-          <AgentCommitteeStrip stage1={entry.stage1} />
+          <AgentCommitteeStrip stage1={entry.stage1} debate={entry.debate} />
         </section>
       )}
 
@@ -146,7 +146,7 @@ export default function ReplayPage() {
 
       {entry.cio_memo && (
         <section>
-          <CIOMemo text={entry.cio_memo} verdict={entry.verdict} conviction={entry.conviction} stage1={entry.stage1} />
+          <CIOMemo text={entry.cio_memo} verdict={entry.verdict} conviction={entry.conviction} stage1={entry.stage1} debate={entry.debate} />
         </section>
       )}
     </div>

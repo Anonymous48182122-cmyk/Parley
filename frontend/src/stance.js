@@ -49,3 +49,28 @@ export function tally(stage1) {
   for (const text of Object.values(stage1 || {})) counts[parseStance(text).id] += 1;
   return counts;
 }
+
+// Where each agent stands once the debate is over. `opening` is the first pass call, `final` is
+// the verdict on the agent's last debate turn that states one (the opening call when none does),
+// and `changed` is true when they moved. The vote board, the chips and the CIO's vote count all
+// use `final`, so the page never shows a call the agent has since dropped.
+export function finalStances(stage1, debate) {
+  const lastCall = {};
+  for (const turn of debate || []) {
+    const found = parseStance(turn.text);
+    if (found.id !== "unclear") lastCall[turn.agent] = found;
+  }
+  const out = {};
+  for (const [agent, text] of Object.entries(stage1 || {})) {
+    const opening = parseStance(text);
+    const final = lastCall[agent] || opening;
+    out[agent] = { opening, final, changed: final.id !== opening.id && opening.id !== "unclear" };
+  }
+  return out;
+}
+
+export function tallyFinal(stances) {
+  const counts = { buy: 0, pass: 0, sell: 0, unclear: 0 };
+  for (const s of Object.values(stances || {})) counts[s.final.id] += 1;
+  return counts;
+}

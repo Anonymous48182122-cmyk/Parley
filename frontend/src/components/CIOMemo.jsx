@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { STANCES, tally } from "../stance.js";
+import { STANCES, finalStances, tallyFinal } from "../stance.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 import FormattedText from "./FormattedText.jsx";
 
@@ -113,9 +113,9 @@ function Gauge({ conviction, shown, color }) {
   );
 }
 
-export default function CIOMemo({ text, verdict, conviction, stage1 }) {
+export default function CIOMemo({ text, verdict, conviction, stage1, debate }) {
   const color = VERDICT_COLORS[verdict] || "var(--text-dim)";
-  const counts = stage1 ? tally(stage1) : null;
+  const counts = stage1 ? tallyFinal(finalStances(stage1, debate)) : null;
   const votes = counts ? ["buy", "pass", "sell", "unclear"].filter((k) => counts[k] > 0) : [];
   const [heroRef, shown] = useReveal();
 
@@ -131,7 +131,7 @@ export default function CIOMemo({ text, verdict, conviction, stage1 }) {
           <div className="cio-sub">Conviction {conviction ?? "unknown"} of 10</div>
           <div className="cio-sub-note">How strongly the evidence backs this call, not how many agreed.</div>
           {votes.length > 0 && (
-            <div className="cio-votes" aria-label="How the committee voted">
+            <div className="cio-votes" aria-label="How the committee voted after the debate">
               {votes.map((k) => (
                 <span key={k} style={{ color: STANCES[k].color }}>
                   <i style={{ background: STANCES[k].color }} />

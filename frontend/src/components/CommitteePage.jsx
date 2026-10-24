@@ -417,7 +417,7 @@ export default function CommitteePage() {
           {Object.keys(job.stage1 || {}).length > 0 && (
             <section id="stage1" className="scroll-anchor" style={{ marginBottom: 40 }}>
               <SectionLabel>Independent First Pass</SectionLabel>
-              <AgentCommitteeStrip stage1={job.stage1} total={(job.agents || []).length} />
+              <AgentCommitteeStrip stage1={job.stage1} debate={job.debate} total={(job.agents || []).length} />
             </section>
           )}
 
@@ -468,7 +468,7 @@ export default function CommitteePage() {
 
           {job.cio_memo && (
             <section id="cio-memo" className="scroll-anchor">
-              <CIOMemo text={job.cio_memo} verdict={job.verdict} conviction={job.conviction} stage1={job.stage1} />
+              <CIOMemo text={job.cio_memo} verdict={job.verdict} conviction={job.conviction} stage1={job.stage1} debate={job.debate} />
               <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
             </section>
           )}

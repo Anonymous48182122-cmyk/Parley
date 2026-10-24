@@ -1168,6 +1168,28 @@ input::placeholder {
   text-transform: uppercase;
 }
 
+.chip-was {
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+
+.vote-moved {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.stance-note {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
 /* ---- Speaker rail ------------------------------------------------------ */
 
 .rail {

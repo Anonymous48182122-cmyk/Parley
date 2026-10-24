@@ -1072,6 +1072,14 @@ RULES:
   because the room's mood has shifted, or because it's easier to agree, is
   not a real reason. If your framework still lands where it started, say so
   and defend it — a united room is not evidence you were wrong
+- Your reader sees your first-pass call next to what you say here, so they
+  must never disagree without you saying so. Whatever you argue in this turn
+  has to match the call you end on. If this turn changes your call, open the
+  turn with "I am changing my call from X to Y" and name the specific figure
+  or argument that moved you, and do not argue a bear case while still
+  ending on Buy, or the reverse
+- End every turn with one last line, exactly "Verdict: Buy", "Verdict: Pass"
+  or "Verdict: Sell", showing where you stand right now
 
 Financial data: {data}
 
@@ -1230,6 +1238,13 @@ Non-negotiable rules:
 
 CIO_PROMPT_TEMPLATE = """Read the full committee transcript below on {ticker} and produce a CIO
 memo.
+
+Where each agent stands at the END of the debate (their first pass call can differ,
+because some changed their minds). Use these final calls whenever you count votes
+or say who is on which side. Never describe an agent by a call they dropped, and
+name anyone who changed their mind and what moved them:
+
+{positions}
 
 Start with exactly one line, in this exact format, before anything else —
 this gets parsed by a machine, so do not deviate from it or add commentary
