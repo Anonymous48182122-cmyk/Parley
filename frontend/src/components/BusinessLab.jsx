@@ -203,9 +203,9 @@ function Moat({ moat }) {
   );
 }
 
-// The people, as cards: the chief executive first and larger, then the other leaders. Each card says
-// what the person is paid and, where the exchanges show it, how many of the company's shares they
-// hold, because whose own money is on the line says more about management than any job title.
+// The people who run it, as cards: the chief executive and the founders, nothing more. Names come from
+// the filings and the exchange officer lists; when those are silent the business card supplies the
+// names it is certain of. A founder who is also the chief executive gets both tags on one card.
 function initials(name) {
   const parts = name.split(" ").filter(Boolean);
   return ((parts[0]?.[0] || "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
@@ -213,135 +213,58 @@ function initials(name) {
 
 const HUES = [38, 160, 210, 280, 340, 18];
 
-function shortShares(n) {
-  if (n == null) return null;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
-  return String(Math.round(n));
+function surname(name) {
+  return name.split(" ").filter(Boolean).pop()?.toLowerCase().replace(/[^a-z]/g, "") || "";
 }
 
-function actionLine(last) {
-  if (!last?.type) return null;
-  const kind = /sell|dispos/i.test(last.type) ? "sold" : /buy|purchase|acqui/i.test(last.type) ? "got" : "traded";
-  const n = shortShares(last.shares);
-  return `Last move: ${kind}${n ? ` ${n} shares` : ""}${last.date ? ` on ${last.date}` : ""}`;
-}
-
-function LeaderCard({ leader, currency, index }) {
-  const hue = HUES[index % HUES.length];
-  const pay = leader.pay != null ? money(leader.pay, currency) : null;
-  return (
-    <div className={`lab-leader${leader.ceo ? " lab-leader--ceo" : ""}`} style={{ "--hue": hue }}>
-      <div className="lab-leader-top">
-        <span className="lab-leader-badge">{initials(leader.name)}</span>
-        <div>
-          <div className="lab-leader-name">{leader.name}</div>
-          <div className="lab-leader-role">{leader.role}</div>
-        </div>
-      </div>
-      <div className="lab-leader-facts">
-        {pay && (
-          <div>
-            <b>{pay}</b>
-            <span>{leader.ceo ? `total pay ${leader.year}` : "yearly pay"}</span>
-          </div>
-        )}
-        {leader.ceo && leader.realised != null && (
-          <div>
-            <b style={{ color: leader.realised < 0 ? "var(--danger)" : "var(--success)" }}>{money(leader.realised, currency)}</b>
-            <span>realised after share moves</span>
-          </div>
-        )}
-        {leader.held != null && (
-          <div>
-            <b>{shortShares(leader.held)}</b>
-            <span>
-              shares held{leader.held_value ? `, about ${money(leader.held_value, currency)}` : ""}
-            </span>
-          </div>
-        )}
-      </div>
-      {actionLine(leader.last) && <div className="lab-leader-last">{actionLine(leader.last)}</div>}
-    </div>
-  );
+function whoRunsIt(mgmt, card) {
+  const people = [];
+  const add = (name, patch) => {
+    if (!name) return;
+    const found = people.find((p) => surname(p.name) === surname(name));
+    if (found) Object.assign(found, Object.fromEntries(Object.entries(patch).filter(([, v]) => v)));
+    else people.push({ name, ceo: false, founder: false, ...patch });
+  };
+  for (const l of mgmt?.leaders || []) {
+    const isCeo = l.ceo || /chief executive|\bceo\b/i.test(l.role || "") || /chief executive|\bceo\b/i.test(l.title || "");
+    const isFounder = l.founder || /founder/i.test(l.role || "");
+    if (isCeo || isFounder) add(l.name, { ceo: isCeo, founder: isFounder });
+  }
+  add(card?.people?.ceo, { ceo: true });
+  for (const name of card?.people?.founders || []) add(name, { founder: true });
+  return people.sort((a, b) => Number(b.ceo) - Number(a.ceo)).slice(0, 5);
 }
 
 function Management({ card, mgmt }) {
+  const people = whoRunsIt(mgmt, card);
   const story = card?.management?.story;
-  const signals = card?.management?.signals || [];
-  const leaders = mgmt?.leaders || [];
-  if (!story && !mgmt && signals.length === 0) return null;
-  const currency = mgmt?.currency;
-  const pay = mgmt?.ceo_pay;
-  const ins = mgmt?.insiders;
-  const prom = mgmt?.promoters;
-  const maxPay = pay ? Math.max(pay.latest, ...(pay.earlier || [])) : 0;
+  if (people.length === 0 && !story) return null;
 
   return (
     <div className="lab-card">
       <div className="lab-kicker">Who runs it</div>
-      <div className="lab-title">Meet the people, and see whose money is on the line</div>
+      <div className="lab-title">The people behind the company</div>
 
-      {leaders.length > 0 && (
+      {people.length > 0 && (
         <div className="lab-leaders">
-          {leaders.map((l, i) => (
-            <LeaderCard key={l.name} leader={l} currency={currency} index={i} />
+          {people.map((p, i) => (
+            <div className={`lab-leader${p.ceo ? " lab-leader--ceo" : ""}`} key={p.name} style={{ "--hue": HUES[i % HUES.length] }}>
+              <div className="lab-leader-top">
+                <span className="lab-leader-badge">{initials(p.name)}</span>
+                <div>
+                  <div className="lab-leader-name">{p.name}</div>
+                  <div className="lab-leader-tags">
+                    {p.ceo && <span>Chief executive</span>}
+                    {p.founder && <span>Founder</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
       {story && <p className="lab-body">{story}</p>}
-
-      {signals.length > 0 && (
-        <div className="lab-signals">
-          {signals.map((s, i) => (
-            <span key={i} className={`lab-signal ${s.good ? "lab-signal--good" : "lab-signal--bad"}`}>
-              {s.text}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {pay && (
-        <div className="lab-mini">
-          <div className="lab-mini-title">Chief executive total pay by year</div>
-          <div className="lab-bars">
-            {[...(pay.earlier || []).slice().reverse(), pay.latest].map((v, i, arr) => (
-              <div key={i} className="lab-bar">
-                <div style={{ height: `${Math.max(8, (v / maxPay) * 100)}%` }} className={i === arr.length - 1 ? "now" : ""} />
-                <span>{money(v, currency)}</span>
-              </div>
-            ))}
-          </div>
-          {pay.pct_of_profit != null && (
-            <div className="lab-sub">That is {pay.pct_of_profit}% of the company's yearly profit.</div>
-          )}
-        </div>
-      )}
-
-      {ins && (ins.buys > 0 || ins.sells > 0) && (
-        <div className="lab-mini">
-          <div className="lab-mini-title">Insiders trading their own shares, last {ins.window || "6 months"}</div>
-          <div className="lab-split">
-            <span style={{ flexGrow: ins.buys || 0.0001, background: "var(--success)" }}>{ins.buys} buys</span>
-            <span style={{ flexGrow: ins.sells || 0.0001, background: "var(--danger)" }}>{ins.sells} sells</span>
-          </div>
-        </div>
-      )}
-
-      {prom && (
-        <div className="lab-mini">
-          <div className="lab-mini-title">Promoter family ownership</div>
-          <div className="lab-big">
-            {prom.now}%
-            {prom.year_ago != null && prom.year_ago !== prom.now && (
-              <small style={{ color: prom.now > prom.year_ago ? "var(--success)" : "var(--danger)" }}>
-                {prom.now > prom.year_ago ? " up" : " down"} from {prom.year_ago}% a year ago
-              </small>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

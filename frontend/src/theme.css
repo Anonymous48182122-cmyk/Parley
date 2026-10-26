@@ -2598,6 +2598,8 @@ input::placeholder {
 .lab-leader-name { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; line-height: 1.15; }
 .lab-leader--ceo .lab-leader-name { font-size: 1.7rem; }
 .lab-leader-role { margin-top: 3px; color: var(--text-dim); font-size: 0.8rem; line-height: 1.35; }
+.lab-leader-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.lab-leader-tags span { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: hsl(var(--h) 55% 50% / 0.18); color: hsl(var(--h) 80% 75%); }
 .lab-leader-facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 14px; }
 .lab-leader-facts div { display: flex; flex-direction: column; }
 .lab-leader-facts b { font-size: 1.02rem; font-variant-numeric: tabular-nums; }

@@ -84,19 +84,14 @@ Use exactly these keys:
  "great": "the single most impressive thing about the business model, one or two sentences",
  "bad": "its most real weakness, one or two sentences",
  "gruesome": "the thing that could really hurt it, one or two sentences",
- "management": {{"story": "two or three sentences on who runs it and whether their incentives look aligned, using ONLY the management and ownership facts in the data; say plainly what is not known",
-                 "signals": [ {{"good": true or false, "text": "a short fact based signal, at most 12 words"}} ]}},
+ "people": {{"ceo": "the current chief executive's full name, or null if you are not sure",
+             "founders": ["full names of the founders, only the ones you are certain of; an empty list for a company with no famous founders"]}},
+ "management": {{"story": "two sentences on who runs it: are they the founders still in charge or hired professionals, and what is notable about how they run it. Do NOT mention pay, share sales or ownership percentages"}},
  "ask_yourself": "one sharp question a student of business should ask about this company"
 }}
 
-Pay lines in the data: "total pay" counts stock awards at their value when granted, and "pay actually
-realised" moves with the share price and can be negative; it is NOT a cash loss and the executive did not
-hand money back. Name the leaders (the chief executive first) in the management story when the data names
-them, and say what they are paid in plain words.
-
-Rules: 2 to 4 engines, 2 to 4 signals. Every number must come from the data below, and do not name a
-currency unless the data does. For management, mention insider buying or selling, pay or ownership ONLY
-if the data literally contains it; when it does not, say that is not known instead of saying "zero".
+Rules: 2 to 4 engines. Every number must come from the data below, and do not name a currency unless the
+data does. Names of people must be ones you are certain of or that the data gives; never guess a name.
 If the data is thin, say so in plain words rather than guessing.
 
 Data:
@@ -131,6 +126,8 @@ def parse_card(raw):
     except (TypeError, ValueError):
         strength = None
     mgmt = card.get("management") if isinstance(card.get("management"), dict) else {}
+    people = card.get("people") if isinstance(card.get("people"), dict) else {}
+    founders = [_text(n, 60) for n in (people.get("founders") or [])[:4] if isinstance(n, str)]
 
     engines = []
     for e in (card.get("engines") or [])[:4]:
@@ -151,6 +148,7 @@ def parse_card(raw):
         "bad": _text(card.get("bad"), 400),
         "gruesome": _text(card.get("gruesome"), 400),
         "management": {"story": _text(mgmt.get("story"), 600), "signals": signals},
+        "people": {"ceo": _text(people.get("ceo"), 60), "founders": [n for n in founders if n]},
         "ask_yourself": _text(card.get("ask_yourself"), 300),
     }
 
@@ -344,10 +342,17 @@ def _leaders(gov, price, ceo_row):
     def known(name):
         return any(_same_person(name, l["name"]) for l in leaders)
 
-    for o in (gov.get("officers") or [])[:6]:
+    for o in (gov.get("officers") or [])[:8]:
         name = clean_name(o.get("name"))
-        if name and not known(name):
-            leaders.append({"name": name, "role": o.get("title"), "pay": o.get("pay")})
+        if not name:
+            continue
+        is_founder = "founder" in (o.get("title") or "").lower()
+        match = next((l for l in leaders if _same_person(name, l["name"])), None)
+        if match:
+            match["founder"] = match.get("founder") or is_founder
+            match.setdefault("title", o.get("title"))
+        else:
+            leaders.append({"name": name, "role": o.get("title"), "pay": o.get("pay"), "founder": is_founder})
 
     held = {}
     for r in ((gov.get("insiders_nasdaq") or {}).get("recent") or []):
