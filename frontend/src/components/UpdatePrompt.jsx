@@ -16,6 +16,23 @@ export default function UpdatePrompt() {
     },
   });
 
+  // The normal route asks the waiting version to take over and reloads. When that does not happen
+  // (an old tab still holding the previous version, a worker stuck waiting) the button used to do
+  // nothing at all, so after a moment it clears the saved copies and reloads, which always works.
+  function applyUpdate() {
+    updateServiceWorker(true);
+    setTimeout(async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+        for (const key of await caches.keys()) await caches.delete(key);
+      } catch {
+        // reloading is still the best that can be done
+      }
+      window.location.reload();
+    }, 2000);
+  }
+
   if (!needRefresh) return null;
 
   return (
@@ -38,7 +55,7 @@ export default function UpdatePrompt() {
       <button
         className="button-primary"
         style={{ whiteSpace: "nowrap", padding: "8px 16px" }}
-        onClick={() => updateServiceWorker(true)}
+        onClick={applyUpdate}
       >
         Update
       </button>
