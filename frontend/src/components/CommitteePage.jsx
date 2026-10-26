@@ -74,8 +74,9 @@ const POLL_INTERVAL_MS = 1500;
 // polling carries on through a run of failures and only gives up after about thirty seconds.
 const MAX_POLL_FAILURES = 20;
 
-function makePoller({ ticker, pollRef, isCancelled, setJob, setFatalError, setReconnecting }) {
+function makePoller({ ticker, pollRef, isCancelled, setJob, setFatalError, setReconnecting, restart }) {
   let failures = 0;
+  let restarts = 0;
   return async function poll() {
     try {
       const data = await getAnalysis(ticker);
@@ -86,6 +87,18 @@ function makePoller({ ticker, pollRef, isCancelled, setJob, setFatalError, setRe
       if (data.status !== "running") clearInterval(pollRef.current);
     } catch (err) {
       if (isCancelled()) return;
+      // The server forgot this run: it restarted (a new version going live, or the free host waking
+      // from sleep) and the run lived only in its memory. Start the same run again, quietly.
+      if (/no analysis found/i.test(err.message) && restarts < 3) {
+        restarts += 1;
+        setReconnecting(true);
+        try {
+          await restart();
+        } catch {
+          // the next poll tries again
+        }
+        return;
+      }
       failures += 1;
       if (failures >= MAX_POLL_FAILURES) {
         setReconnecting(false);
@@ -281,6 +294,10 @@ export default function CommitteePage() {
       setJob,
       setFatalError,
       setReconnecting,
+      restart: async () => {
+        const again = await startAnalysis(ticker, undefined, requestedAgents);
+        if (!cancelled) setJob(again);
+      },
     });
 
     async function begin() {
