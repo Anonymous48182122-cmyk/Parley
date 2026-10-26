@@ -451,9 +451,14 @@ def _merge_wikidata(leaders, people):
         hit = find(name)
         if hit:
             hit["ceo"] = True
-            hit["name"] = name  # Wikidata's name is the one the person is known by
+            hit["current"] = True
+            hit["name"] = name  # the name the person is known by
         elif i == 0:
-            leaders.insert(0, {"name": name, "role": "Chief executive", "ceo": True})
+            leaders.insert(0, {"name": name, "role": "Chief executive", "ceo": True, "current": True})
+    if people.get("ceo"):
+        for l in leaders:
+            if l.get("ceo") and not l.get("current"):
+                l["ceo"] = False  # the proxy statement's chief executive is last year's when the job has changed hands
     for name in people.get("founders") or []:
         hit = find(name)
         if hit:

@@ -227,12 +227,16 @@ function whoRunsIt(mgmt, card) {
       if (name.split(" ").length > found.name.split(" ").length) found.name = name; // keep the fullest form
     } else people.push({ name, ceo: false, founder: false, ...patch });
   };
+  const hasCurrent = (mgmt?.leaders || []).some((l) => l.ceo && l.current);
   for (const l of mgmt?.leaders || []) {
-    const isCeo = l.ceo || /chief executive|\bceo\b/i.test(l.role || "") || /chief executive|\bceo\b/i.test(l.title || "");
+    // a chief executive confirmed from current sources outranks the filings and the card, which can lag
+    const isCeo = hasCurrent
+      ? Boolean(l.ceo && l.current)
+      : l.ceo || /chief executive|\bceo\b/i.test(l.role || "") || /chief executive|\bceo\b/i.test(l.title || "");
     const isFounder = l.founder || /founder/i.test(l.role || "");
     if (isCeo || isFounder) add(l.name, { ceo: isCeo, founder: isFounder });
   }
-  add(card?.people?.ceo, { ceo: true });
+  if (!hasCurrent) add(card?.people?.ceo, { ceo: true });
   for (const name of card?.people?.founders || []) add(name, { founder: true });
   return people.sort((a, b) => Number(b.ceo) - Number(a.ceo)).slice(0, 6);
 }

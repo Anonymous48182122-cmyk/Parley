@@ -112,3 +112,13 @@ def test_quotes_come_from_anyone_whose_line_fits_the_situation():
     assert pick(ratios={}, management={"insiders": {"buys": 40, "sells": 3}})["who"] == "Peter Lynch"
     seen = {pick_wisdom(wisdom_features({}), t)["who"] for t in ("A", "B", "C", "D", "E", "F", "G", "H")}
     assert len(seen) >= 3
+
+
+def test_a_new_chief_executive_replaces_the_one_in_the_old_proxy_statement():
+    fin = {"price": 10.0, "governance": {
+        "exec_pay": {"ceo_name": "Mr. Cook", "years": [{"period_end": "2025-09-27", "ceo_total": 1.0}]},
+        "officers": [{"name": "Mr. Timothy D. Cook", "title": "Executive Chairman of the Board"}]}}
+    leaders = management_facts(fin, "USD", {"ceo": ["John Ternus"], "founders": ["Steve Jobs"]})["leaders"]
+    ceos = [l["name"] for l in leaders if l.get("ceo")]
+    assert ceos == ["John Ternus"]
+    assert any(l["name"] == "Steve Jobs" and l["founder"] for l in leaders)
