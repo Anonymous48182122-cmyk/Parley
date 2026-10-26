@@ -13,6 +13,7 @@ import MarketSnapshot from "./MarketSnapshot.jsx";
 import SpeakerRail from "./SpeakerRail.jsx";
 import BoardroomScene from "./BoardroomScene.jsx";
 import WhatChanged from "./WhatChanged.jsx";
+import BusinessLab from "./BusinessLab.jsx";
 
 function SaveToHistory({ ticker, job, crossExams }) {
   const { session, user } = useAuth();
@@ -42,7 +43,8 @@ function SaveToHistory({ ticker, job, crossExams }) {
         debate: job.debate,
         user_chat: job.user_chat,
         cross_exams: crossExams,
-        market_data: job.market_data,
+        // the Business Lab's parts ride along inside market_data, so no new column is needed
+        market_data: { ...job.market_data, business_card: job.business_card, scorecards: job.scorecards },
         verdict: job.verdict,
         conviction: job.conviction,
       });
@@ -203,6 +205,11 @@ function PhaseStrip({ job }) {
           </span>
         );
       })}
+      {(job.business_card || job.market_data?.business_facts) && (
+        <a href="#business-lab" className="phase-step">
+          Business Lab
+        </a>
+      )}
       {contentReady.stage1 && (
         <a href="#ask-committee" className="phase-step">
           Ask the Committee
@@ -415,6 +422,14 @@ export default function CommitteePage() {
           {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}
           <WhatChanged previous={previousEntry} current={job} />
           <PhaseStrip job={job} />
+
+          <BusinessLab
+            card={job.business_card}
+            facts={job.market_data?.business_facts}
+            scorecards={job.scorecards}
+            agents={job.agents}
+            running={job.status === "running"}
+          />
 
           {job.status === "running" && (
             <div style={{ marginBottom: 32 }}>

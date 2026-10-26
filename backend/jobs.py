@@ -13,6 +13,7 @@ import time
 import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
+from agents.business import management_facts, money_flow, pick_wisdom
 from agents.runner import AgentCallError, run_committee
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
@@ -157,6 +158,8 @@ def _new_job(ticker_key, market, agent_keys):
         "data_text": None,
         "market_data": None,
         "stage1": {},
+        "scorecards": {},
+        "business_card": None,
         "debate": [],
         "user_chat": [],
         "cio_memo": None,
@@ -209,11 +212,32 @@ def start_analysis(ticker, market=None, agents=None, force=False):
     return job
 
 
+def _business_facts(financials):
+    """What the Business Lab draws from the figures themselves: where each 100 of sales goes, who
+    runs the company and whose money is on the line, and a real line of investing wisdom that fits."""
+    try:
+        currency = financials.get("price_currency") or financials.get("currency")
+        flow = money_flow(financials)
+        net = flow["net"] if flow else None
+        return {
+            "money_flow": flow,
+            "management": management_facts(financials, "INR" if financials.get("market") == "India" else currency),
+            "wisdom": pick_wisdom(financials.get("ratios"), net),
+        }
+    except Exception:
+        log.exception("could not build the business facts")
+        return None
+
+
 def _update(ticker_key, event_type, payload):
     with _lock:
         job = _jobs[ticker_key]
         if event_type == "stage1":
             job["stage1"][payload["agent"]] = payload["text"]
+            if payload.get("scorecard"):
+                job["scorecards"][payload["agent"]] = payload["scorecard"]
+        elif event_type == "business_card":
+            job["business_card"] = payload.get("card")
         elif event_type == "debate_turn":
             job["debate"].append(payload)
         elif event_type == "cio":
@@ -248,6 +272,7 @@ def _run_job(ticker_key, market, agent_keys):
                 "sector": financials.get("sector"),
                 "ratios": financials.get("ratios", {}),
                 "technicals": financials.get("technicals") or {},
+                "business_facts": _business_facts(financials),
             }
     except ValueError as exc:
         with _lock:

@@ -6,6 +6,7 @@ import { getHistoryEntry } from "../api.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 import BioAvatar from "./BioAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
+import BusinessLab from "./BusinessLab.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
@@ -115,6 +116,13 @@ export default function ReplayPage() {
       </div>
 
       <MarketSnapshot data={entry.market_data} />
+
+      <BusinessLab
+        card={entry.market_data?.business_card}
+        facts={entry.market_data?.business_facts}
+        scorecards={entry.market_data?.scorecards}
+        agents={Object.keys(entry.stage1 || {})}
+      />
 
       {Object.keys(entry.stage1 || {}).length > 0 && (
         <section style={{ marginBottom: 40 }}>

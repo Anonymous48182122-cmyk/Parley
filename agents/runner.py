@@ -25,6 +25,7 @@ from google import genai
 from google.genai import errors as gemini_errors
 from google.genai import types
 
+from agents.business import CARD_PROMPT, CARD_SYSTEM, SCORECARD_INSTRUCTION, parse_card, split_scorecard
 from agents.stances import positions_table
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
@@ -80,7 +81,7 @@ CIO_CANDIDATES = [
     ("groq", "qwen/qwen3.8-27b"),
 ]
 
-STAGE1_MAX_TOKENS = 1400
+STAGE1_MAX_TOKENS = 1600  # room for the business scorecard that ends each first pass
 DEBATE_MAX_TOKENS = 300
 CIO_MAX_TOKENS = 2500
 
@@ -324,7 +325,7 @@ def run_stage1(agent_key, ticker, data, prefer_provider=None):
         agent=AGENT_DISPLAY_NAMES[agent_key],
         sections=sections,
         data=data,
-    )
+    ) + SCORECARD_INSTRUCTION
     return _call(STAGE1_CANDIDATES, SYSTEM_PROMPTS[agent_key], prompt, STAGE1_MAX_TOKENS,
                  prefer_provider=prefer_provider)
 
@@ -345,9 +346,10 @@ def run_stage1_all(ticker, data, agent_keys=None, on_update=None):
         }
         for future in as_completed(future_to_agent):
             agent_key = future_to_agent[future]
-            text = future.result()
+            # the scorecard at the end is split off, so everything downstream reads the plain write up
+            text, scorecard = split_scorecard(future.result())
             results[agent_key] = text
-            _emit(on_update, "stage1", {"agent": agent_key, "text": text})
+            _emit(on_update, "stage1", {"agent": agent_key, "text": text, "scorecard": scorecard})
     return results
 
 
@@ -540,10 +542,36 @@ def run_cio(ticker, data, turns, stage1_analyses):
     return _parse_cio_verdict(text)
 
 
+_CARD_DATA_CHARS = 9000
+_CARD_MAX_TOKENS = 1500
+
+
+def run_business_card(ticker, data):
+    """One extra call that writes the plain English business card. Best effort: None when every
+    model fails or answers with something that is not the JSON asked for."""
+    try:
+        text = _call(STAGE1_CANDIDATES, CARD_SYSTEM, CARD_PROMPT.format(ticker=ticker, data=data[:_CARD_DATA_CHARS]),
+                     _CARD_MAX_TOKENS, max_wait=90)
+    except AgentCallError as exc:
+        log.warning("business card for %s failed: %.200s", ticker, exc)
+        return None
+    return parse_card(text)
+
+
 def run_committee(ticker, data, agent_keys=None, on_update=None):
     agent_keys = agent_keys or DEFAULT_AGENTS
     _emit(on_update, "stage_start", {"stage": "stage1"})
     stage1 = run_stage1_all(ticker, data, agent_keys=agent_keys, on_update=on_update)
+
+    # the business card is written while the debate runs, and the run waits for it before it ends
+    card_box = {}
+
+    def write_card():
+        card_box["card"] = run_business_card(ticker, data)
+        _emit(on_update, "business_card", {"card": card_box["card"]})
+
+    card_thread = threading.Thread(target=write_card, daemon=True)
+    card_thread.start()
 
     _emit(on_update, "stage_start", {"stage": "debate"})
     turns = run_full_debate(ticker, data, stage1, agent_keys=agent_keys, on_update=on_update)
@@ -551,5 +579,6 @@ def run_committee(ticker, data, agent_keys=None, on_update=None):
     _emit(on_update, "stage_start", {"stage": "cio"})
     memo, verdict, conviction = run_cio(ticker, data, turns, stage1)
     _emit(on_update, "cio", {"text": memo, "verdict": verdict, "conviction": conviction})
+    card_thread.join(timeout=120)
 
     return {"stage1": stage1, "debate": turns, "cio_memo": memo, "verdict": verdict, "conviction": conviction}

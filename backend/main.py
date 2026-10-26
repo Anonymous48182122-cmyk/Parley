@@ -71,6 +71,8 @@ def _job_response(job):
         "current_stage": job.get("current_stage"),
         "progress": jobs.progress_fraction(job),
         "stage1": job["stage1"],
+        "scorecards": job.get("scorecards", {}),
+        "business_card": job.get("business_card"),
         "debate": job["debate"],
         "agents": job.get("agents", []),
         "turn_plan": job.get("turn_plan", []),
