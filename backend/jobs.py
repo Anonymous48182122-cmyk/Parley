@@ -13,7 +13,7 @@ import time
 import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
-from agents.business import management_facts, money_flow, pick_wisdom
+from agents.business import management_facts, money_flow, pick_wisdom, wisdom_features
 from agents.runner import AgentCallError, run_committee
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
@@ -219,14 +219,31 @@ def _business_facts(financials):
         currency = financials.get("price_currency") or financials.get("currency")
         flow = money_flow(financials)
         net = flow["net"] if flow else None
+        management = management_facts(financials, "INR" if financials.get("market") == "India" else currency)
+        features = wisdom_features(financials.get("ratios"), net, financials.get("market"), management)
         return {
             "money_flow": flow,
-            "management": management_facts(financials, "INR" if financials.get("market") == "India" else currency),
-            "wisdom": pick_wisdom(financials.get("ratios"), net),
+            "management": management,
+            "wisdom": pick_wisdom(features, financials.get("ticker", "")),
         }
     except Exception:
         log.exception("could not build the business facts")
         return None
+
+
+def _refresh_wisdom(job):
+    """Once the committee has rated the business and the card has named its moat, pick the quote
+    again with all of that known, so the line chosen is the most apt one and not just a first guess."""
+    try:
+        facts = (job.get("market_data") or {}).get("business_facts")
+        if not facts:
+            return
+        features = wisdom_features((job["market_data"] or {}).get("ratios"),
+                                   (facts.get("money_flow") or {}).get("net"), job.get("market"),
+                                   facts.get("management"), job.get("business_card"), job.get("scorecards"))
+        facts["wisdom"] = pick_wisdom(features, job.get("ticker", ""))
+    except Exception:
+        log.exception("could not refresh the quote")
 
 
 def _update(ticker_key, event_type, payload):
@@ -238,6 +255,7 @@ def _update(ticker_key, event_type, payload):
                 job["scorecards"][payload["agent"]] = payload["scorecard"]
         elif event_type == "business_card":
             job["business_card"] = payload.get("card")
+            _refresh_wisdom(job)
         elif event_type == "debate_turn":
             job["debate"].append(payload)
         elif event_type == "cio":

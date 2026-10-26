@@ -2578,6 +2578,32 @@ input::placeholder {
 .lab-big { font-family: var(--font-serif); font-size: 2rem; font-weight: 600; }
 .lab-big small { font-family: var(--font-body); font-size: 0.8rem; }
 
+.lab-leaders { display: grid; gap: 12px; margin-bottom: 4px; }
+@media (min-width: 720px) { .lab-leaders { grid-template-columns: repeat(2, 1fr); } .lab-leader--ceo { grid-column: 1 / -1; } }
+.lab-leader {
+  --h: var(--hue, 38);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid hsl(var(--h) 45% 45% / 0.35);
+  background: linear-gradient(150deg, hsl(var(--h) 55% 50% / 0.12), transparent 70%), var(--surface-raised);
+}
+.lab-leader--ceo { padding: 20px; border-color: hsl(var(--h) 60% 55% / 0.55); }
+.lab-leader-top { display: flex; align-items: center; gap: 14px; }
+.lab-leader-badge {
+  flex: none; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; color: #07090f;
+  background: linear-gradient(140deg, hsl(var(--h) 75% 70%), hsl(var(--h) 60% 48%));
+}
+.lab-leader--ceo .lab-leader-badge { width: 64px; height: 64px; font-size: 1.6rem; }
+.lab-leader-name { font-family: var(--font-serif); font-size: 1.3rem; font-weight: 600; line-height: 1.15; }
+.lab-leader--ceo .lab-leader-name { font-size: 1.7rem; }
+.lab-leader-role { margin-top: 3px; color: var(--text-dim); font-size: 0.8rem; line-height: 1.35; }
+.lab-leader-facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 14px; }
+.lab-leader-facts div { display: flex; flex-direction: column; }
+.lab-leader-facts b { font-size: 1.02rem; font-variant-numeric: tabular-nums; }
+.lab-leader-facts span { color: var(--text-faint); font-size: 0.7rem; }
+.lab-leader-last { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 0.78rem; }
+
 .lab-quote { padding: 26px 22px; border-radius: var(--radius-lg); text-align: center; background: linear-gradient(160deg, rgba(201, 160, 78, 0.12), transparent 70%), var(--surface); border: 1px solid rgba(201, 160, 78, 0.25); }
 .lab-quote-text { font-family: var(--font-serif); font-size: 1.4rem; line-height: 1.4; font-style: italic; }
 .lab-quote-who { margin: 12px 0 4px; color: var(--gold); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.76rem; }

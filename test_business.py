@@ -1,4 +1,4 @@
-from agents.business import management_facts, money_flow, parse_card, pick_wisdom, split_scorecard
+from agents.business import management_facts, money_flow, parse_card, pick_wisdom, split_scorecard, wisdom_features
 
 WRITE_UP = """Moat\nStrong.\n\nVerdict\nPass at this price.\n\nBUSINESS MODEL SCORE: 8/10
 THE GREAT: **A brand that sets its own price.**
@@ -38,11 +38,22 @@ def test_money_flow_uses_percent_of_sales_and_prefers_the_trailing_year():
     assert money_flow({"annual": []}) is None
 
 
-def test_wisdom_follows_the_numbers():
-    assert pick_wisdom({"Debt to Equity": 2.4})["who"] == "Warren Buffett"
-    assert "tide" in pick_wisdom({"Debt to Equity": 240})["quote"]  # a percentage is read as a multiple
-    assert "do not lose money" in pick_wisdom({"Net Profit Margin": -3})["quote"]
-    assert pick_wisdom({})["quote"]
+def test_the_most_apt_quote_wins_whoever_said_it():
+    pick = lambda **kw: pick_wisdom(wisdom_features(**kw))
+    assert "tide" in pick(ratios={"Debt to Equity": 2.4})["quote"]
+    assert "tide" in pick(ratios={"Debt to Equity": 240})["quote"]  # a percentage is read as a multiple
+    assert "stop digging" in pick(ratios={"Net Profit Margin": -3, "Debt to Equity": 1.2})["quote"]
+    assert pick(ratios={"P/E Ratio (Trailing)": 80})["who"] in ("John Templeton", "Philip Fisher")
+    assert pick(ratios={"Operating Margin": 40}, card={"moat": {"type": "Network effect", "strength": 9}})["who"] == "Peter Thiel"
+    assert pick(ratios={}, card={"moat": {"type": "Brand", "strength": 8}})["who"] in ("Jeff Bezos", "Warren Buffett")
+    insiders = {"insiders": {"buys": 1, "sells": 30}}
+    assert pick(ratios={}, management=insiders)["who"] == "Charlie Munger"
+    assert pick(ratios={}, market="India", card=None)["quote"]  # nothing special falls back to a general line
+
+
+def test_different_companies_do_not_all_get_the_same_line():
+    f = wisdom_features({})
+    assert len({pick_wisdom(f, t)["quote"] for t in ("AAPL", "MSFT", "KO", "RACE", "ABNB", "NVDA")}) > 1
 
 
 def test_management_facts_leave_out_what_is_unknown():
@@ -51,3 +62,18 @@ def test_management_facts_leave_out_what_is_unknown():
            "shareholding": [{"period": "Mar 2026", "promoters": 50.4}]}
     facts = management_facts(fin, "INR")
     assert facts["officers"][0]["name"] == "Mr. A B" and facts["promoters"]["now"] == 50.4
+
+
+def test_leaders_name_the_chief_executive_and_merge_the_same_person():
+    fin = {"price": 100.0, "governance": {
+        "exec_pay": {"ceo_name": "Brian Chesky", "years": [{"period_end": "2025-12-31", "ceo_total": 242122.0, "ceo_paid": -89e6}]},
+        "officers": [{"name": "Mr. Brian Chesky", "title": "Co-Founder, CEO", "pay": 242122},
+                     {"name": "Mr. Nathan Blecharczyk", "title": "Co-Founder", "pay": 1310067}],
+        "insiders_nasdaq": {"recent": [{"who": "Blecharczyk Nathan", "relation": "Officer", "held": 38259.0, "type": "Sell",
+                                        "shares": 100.0, "date": "10/12/2026"},
+                                       {"who": "Bernstein David C", "relation": "Officer", "held": 45655.0, "type": "Sell",
+                                        "shares": 1369.0, "date": "10/15/2026"}]}}}
+    leaders = management_facts(fin, "USD")["leaders"]
+    names = [l["name"] for l in leaders]
+    assert names == ["Brian Chesky", "Nathan Blecharczyk", "David C Bernstein"]
+    assert leaders[0]["ceo"] and leaders[1]["held"] == 38259.0 and leaders[1]["held_value"] == 3825900

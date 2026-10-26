@@ -359,10 +359,11 @@ def _fetch_insiders(ticker):
         return {"3m": v[0], "12m": v[1]}
 
     recent = []
-    for r in ((data.get("transactionTable") or {}).get("table", {}).get("rows") or [])[:5]:
+    for r in ((data.get("transactionTable") or {}).get("table", {}).get("rows") or [])[:15]:
         recent.append({"who": (r.get("insider") or "").title(), "relation": r.get("relation"),
                        "date": r.get("lastDate"), "type": r.get("transactionType"),
-                       "shares": _num(r.get("sharesTraded")), "price": _num(r.get("lastPrice"))})
+                       "shares": _num(r.get("sharesTraded")), "price": _num(r.get("lastPrice")),
+                       "held": _num(r.get("sharesHeld"))})
     return {"buys": pair(trades, "Number of Open Market Buys"), "sells": pair(trades, "Number of Sells"),
             "shares_bought": pair(shares, "Number of Shares Bought"), "shares_sold": pair(shares, "Number of Shares Sold"),
             "recent": recent}

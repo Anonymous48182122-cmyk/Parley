@@ -247,9 +247,11 @@ def _capital_allocation(annual, unit_label):
 def _pay_amount(value):
     if value is None:
         return "n/a"
-    if abs(value) >= 1e9:
-        return f"${value / 1e9:,.1f}B"
-    return f"${value / 1e6:,.1f}M"
+    sign = "-" if value < 0 else ""
+    value = abs(value)
+    if value >= 1e9:
+        return f"{sign}${value / 1e9:,.1f}B"
+    return f"{sign}${value / 1e6:,.1f}M"
 
 
 def _pay_lines(pay, net_income=None):
@@ -268,7 +270,7 @@ def _pay_lines(pay, net_income=None):
     parts = [f"the chief executive's total pay was {_pay_amount(latest['ceo_total'])} for the year to {label}"
              + (f" (earlier years: {earlier})" if earlier else "")]
     if latest.get("ceo_paid") is not None:
-        parts.append(f"pay actually realised, after share price moves, was {_pay_amount(latest['ceo_paid'])}")
+        parts.append(f"pay actually realised, which moves with the share price and can be negative when the stock fell, was {_pay_amount(latest['ceo_paid'])}")
     if latest.get("others_avg_total") is not None:
         parts.append(f"the other named executives averaged {_pay_amount(latest['others_avg_total'])}")
     line = f"- Executive pay (SEC proxy statement filed {pay.get('filed')}): " + "; ".join(parts) + "."

@@ -30,12 +30,13 @@ function verdictWord(avg) {
 
 function money(value, currency) {
   if (value == null) return "not known";
-  if (currency === "INR") return `₹${(value / 1e7).toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+  const sign = value < 0 ? "-" : "";
   const abs = Math.abs(value);
+  if (currency === "INR") return `${sign}₹${(abs / 1e7).toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
   const sym = currency === "USD" || !currency ? "$" : "";
-  if (abs >= 1e9) return `${sym}${(value / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sym}${(value / 1e6).toFixed(1)}M`;
-  return `${sym}${Math.round(value).toLocaleString("en-US")}`;
+  if (abs >= 1e9) return `${sign}${sym}${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}${sym}${(abs / 1e6).toFixed(1)}M`;
+  return `${sign}${sym}${Math.round(abs).toLocaleString("en-US")}`;
 }
 
 function MoneyFlow({ flow }) {
@@ -202,9 +203,73 @@ function Moat({ moat }) {
   );
 }
 
+// The people, as cards: the chief executive first and larger, then the other leaders. Each card says
+// what the person is paid and, where the exchanges show it, how many of the company's shares they
+// hold, because whose own money is on the line says more about management than any job title.
+function initials(name) {
+  const parts = name.split(" ").filter(Boolean);
+  return ((parts[0]?.[0] || "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+const HUES = [38, 160, 210, 280, 340, 18];
+
+function shortShares(n) {
+  if (n == null) return null;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(Math.round(n));
+}
+
+function actionLine(last) {
+  if (!last?.type) return null;
+  const kind = /sell|dispos/i.test(last.type) ? "sold" : /buy|purchase|acqui/i.test(last.type) ? "got" : "traded";
+  const n = shortShares(last.shares);
+  return `Last move: ${kind}${n ? ` ${n} shares` : ""}${last.date ? ` on ${last.date}` : ""}`;
+}
+
+function LeaderCard({ leader, currency, index }) {
+  const hue = HUES[index % HUES.length];
+  const pay = leader.pay != null ? money(leader.pay, currency) : null;
+  return (
+    <div className={`lab-leader${leader.ceo ? " lab-leader--ceo" : ""}`} style={{ "--hue": hue }}>
+      <div className="lab-leader-top">
+        <span className="lab-leader-badge">{initials(leader.name)}</span>
+        <div>
+          <div className="lab-leader-name">{leader.name}</div>
+          <div className="lab-leader-role">{leader.role}</div>
+        </div>
+      </div>
+      <div className="lab-leader-facts">
+        {pay && (
+          <div>
+            <b>{pay}</b>
+            <span>{leader.ceo ? `total pay ${leader.year}` : "yearly pay"}</span>
+          </div>
+        )}
+        {leader.ceo && leader.realised != null && (
+          <div>
+            <b style={{ color: leader.realised < 0 ? "var(--danger)" : "var(--success)" }}>{money(leader.realised, currency)}</b>
+            <span>realised after share moves</span>
+          </div>
+        )}
+        {leader.held != null && (
+          <div>
+            <b>{shortShares(leader.held)}</b>
+            <span>
+              shares held{leader.held_value ? `, about ${money(leader.held_value, currency)}` : ""}
+            </span>
+          </div>
+        )}
+      </div>
+      {actionLine(leader.last) && <div className="lab-leader-last">{actionLine(leader.last)}</div>}
+    </div>
+  );
+}
+
 function Management({ card, mgmt }) {
   const story = card?.management?.story;
   const signals = card?.management?.signals || [];
+  const leaders = mgmt?.leaders || [];
   if (!story && !mgmt && signals.length === 0) return null;
   const currency = mgmt?.currency;
   const pay = mgmt?.ceo_pay;
@@ -215,7 +280,16 @@ function Management({ card, mgmt }) {
   return (
     <div className="lab-card">
       <div className="lab-kicker">Who runs it</div>
-      <div className="lab-title">The people, and whose money is on the line</div>
+      <div className="lab-title">Meet the people, and see whose money is on the line</div>
+
+      {leaders.length > 0 && (
+        <div className="lab-leaders">
+          {leaders.map((l, i) => (
+            <LeaderCard key={l.name} leader={l} currency={currency} index={i} />
+          ))}
+        </div>
+      )}
+
       {story && <p className="lab-body">{story}</p>}
 
       {signals.length > 0 && (
@@ -224,20 +298,6 @@ function Management({ card, mgmt }) {
             <span key={i} className={`lab-signal ${s.good ? "lab-signal--good" : "lab-signal--bad"}`}>
               {s.text}
             </span>
-          ))}
-        </div>
-      )}
-
-      {mgmt?.officers && (
-        <div className="lab-officers">
-          {mgmt.officers.map((o) => (
-            <div className="lab-officer" key={o.name}>
-              <div>
-                <div className="lab-officer-name">{o.name.replace(/^(Mr|Ms|Mrs|Dr)\.?\s+/, "")}</div>
-                <div className="lab-sub">{o.title}</div>
-              </div>
-              <div className="lab-officer-pay">{money(o.pay, currency)}</div>
-            </div>
           ))}
         </div>
       )}
@@ -261,7 +321,7 @@ function Management({ card, mgmt }) {
 
       {ins && (ins.buys > 0 || ins.sells > 0) && (
         <div className="lab-mini">
-          <div className="lab-mini-title">Insiders trading their own shares, last 6 months</div>
+          <div className="lab-mini-title">Insiders trading their own shares, last {ins.window || "6 months"}</div>
           <div className="lab-split">
             <span style={{ flexGrow: ins.buys || 0.0001, background: "var(--success)" }}>{ins.buys} buys</span>
             <span style={{ flexGrow: ins.sells || 0.0001, background: "var(--danger)" }}>{ins.sells} sells</span>

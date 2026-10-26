@@ -89,6 +89,11 @@ Use exactly these keys:
  "ask_yourself": "one sharp question a student of business should ask about this company"
 }}
 
+Pay lines in the data: "total pay" counts stock awards at their value when granted, and "pay actually
+realised" moves with the share price and can be negative; it is NOT a cash loss and the executive did not
+hand money back. Name the leaders (the chief executive first) in the management story when the data names
+them, and say what they are paid in plain words.
+
 Rules: 2 to 4 engines, 2 to 4 signals. Every number must come from the data below, and do not name a
 currency unless the data does. For management, mention insider buying or selling, pay or ownership ONLY
 if the data literally contains it; when it does not, say that is not known instead of saying "zero".
@@ -154,26 +159,6 @@ def parse_card(raw):
 # Real lines that fit the business in front of you
 # ---------------------------------------------------------------------------------------------
 
-_WISDOM = {
-    "debt": ("Only when the tide goes out do you discover who has been swimming naked.", "Warren Buffett",
-             "This company carries a lot of debt, so the tide matters."),
-    "moat": ("In business, I look for economic castles protected by unbreachable moats.", "Warren Buffett",
-             "Margins this strong usually mean something protects them."),
-    "quality": ("It is far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
-                "Warren Buffett", "The business looks strong. The price is the only open question."),
-    "pricey": ("Price is what you pay. Value is what you get.", "Warren Buffett",
-               "The market is asking a lot for this business."),
-    "thin": ("Invert, always invert.", "Charlie Munger",
-             "Margins are thin here, so ask first how this business could fail."),
-    "loss": ("The first rule of investing is do not lose money.", "Warren Buffett",
-             "The company is not making a profit today."),
-    "growth": ("Know what you own, and know why you own it.", "Peter Lynch",
-               "Fast growth is only a story until you can explain where it comes from."),
-    "default": ("Risk comes from not knowing what you are doing.", "Warren Buffett",
-                "Which is why the business comes before the price."),
-}
-
-
 def _num(x):
     try:
         return float(str(x).replace("%", "").replace(",", ""))
@@ -181,34 +166,127 @@ def _num(x):
         return None
 
 
-def pick_wisdom(ratios, net_margin=None):
-    """A real, short line from a famous investor that fits this company's numbers, with why it fits."""
+# Each entry: (quote, who, why it fits, how well it fits this business). Every line is a real, widely
+# quoted one; the fit is a number from 0 up, and the best fit wins, whoever said it. Fits are built from
+# the figures, the moat the business card found, the committee's average rating and who owns the shares.
+def _candidates(f):
+    de, op, net, pe = f.get("de"), f.get("op"), f.get("net"), f.get("pe")
+    growth, roe, beta = f.get("growth"), f.get("roe"), f.get("beta")
+    moat, strength, avg = (f.get("moat") or "").lower(), f.get("strength"), f.get("avg")
+    buys, sells, ceo_pct = f.get("buys") or 0, f.get("sells") or 0, f.get("ceo_pct")
+    engines = f.get("engines")
+    out = []
+
+    def add(fit, quote, who, why):
+        if fit and fit > 0:
+            out.append((fit, quote, who, why))
+
+    if de is not None and de >= 1.5:
+        add(3 + min(de - 1.5, 2), "Only when the tide goes out do you discover who has been swimming naked.",
+            "Warren Buffett", "This company carries a lot of debt, so the tide matters.")
+    if net is not None and net < 0:
+        add(3.5 + (0.6 if de and de > 1 else 0), "If you find yourself in a hole, the best thing you can do is stop digging.",
+            "Warren Buffett", "The company is not making a profit today, so every dollar it burns counts.")
+        if growth is not None and growth >= 25:
+            add(3.8, "When something is important enough, you do it even if the odds are not in your favor.",
+                "Elon Musk", "Growing fast while losing money is a bet on the future, and bets can go either way.")
+            add(3.3, "We are stubborn on vision. We are flexible on details.", "Jeff Bezos",
+                "Losses are only worth it when the long plan stays fixed while the details change.")
+    if strength is not None and strength >= 8:
+        add(3 + (strength - 8) * 0.3, "I like businesses with economic castles protected by unbreachable moats.",
+            "Warren Buffett", "The committee found a moat that rivals will struggle to cross.")
+    if "brand" in moat and (strength or 0) >= 7:
+        add(3.4, "Your brand is what other people say about you when you are not in the room.", "Jeff Bezos",
+            "This business is protected by what customers feel about its name.")
+    if "network" in moat or "scale" in moat or "technology" in moat or "patent" in moat:
+        if (strength or 0) >= 8 and op is not None and op >= 25:
+            add(3.5, "Competition is for losers.", "Peter Thiel",
+                "High margins and a hard to copy edge are what a near monopoly looks like.")
+    if op is not None and 0 < op < 10:
+        add(2.8, "Competition is for losers.", "Peter Thiel", "Thin margins are what competition looks like in numbers.")
+        add(2.6, "Invert, always invert.", "Charlie Munger",
+            "Margins are thin, so start by asking how this business could fail.")
+    if avg is not None and avg >= 7.5 and pe is not None and pe < 35:
+        add(3.6, "It is far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
+            "Warren Buffett", "The committee likes the business, and the price is not extreme.")
+    if avg is not None and avg >= 7 and roe is not None and roe >= 20 and (de is None or de < 1) and op is not None and op >= 20:
+        add(3.3, "Someone is sitting in the shade today because someone planted a tree a long time ago.",
+            "Warren Buffett", "High returns on little debt are how businesses compound over the years.")
+    if pe is not None and pe >= 50:
+        add(3.4 + min((pe - 50) / 50, 1), "The four most dangerous words in investing are: this time it is different.",
+            "John Templeton", "The market is paying a rich price, which only works if the story keeps coming true.")
+        add(3.0, "The stock market is filled with individuals who know the price of everything, but the value of nothing.",
+            "Philip Fisher", "At this price the question is what the business is really worth.")
+    elif pe is not None and pe >= 35:
+        add(2.7, "Price is what you pay. Value is what you get.", "Warren Buffett",
+            "The market is asking a lot for this business.")
+        add(2.4, "In the short run, the market is a voting machine, but in the long run it is a weighing machine.",
+            "Benjamin Graham", "A high price is a vote, and the weighing comes later.")
+    if sells >= 10 and sells >= 3 * max(buys, 1):
+        add(3.2, "Show me the incentive and I will show you the outcome.", "Charlie Munger",
+            "Insiders have been selling far more than buying, so look at what they are paid to do.")
+    if buys >= 10 and buys >= 2 * max(sells, 1):
+        add(3.2, "Show me the incentive and I will show you the outcome.", "Charlie Munger",
+            "Insiders are buying more than they sell, which is incentive pointing the right way.")
+    if ceo_pct is not None and ceo_pct >= 0.5:
+        add(3.0, "Show me the incentive and I will show you the outcome.", "Charlie Munger",
+            "The chief executive takes a notable slice of profit, so check what that pay rewards.")
+    if beta is not None and beta >= 1.4:
+        add(2.9, "You cannot predict. You can prepare.", "Howard Marks",
+            "This stock swings harder than the market, so prepare for the swings.")
+    if growth is not None and growth >= 30:
+        add(2.2, "He who lives by the crystal ball will eat shattered glass.", "Ray Dalio",
+            "Fast growth is a forecast, and forecasts are where investors get hurt.")
+    if f.get("market") == "India" and growth is not None and growth >= 15:
+        add(3.0, "Think big, think fast, think ahead. Ideas are no one's monopoly.", "Dhirubhai Ambani",
+            "Fast growth at scale in India is the kind of ambition he built Reliance on.")
+    if engines is not None and engines <= 2 and op is not None and op >= 20:
+        add(2.6, "Focusing is about saying no.", "Steve Jobs", "The business does a few things and does them very well.")
+    if avg is not None and avg < 5:
+        add(3.0, "Invert, always invert.", "Charlie Munger", "The committee is unimpressed, so start from how this goes wrong.")
+        add(2.7, "The first rule of investing is do not lose money.", "Warren Buffett",
+            "A weak business model leaves little room for error.")
+    # nothing stands out, so any of these fits equally and the company's own seed picks one
+    add(1.0, "Know what you own, and know why you own it.", "Peter Lynch",
+        "A business is only worth owning if you can explain how it makes money.")
+    add(1.0, "Behind every stock is a company. Find out what it is doing.", "Peter Lynch",
+        "The numbers are the start, and the business behind them is the story.")
+    add(1.0, "Risk comes from not knowing what you are doing.", "Warren Buffett",
+        "Which is why the business comes before the price.")
+    add(1.0, "It is not supposed to be easy. Anyone who finds it easy is stupid.", "Charlie Munger",
+        "No single number settles this one, so read the whole picture.")
+    add(1.0, "The investor's chief problem, and even his worst enemy, is likely to be himself.", "Benjamin Graham",
+        "A calm look at the business is the best protection against a hasty call.")
+    return out
+
+
+def wisdom_features(ratios, net_margin=None, market=None, management=None, card=None, scorecards=None):
+    """The few numbers the quote picker looks at, gathered from whatever is known so far."""
     ratios = ratios or {}
     de = _num(ratios.get("Debt to Equity"))
-    op = _num(ratios.get("Operating Margin"))
-    pe = _num(ratios.get("P/E Ratio (Trailing)"))
-    growth = _num(ratios.get("Revenue Growth (YoY, latest quarter)"))
-    net = net_margin if net_margin is not None else _num(ratios.get("Net Profit Margin"))
-    # the debt to equity ratio arrives either as a multiple or as a percentage
-    if de is not None and de > 5:
+    if de is not None and de > 5:  # arrives either as a multiple or as a percentage
         de = de / 100
-    if net is not None and net < 0:
-        key = "loss"
-    elif de is not None and de >= 1.5:
-        key = "debt"
-    elif op is not None and op >= 25 and pe is not None and pe >= 35:
-        key = "pricey"
-    elif op is not None and op >= 25:
-        key = "moat"
-    elif op is not None and 0 < op < 8:
-        key = "thin"
-    elif growth is not None and growth >= 25:
-        key = "growth"
-    elif op is not None and op >= 15:
-        key = "quality"
-    else:
-        key = "default"
-    quote, who, why = _WISDOM[key]
+    scores = [c["score"] for c in (scorecards or {}).values() if isinstance(c, dict) and c.get("score")]
+    ins = (management or {}).get("insiders") or {}
+    moat = (card or {}).get("moat") or {}
+    return {
+        "de": de, "op": _num(ratios.get("Operating Margin")), "pe": _num(ratios.get("P/E Ratio (Trailing)")),
+        "net": net_margin if net_margin is not None else _num(ratios.get("Net Profit Margin")),
+        "growth": _num(ratios.get("Revenue Growth (YoY, latest quarter)")), "roe": _num(ratios.get("Return on Equity")),
+        "beta": _num(ratios.get("Beta")), "market": market,
+        "moat": moat.get("type"), "strength": moat.get("strength"), "engines": len((card or {}).get("engines") or []) or None,
+        "avg": sum(scores) / len(scores) if scores else None,
+        "buys": ins.get("buys"), "sells": ins.get("sells"),
+        "ceo_pct": ((management or {}).get("ceo_pay") or {}).get("pct_of_profit"),
+    }
+
+
+def pick_wisdom(features, seed=""):
+    """The single most apt real quote for this business. Ties go to a seeded pick so the same
+    company always gets the same line while different companies do not all get the same one."""
+    ranked = sorted(_candidates(features), key=lambda c: -c[0])
+    top = [c for c in ranked if c[0] >= ranked[0][0] - 0.05]
+    _, quote, who, why = top[sum(map(ord, seed)) % len(top)] if top else (0, "", "", "")
     return {"quote": quote, "who": who, "why": why}
 
 
@@ -239,6 +317,61 @@ def money_flow(financials):
     return {"period": label, "gross": gross, "operating": pct(op), "net": pct(net)}
 
 
+_TITLES = re.compile(r"^(mr|ms|mrs|dr|prof|sir)\.?\s+", re.I)
+
+
+def clean_name(name):
+    return re.sub(r"\s+", " ", _TITLES.sub("", (name or "").strip())).strip()
+
+
+def _nasdaq_name(name):
+    """Nasdaq lists insiders surname first ("Bernstein David C"); people are shown as "David C Bernstein"."""
+    parts = clean_name(name).title().split()
+    return " ".join(parts[1:] + parts[:1]) if len(parts) > 1 else " ".join(parts)
+
+
+def _same_person(a, b):
+    ta = {t.lower().strip(".") for t in a.split() if len(t) > 1}
+    tb = {t.lower().strip(".") for t in b.split() if len(t) > 1}
+    return bool(ta) and bool(tb) and (ta <= tb or tb <= ta or len(ta & tb) >= 2)
+
+
+def _leaders(gov, price, ceo_row):
+    """The people to name: the chief executive (from the proxy statement), then the officers the
+    exchanges list with their pay, then insiders who have recently traded the company's shares."""
+    leaders = [ceo_row] if ceo_row else []
+
+    def known(name):
+        return any(_same_person(name, l["name"]) for l in leaders)
+
+    for o in (gov.get("officers") or [])[:6]:
+        name = clean_name(o.get("name"))
+        if name and not known(name):
+            leaders.append({"name": name, "role": o.get("title"), "pay": o.get("pay")})
+
+    held = {}
+    for r in ((gov.get("insiders_nasdaq") or {}).get("recent") or []):
+        name = _nasdaq_name(r.get("who"))
+        if name:
+            held.setdefault(name, {"name": name, "role": r.get("relation") or "Insider", "trades": []})["trades"].append(r)
+    for name, entry in held.items():
+        latest = entry["trades"][0]
+        match = next((l for l in leaders if _same_person(name, l["name"])), None)
+        if match:
+            # someone already listed (the chief executive, an officer): add what they hold to that card
+            if match.get("held") is None:
+                match["held"] = latest.get("held")
+            continue
+        if len(leaders) >= 6:
+            continue
+        leaders.append({"name": name, "role": entry["role"], "held": latest.get("held"),
+                        "last": {"type": latest.get("type"), "shares": latest.get("shares"), "date": latest.get("date")}})
+    for l in leaders:
+        if l.get("held") and price:
+            l["held_value"] = round(l["held"] * price)
+    return leaders[:6]
+
+
 def management_facts(financials, currency):
     """Officers, chief executive pay and the ownership signals that show whose money is on the line."""
     gov = financials.get("governance") or {}
@@ -249,14 +382,26 @@ def management_facts(financials, currency):
                            for o in officers]
     pay = gov.get("exec_pay") or {}
     years = [y for y in pay.get("years", []) if y.get("ceo_total")]
+    ceo_row = None
     if years:
         net = _num((financials.get("ttm") or {}).get("net_income")) or _num(((financials.get("annual") or [{}])[-1]).get("net_income"))
         out["ceo_pay"] = {"latest": years[0]["ceo_total"], "year": years[0]["period_end"][:4],
+                          "realised": years[0].get("ceo_paid"),
                           "earlier": [y["ceo_total"] for y in years[1:4]],
                           "pct_of_profit": round(100 * years[0]["ceo_total"] / net, 4) if net and net > 0 and currency == "USD" else None}
+        if pay.get("ceo_name"):
+            ceo_row = {"name": clean_name(pay["ceo_name"]), "role": "Chief executive", "ceo": True,
+                       "pay": years[0]["ceo_total"], "realised": years[0].get("ceo_paid"), "year": years[0]["period_end"][:4]}
+    leaders = _leaders(gov, _num(financials.get("price")), ceo_row)
+    if leaders:
+        out["leaders"] = leaders
     ins = gov.get("insiders_6m")
+    nq = gov.get("insiders_nasdaq")
     if ins:
-        out["insiders"] = {"buys": int(ins.get("buy_trans") or 0), "sells": int(ins.get("sell_trans") or 0)}
+        out["insiders"] = {"buys": int(ins.get("buy_trans") or 0), "sells": int(ins.get("sell_trans") or 0), "window": "6 months"}
+    elif nq and (nq.get("buys") or nq.get("sells")):
+        out["insiders"] = {"buys": int((nq.get("buys") or {}).get("12m") or 0),
+                           "sells": int((nq.get("sells") or {}).get("12m") or 0), "window": "12 months"}
     holding = financials.get("shareholding") or []
     if holding and holding[-1].get("promoters") is not None:
         latest = holding[-1]
