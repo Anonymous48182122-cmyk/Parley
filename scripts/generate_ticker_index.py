@@ -14,35 +14,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from data.india.bse_fetcher import get_symbol_list
-from data.us.edgar_fetcher import get_ticker_map
+from data.search import _build_all_entries
 
 OUT_PATH = Path(__file__).resolve().parent.parent / "frontend" / "public" / "ticker-index.json"
 
 
 def build_entries():
-    entries = []
-    seen = set()
-
-    us_map = get_ticker_map()
-    for entry in us_map.values():
-        ticker = entry["ticker"]
-        key = ("US", ticker.upper())
-        if key in seen:
-            continue
-        seen.add(key)
-        entries.append([ticker, entry["title"], "US"])
-
-    in_list = get_symbol_list()
-    for entry in in_list:
-        ticker = entry["symbol"]
-        key = ("India", ticker.upper())
-        if key in seen:
-            continue
-        seen.add(key)
-        entries.append([ticker, entry["name"], "India"])
-
-    return entries
+    """The same list the server searches: SEC and Nasdaq for the US, NSE and BSE for India."""
+    return [[p["ticker"], p["name"], p["market"]] for _, _, p in _build_all_entries()]
 
 
 def main():

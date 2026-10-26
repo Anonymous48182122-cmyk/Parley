@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { searchRemote } from "../api.js";
 import { searchLocal } from "../popularTickers.js";
 import { isTickerIndexReady, preloadTickerIndex, searchFullIndex } from "../tickerIndex.js";
 
@@ -15,6 +16,7 @@ export default function TickerSearchBox({ onSelect }) {
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const [indexReady, setIndexReady] = useState(isTickerIndexReady());
+  const [remote, setRemote] = useState({ query: "", items: [] });
   const blurTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -22,6 +24,24 @@ export default function TickerSearchBox({ onSelect }) {
   }, []);
 
   const trimmed = query.trim();
+
+  // The saved index is instant but only as new as its last build, so the server's answer is asked
+  // for as well and shown first once it arrives. If the server is slow or down, the instant
+  // results simply stay.
+  useEffect(() => {
+    if (trimmed.length < 2) return undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      searchRemote(trimmed, controller.signal)
+        .then((items) => setRemote({ query: trimmed, items: Array.isArray(items) ? items : [] }))
+        .catch(() => {});
+    }, 180);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [trimmed]);
+
   // Entirely synchronous and zero-network: the curated ~90-ticker list
   // (popularTickers.js) covers the brief moment before the full ~12.8k-entry
   // index has finished its one-time fetch, and the full index covers
@@ -30,13 +50,14 @@ export default function TickerSearchBox({ onSelect }) {
   // latency at all, which was the actual bottleneck users were hitting.
   const local = trimmed ? searchLocal(trimmed, LIMIT) : [];
   const full = trimmed && indexReady ? searchFullIndex(trimmed, LIMIT) : [];
-  const results = mergeResults(local, full, LIMIT);
+  const fromServer = remote.query === trimmed ? remote.items : [];
+  const results = mergeResults(fromServer, mergeResults(local, full, LIMIT), LIMIT);
 
   useEffect(() => {
     setOpen(results.length > 0 && trimmed.length > 0);
     setHighlighted(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, indexReady]);
+  }, [query, indexReady, remote]);
 
   function selectResult(result) {
     clearTimeout(blurTimeoutRef.current);

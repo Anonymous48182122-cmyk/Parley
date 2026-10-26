@@ -11,6 +11,12 @@ async function handle(res) {
   return res.json();
 }
 
+// The server's own search: always current (new listings reach it within hours, and it asks
+// Screener live), unlike the saved index the page loads, which is only as new as its last build.
+export function searchRemote(query, signal) {
+  return fetch(`${BASE}/search?q=${encodeURIComponent(query)}`, { signal }).then(handle);
+}
+
 export function startAnalysis(ticker, market, agents) {
   return fetch(`${BASE}/analyze`, {
     method: "POST",
