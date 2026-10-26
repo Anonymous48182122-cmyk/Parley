@@ -77,3 +77,14 @@ def test_leaders_name_the_chief_executive_and_merge_the_same_person():
     names = [l["name"] for l in leaders]
     assert names == ["Brian Chesky", "Nathan Blecharczyk", "David C Bernstein"]
     assert leaders[0]["ceo"] and leaders[1]["held"] == 38259.0 and leaders[1]["held_value"] == 3825900
+
+
+def test_a_surname_only_chief_executive_gets_the_full_name_and_degrees_are_dropped():
+    from agents.business import clean_name
+    assert clean_name("Mr. Alexander C. Karp J.D.") == "Alexander C. Karp"
+    assert clean_name("Dr. Jane Roe, Ph.D.") == "Jane Roe"
+    fin = {"price": 10.0, "governance": {
+        "exec_pay": {"ceo_name": "Mr. Karp", "years": [{"period_end": "2025-12-31", "ceo_total": 1.0}]},
+        "insiders_nasdaq": {"recent": [{"who": "Karp Alexander C", "relation": "Officer", "held": 5.0}]}}}
+    leaders = management_facts(fin, "USD")["leaders"]
+    assert leaders[0]["name"] == "Alexander C Karp" and leaders[0]["ceo"]

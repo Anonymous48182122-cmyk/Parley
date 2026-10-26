@@ -318,8 +318,13 @@ def money_flow(financials):
 _TITLES = re.compile(r"^(mr|ms|mrs|dr|prof|sir)\.?\s+", re.I)
 
 
+_CREDENTIALS = re.compile(r"(,?\s+(j\.?d\.?|ph\.?d\.?|m\.?d\.?|m\.?b\.?a\.?|c\.?p\.?a\.?|esq\.?))+\s*$", re.I)
+
+
 def clean_name(name):
-    return re.sub(r"\s+", " ", _TITLES.sub("", (name or "").strip())).strip()
+    """A person's name without Mr. or Dr. in front or degrees (J.D., Ph.D., CPA) behind."""
+    text = re.sub(r"\s+", " ", _TITLES.sub("", (name or "").strip())).strip()
+    return _CREDENTIALS.sub("", text).strip()
 
 
 def _nasdaq_name(name):
@@ -351,6 +356,8 @@ def _leaders(gov, price, ceo_row):
         if match:
             match["founder"] = match.get("founder") or is_founder
             match.setdefault("title", o.get("title"))
+            if len(name.split()) > len(match["name"].split()):
+                match["name"] = name  # the proxy statement often gives only a surname ("Karp")
         else:
             leaders.append({"name": name, "role": o.get("title"), "pay": o.get("pay"), "founder": is_founder})
 
@@ -366,6 +373,8 @@ def _leaders(gov, price, ceo_row):
             # someone already listed (the chief executive, an officer): add what they hold to that card
             if match.get("held") is None:
                 match["held"] = latest.get("held")
+            if len(name.split()) > len(match["name"].split()):
+                match["name"] = name
             continue
         if len(leaders) >= 6:
             continue

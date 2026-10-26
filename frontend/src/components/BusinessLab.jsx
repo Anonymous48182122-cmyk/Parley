@@ -222,8 +222,10 @@ function whoRunsIt(mgmt, card) {
   const add = (name, patch) => {
     if (!name) return;
     const found = people.find((p) => surname(p.name) === surname(name));
-    if (found) Object.assign(found, Object.fromEntries(Object.entries(patch).filter(([, v]) => v)));
-    else people.push({ name, ceo: false, founder: false, ...patch });
+    if (found) {
+      Object.assign(found, Object.fromEntries(Object.entries(patch).filter(([, v]) => v)));
+      if (name.split(" ").length > found.name.split(" ").length) found.name = name; // keep the fullest form
+    } else people.push({ name, ceo: false, founder: false, ...patch });
   };
   for (const l of mgmt?.leaders || []) {
     const isCeo = l.ceo || /chief executive|\bceo\b/i.test(l.role || "") || /chief executive|\bceo\b/i.test(l.title || "");
