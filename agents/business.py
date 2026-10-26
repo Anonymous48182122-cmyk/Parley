@@ -164,101 +164,146 @@ def _num(x):
         return None
 
 
-# Each entry: (quote, who, why it fits, how well it fits this business). Every line is a real, widely
-# quoted one; the fit is a number from 0 up, and the best fit wins, whoever said it. Fits are built from
-# the figures, the moat the business card found, the committee's average rating and who owns the shares.
+# Each entry: (fit, quote, who, why it fits). The quotes are real and well attested, from investors,
+# founders, writers, scientists and statesmen alike: the pool is "anything apt", not "anything from the
+# committee". The fit is a number from 0 up built from the figures, the moat the business card found,
+# the committee's average rating, the sector and who owns the shares; the best fit wins.
+_CYCLICAL = ("energy", "materials", "industrial", "auto", "semiconductor", "steel", "mining", "airline", "chemical",
+             "real estate", "construction", "cyclical", "capital goods", "metals")
+_CUSTOMER = ("retail", "consumer", "restaurant", "e-commerce", "apparel", "grocery", "food")
+
+
 def _candidates(f):
     de, op, net, pe = f.get("de"), f.get("op"), f.get("net"), f.get("pe")
     growth, roe, beta = f.get("growth"), f.get("roe"), f.get("beta")
     moat, strength, avg = (f.get("moat") or "").lower(), f.get("strength"), f.get("avg")
     buys, sells, ceo_pct = f.get("buys") or 0, f.get("sells") or 0, f.get("ceo_pct")
-    engines = f.get("engines")
+    engines, rnd, sector = f.get("engines"), f.get("rnd_pct"), (f.get("sector") or "").lower()
     out = []
 
     def add(fit, quote, who, why):
         if fit and fit > 0:
             out.append((fit, quote, who, why))
 
+    # debt and survival
     if de is not None and de >= 1.5:
-        add(3 + min(de - 1.5, 2), "Only when the tide goes out do you discover who has been swimming naked.",
-            "Warren Buffett", "This company carries a lot of debt, so the tide matters.")
+        extra = min(de - 1.5, 2)
+        add(3 + extra, "Only when the tide goes out do you discover who has been swimming naked.", "Warren Buffett",
+            "This company carries a lot of debt, so the tide matters.")
+        add(2.8 + extra, "Beware of little expenses. A small leak will sink a great ship.", "Benjamin Franklin",
+            "Heavy borrowing means small leaks in profit can sink the ship.")
+        add(2.6 + extra, "Neither a borrower nor a lender be.", "William Shakespeare",
+            "A lot of this company is funded with other people's money.")
     if net is not None and net < 0:
-        add(3.5 + (0.6 if de and de > 1 else 0), "If you find yourself in a hole, the best thing you can do is stop digging.",
-            "Warren Buffett", "The company is not making a profit today, so every dollar it burns counts.")
+        extra = 0.6 if de and de > 1 else 0
+        add(3.5 + extra, "When you are in a hole, stop digging.", "Denis Healey",
+            "The company is not making a profit today, so every dollar it burns counts.")
+        add(3.0, "The first rule of investing is do not lose money.", "Warren Buffett",
+            "A business that loses money has no room for error.")
         if growth is not None and growth >= 25:
             add(3.8, "When something is important enough, you do it even if the odds are not in your favor.",
                 "Elon Musk", "Growing fast while losing money is a bet on the future, and bets can go either way.")
             add(3.3, "We are stubborn on vision. We are flexible on details.", "Jeff Bezos",
                 "Losses are only worth it when the long plan stays fixed while the details change.")
+    # moats, brands, monopolies
     if strength is not None and strength >= 8:
         add(3 + (strength - 8) * 0.3, "I like businesses with economic castles protected by unbreachable moats.",
             "Warren Buffett", "The committee found a moat that rivals will struggle to cross.")
     if "brand" in moat and (strength or 0) >= 7:
         add(3.4, "Your brand is what other people say about you when you are not in the room.", "Jeff Bezos",
             "This business is protected by what customers feel about its name.")
-    if "network" in moat or "scale" in moat or "technology" in moat or "patent" in moat:
-        if (strength or 0) >= 8 and op is not None and op >= 25:
-            add(3.5, "Competition is for losers.", "Peter Thiel",
-                "High margins and a hard to copy edge are what a near monopoly looks like.")
+        add(3.1, "It takes twenty years to build a reputation and five minutes to ruin it.", "Warren Buffett",
+            "A brand is worth the most and breaks the easiest.")
+    if any(w in moat for w in ("network", "scale", "technology", "patent")) and (strength or 0) >= 8 and op is not None and op >= 25:
+        add(3.5, "Competition is for losers.", "Peter Thiel",
+            "High margins and a hard to copy edge are what a near monopoly looks like.")
     if op is not None and 0 < op < 10:
         add(2.8, "Competition is for losers.", "Peter Thiel", "Thin margins are what competition looks like in numbers.")
-        add(2.6, "Invert, always invert.", "Charlie Munger",
-            "Margins are thin, so start by asking how this business could fail.")
+        add(2.6, "Invert, always invert.", "Charlie Munger", "Margins are thin, so start by asking how this business could fail.")
+        add(2.5, "When a management with a reputation for brilliance tackles a business with a reputation for bad "
+                 "economics, it is the reputation of the business that remains intact.", "Warren Buffett",
+            "Thin margins say the business, not the managers, sets the result.")
+    # quality, time and compounding
     if avg is not None and avg >= 7.5 and pe is not None and pe < 35:
         add(3.6, "It is far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
             "Warren Buffett", "The committee likes the business, and the price is not extreme.")
     if avg is not None and avg >= 7 and roe is not None and roe >= 20 and (de is None or de < 1) and op is not None and op >= 20:
         add(3.3, "Someone is sitting in the shade today because someone planted a tree a long time ago.",
             "Warren Buffett", "High returns on little debt are how businesses compound over the years.")
+        add(3.2, "The first rule of compounding: never interrupt it unnecessarily.", "Charlie Munger",
+            "A business that earns this much on its capital rewards patience.")
+    if avg is not None and avg >= 7 and pe is not None and pe >= 35:
+        add(3.4, "The big money is not in the buying and selling, but in the waiting.", "Charlie Munger",
+            "A strong business at a rich price is a case for patience.")
+    if avg is not None and avg < 5:
+        add(3.0, "Invert, always invert.", "Charlie Munger", "The committee is unimpressed, so start from how this goes wrong.")
+        add(2.9, "Time is the friend of the wonderful business, the enemy of the mediocre.", "Warren Buffett",
+            "The committee rates this business low, and time is not on its side.")
+    # price
     if pe is not None and pe >= 50:
         add(3.4 + min((pe - 50) / 50, 1), "The four most dangerous words in investing are: this time it is different.",
             "John Templeton", "The market is paying a rich price, which only works if the story keeps coming true.")
-        add(3.0, "The stock market is filled with individuals who know the price of everything, but the value of nothing.",
-            "Philip Fisher", "At this price the question is what the business is really worth.")
+        add(3.1, "A cynic is a man who knows the price of everything and the value of nothing.", "Oscar Wilde",
+            "At this price the question is what the business is really worth.")
     elif pe is not None and pe >= 35:
-        add(2.7, "Price is what you pay. Value is what you get.", "Warren Buffett",
-            "The market is asking a lot for this business.")
+        add(2.7, "Price is what you pay. Value is what you get.", "Warren Buffett", "The market is asking a lot for this business.")
         add(2.4, "In the short run, the market is a voting machine, but in the long run it is a weighing machine.",
             "Benjamin Graham", "A high price is a vote, and the weighing comes later.")
+    if pe is not None and 0 < pe < 14 and (net is None or net > 0):
+        add(3.2, "The margin of safety is always dependent on the price paid.", "Benjamin Graham",
+            "The price is low next to earnings, which is what a margin of safety looks like.")
+    # people and incentives
+    if buys >= 5 and buys >= 2 * max(sells, 1):
+        add(3.7, "Insiders might sell their shares for any number of reasons, but they buy for only one: they think "
+                 "the price will rise.", "Peter Lynch", "Insiders are buying more than they sell.")
     if sells >= 10 and sells >= 3 * max(buys, 1):
         add(3.2, "Show me the incentive and I will show you the outcome.", "Charlie Munger",
             "Insiders have been selling far more than buying, so look at what they are paid to do.")
-    if buys >= 10 and buys >= 2 * max(sells, 1):
-        add(3.2, "Show me the incentive and I will show you the outcome.", "Charlie Munger",
-            "Insiders are buying more than they sell, which is incentive pointing the right way.")
     if ceo_pct is not None and ceo_pct >= 0.5:
         add(3.0, "Show me the incentive and I will show you the outcome.", "Charlie Munger",
             "The chief executive takes a notable slice of profit, so check what that pay rewards.")
+    # risk, change and cycles
     if beta is not None and beta >= 1.4:
-        add(2.9, "You cannot predict. You can prepare.", "Howard Marks",
-            "This stock swings harder than the market, so prepare for the swings.")
+        add(2.9, "You cannot predict. You can prepare.", "Howard Marks", "This stock swings harder than the market, so prepare for the swings.")
+    if any(w in sector for w in _CYCLICAL):
+        add(3.0, "To everything there is a season, and a time to every purpose under the heaven.", "Ecclesiastes",
+            "This industry rises and falls in cycles, and the numbers depend on the season.")
+        add(2.8, "You cannot predict. You can prepare.", "Howard Marks", "Cyclical businesses reward those who prepare for the downturn.")
     if growth is not None and growth >= 30:
         add(2.2, "He who lives by the crystal ball will eat shattered glass.", "Ray Dalio",
             "Fast growth is a forecast, and forecasts are where investors get hurt.")
+    if growth is not None and growth < 0:
+        add(3.3, "Change is the law of life. And those who look only to the past or present are certain to miss the future.",
+            "John F. Kennedy", "Sales are shrinking, so the question is whether the business can change.")
+    if rnd is not None and rnd >= 15:
+        add(3.2, "Chance favours the prepared mind.", "Louis Pasteur",
+            "This company spends a large share of sales on research, betting that preparation meets discovery.")
+        add(2.8, "Genius is one percent inspiration and ninety nine percent perspiration.", "Thomas Edison",
+            "Research heavy businesses live on patient, unglamorous work.")
+    if any(w in sector for w in _CUSTOMER) and (op is None or op < 15):
+        add(2.9, "There is only one boss. The customer. And he can fire everybody in the company from the chairman on down, "
+                 "simply by spending his money somewhere else.", "Sam Walton",
+            "A business that lives on everyday customers lives or dies by them.")
     if f.get("market") == "India" and growth is not None and growth >= 15:
         add(3.0, "Think big, think fast, think ahead. Ideas are no one's monopoly.", "Dhirubhai Ambani",
             "Fast growth at scale in India is the kind of ambition he built Reliance on.")
     if engines is not None and engines <= 2 and op is not None and op >= 20:
         add(2.6, "Focusing is about saying no.", "Steve Jobs", "The business does a few things and does them very well.")
-    if avg is not None and avg < 5:
-        add(3.0, "Invert, always invert.", "Charlie Munger", "The committee is unimpressed, so start from how this goes wrong.")
-        add(2.7, "The first rule of investing is do not lose money.", "Warren Buffett",
-            "A weak business model leaves little room for error.")
     # nothing stands out, so any of these fits equally and the company's own seed picks one
-    add(1.0, "Know what you own, and know why you own it.", "Peter Lynch",
-        "A business is only worth owning if you can explain how it makes money.")
-    add(1.0, "Behind every stock is a company. Find out what it is doing.", "Peter Lynch",
-        "The numbers are the start, and the business behind them is the story.")
-    add(1.0, "Risk comes from not knowing what you are doing.", "Warren Buffett",
-        "Which is why the business comes before the price.")
-    add(1.0, "It is not supposed to be easy. Anyone who finds it easy is stupid.", "Charlie Munger",
-        "No single number settles this one, so read the whole picture.")
-    add(1.0, "The investor's chief problem, and even his worst enemy, is likely to be himself.", "Benjamin Graham",
-        "A calm look at the business is the best protection against a hasty call.")
+    for quote, who, why in (
+        ("Know what you own, and know why you own it.", "Peter Lynch", "A business is only worth owning if you can explain how it makes money."),
+        ("Behind every stock is a company. Find out what it is doing.", "Peter Lynch", "The numbers are the start, and the business behind them is the story."),
+        ("Risk comes from not knowing what you are doing.", "Warren Buffett", "Which is why the business comes before the price."),
+        ("It is not supposed to be easy. Anyone who finds it easy is stupid.", "Charlie Munger", "No single number settles this one, so read the whole picture."),
+        ("The investor's chief problem, and even his worst enemy, is likely to be himself.", "Benjamin Graham", "A calm look at the business is the best protection against a hasty call."),
+        ("Know the enemy and know yourself, and in a hundred battles you will never be in peril.", "Sun Tzu", "Know the business and know your own limits before you buy."),
+    ):
+        add(1.0, quote, who, why)
     return out
 
 
-def wisdom_features(ratios, net_margin=None, market=None, management=None, card=None, scorecards=None):
+def wisdom_features(ratios, net_margin=None, market=None, management=None, card=None, scorecards=None,
+                    sector=None, rnd_pct=None):
     """The few numbers the quote picker looks at, gathered from whatever is known so far."""
     ratios = ratios or {}
     de = _num(ratios.get("Debt to Equity"))
@@ -271,7 +316,7 @@ def wisdom_features(ratios, net_margin=None, market=None, management=None, card=
         "de": de, "op": _num(ratios.get("Operating Margin")), "pe": _num(ratios.get("P/E Ratio (Trailing)")),
         "net": net_margin if net_margin is not None else _num(ratios.get("Net Profit Margin")),
         "growth": _num(ratios.get("Revenue Growth (YoY, latest quarter)")), "roe": _num(ratios.get("Return on Equity")),
-        "beta": _num(ratios.get("Beta")), "market": market,
+        "beta": _num(ratios.get("Beta")), "market": market, "sector": sector, "rnd_pct": rnd_pct,
         "moat": moat.get("type"), "strength": moat.get("strength"), "engines": len((card or {}).get("engines") or []) or None,
         "avg": sum(scores) / len(scores) if scores else None,
         "buys": ins.get("buys"), "sells": ins.get("sells"),

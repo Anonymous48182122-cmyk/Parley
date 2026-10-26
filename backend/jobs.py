@@ -222,11 +222,15 @@ def _business_facts(financials):
         net = flow["net"] if flow else None
         people = fetch_people(financials.get("name"))
         management = management_facts(financials, "INR" if financials.get("market") == "India" else currency, people)
-        features = wisdom_features(financials.get("ratios"), net, financials.get("market"), management)
+        last = (financials.get("annual") or [{}])[-1]
+        rnd = (last.get("rnd") / last["revenue"] * 100) if last.get("rnd") and last.get("revenue") else None
+        inputs = {"sector": financials.get("sector"), "rnd_pct": rnd}
+        features = wisdom_features(financials.get("ratios"), net, financials.get("market"), management, **inputs)
         return {
             "money_flow": flow,
             "management": management,
             "wisdom": pick_wisdom(features, financials.get("ticker", "")),
+            "wisdom_inputs": inputs,
         }
     except Exception:
         log.exception("could not build the business facts")
@@ -242,7 +246,8 @@ def _refresh_wisdom(job):
             return
         features = wisdom_features((job["market_data"] or {}).get("ratios"),
                                    (facts.get("money_flow") or {}).get("net"), job.get("market"),
-                                   facts.get("management"), job.get("business_card"), job.get("scorecards"))
+                                   facts.get("management"), job.get("business_card"), job.get("scorecards"),
+                                   **(facts.get("wisdom_inputs") or {}))
         facts["wisdom"] = pick_wisdom(features, job.get("ticker", ""))
     except Exception:
         log.exception("could not refresh the quote")

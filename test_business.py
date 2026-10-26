@@ -43,7 +43,7 @@ def test_the_most_apt_quote_wins_whoever_said_it():
     assert "tide" in pick(ratios={"Debt to Equity": 2.4})["quote"]
     assert "tide" in pick(ratios={"Debt to Equity": 240})["quote"]  # a percentage is read as a multiple
     assert "stop digging" in pick(ratios={"Net Profit Margin": -3, "Debt to Equity": 1.2})["quote"]
-    assert pick(ratios={"P/E Ratio (Trailing)": 80})["who"] in ("John Templeton", "Philip Fisher")
+    assert pick(ratios={"P/E Ratio (Trailing)": 80})["who"] in ("John Templeton", "Oscar Wilde")
     assert pick(ratios={"Operating Margin": 40}, card={"moat": {"type": "Network effect", "strength": 9}})["who"] == "Peter Thiel"
     assert pick(ratios={}, card={"moat": {"type": "Brand", "strength": 8}})["who"] in ("Jeff Bezos", "Warren Buffett")
     insiders = {"insiders": {"buys": 1, "sells": 30}}
@@ -101,3 +101,14 @@ def test_wikidata_names_the_ceo_and_founders_and_joins_the_same_person():
     assert names[0] == "Sundar Pichai" and leaders[0]["ceo"]
     assert names.count("Larry Page") == 1 and "Lawrence Edward Page II" not in names
     assert "Sergey Brin" in names and "Nikhil Meswani" in names and "Hital Meswani" in names  # two different people
+
+
+def test_quotes_come_from_anyone_whose_line_fits_the_situation():
+    pick = lambda **kw: pick_wisdom(wisdom_features(**kw))
+    assert pick(ratios={}, sector="Energy")["who"] in ("Ecclesiastes", "Howard Marks")
+    assert pick(ratios={}, sector="Healthcare", rnd_pct=22)["who"] in ("Louis Pasteur", "Thomas Edison")
+    assert pick(ratios={"Revenue Growth (YoY, latest quarter)": -8})["who"] == "John F. Kennedy"
+    assert pick(ratios={"P/E Ratio (Trailing)": 9, "Net Profit Margin": 12})["who"] == "Benjamin Graham"
+    assert pick(ratios={}, management={"insiders": {"buys": 40, "sells": 3}})["who"] == "Peter Lynch"
+    seen = {pick_wisdom(wisdom_features({}), t)["who"] for t in ("A", "B", "C", "D", "E", "F", "G", "H")}
+    assert len(seen) >= 3
