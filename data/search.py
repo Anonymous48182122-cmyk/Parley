@@ -18,7 +18,7 @@ import time
 from collections import defaultdict
 
 from data.common import cache_age_hours, expire_cache
-from data.india.bse_fetcher import get_symbol_list
+from data.india.bse_fetcher import get_bse_only_list, get_symbol_list
 from data.nasdaq_data import fetch_nasdaq_universe
 from data.us.edgar_fetcher import get_ticker_map
 
@@ -46,7 +46,7 @@ def may_refresh_lists():
 
 def refresh_lists():
     """Fetch every company list again now. Old copies stay as the fallback if a source is down."""
-    for key in ("us_ticker_map", "in_equity_list", "nasdaq_universe"):
+    for key in ("us_ticker_map", "in_equity_list_v2", "in_bse_list", "nasdaq_universe"):
         expire_cache(key)
     _memo.clear()
     _index_cache.update(entries_id=None, index=None)
@@ -56,7 +56,8 @@ def list_status():
     """For the health page: how many companies each list holds and how fresh it is."""
     out = {}
     for label, key, fetch in (("us_sec", "us_ticker_map", get_ticker_map),
-                              ("india_nse", "in_equity_list", get_symbol_list),
+                              ("india_nse", "in_equity_list_v2", get_symbol_list),
+                              ("india_bse_only", "in_bse_list", get_bse_only_list),
                               ("us_nasdaq", "nasdaq_universe", fetch_nasdaq_universe)):
         try:
             count = len(fetch())  # fetching first, so an expired list shows as just refreshed
@@ -126,6 +127,15 @@ def _build_all_entries():
         seen.add(key)
         entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India"}))
 
+    # companies listed only on the BSE (the National Stock Exchange's own shares among them)
+    for entry in _memoized("in_bse_only", get_bse_only_list):
+        ticker, name = entry["symbol"].upper(), entry["name"].upper()
+        key = ("India", ticker)
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India"}))
+
     return entries
 
 
@@ -150,6 +160,23 @@ def _get_index(entries):
         _index_cache["index"] = _build_prefix_index(entries)
         _index_cache["entries_id"] = id(entries)
     return _index_cache["index"]
+
+
+def _screener_matches(query, limit):
+    """Screener's own search, asked live when our lists know nothing of the query: it covers
+    every company Screener has a page for, including ones listed this week."""
+    try:
+        from data.screener_client import screener_get
+        response = screener_get("https://www.screener.in/api/company/search/",
+                                headers={"User-Agent": "Mozilla/5.0"}, params={"q": query, "v": "3"}, timeout=10)
+        found = []
+        for row in response.json():
+            parts = [p for p in (row.get("url") or "").split("/") if p]
+            if len(parts) >= 2 and parts[0] == "company":
+                found.append({"ticker": parts[1], "name": row.get("name") or parts[1], "market": "India"})
+        return found[:limit]
+    except Exception:
+        return []
 
 
 def search_tickers(query, limit=8, _retry=True):
@@ -190,6 +217,9 @@ def search_tickers(query, limit=8, _retry=True):
     if not scored and _retry and len(query) >= 3 and may_refresh_lists():
         refresh_lists()
         return search_tickers(query, limit, _retry=False)
+
+    if not scored and not _retry:
+        return _screener_matches(query, limit)
 
     scored.sort(key=lambda row: (row[0], row[1]))
     return [row[2] for row in scored[:limit]]

@@ -30,3 +30,15 @@ def test_market_cap_disagreement_uses_the_other_source(monkeypatch):
     assert fallbacks.checked_market_cap("RACE", 70.0e9, {}) == 70.0e9
     monkeypatch.setattr(fallbacks, "_yahoo_market_cap", lambda t: None)
     assert fallbacks.checked_market_cap("RACE", 92.6e9, {}) == 92.6e9
+
+
+def test_bse_only_companies_are_listed_and_matched_by_isin(monkeypatch):
+    from data.india import bse_fetcher
+    monkeypatch.setattr(bse_fetcher, "get_symbol_list", lambda: [{"symbol": "ABB", "name": "ABB", "isin": "INE1"}])
+    monkeypatch.setattr(bse_fetcher, "get_bse_list", lambda: [
+        {"code": "500002", "symbol": "ABB", "name": "ABB India", "isin": "INE1"},
+        {"code": "544937", "symbol": "NSE", "name": "National Stock Exchange of India", "isin": "INE721I01024"}])
+    only = bse_fetcher.get_bse_only_list()
+    assert [r["symbol"] for r in only] == ["NSE"]
+    assert bse_fetcher.bse_code_for("nse") == "544937"
+    assert bse_fetcher.bse_code_for("nope") is None

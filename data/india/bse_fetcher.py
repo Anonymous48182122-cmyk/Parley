@@ -56,10 +56,52 @@ def get_symbol_list():
             symbol = (row.get("SYMBOL") or "").strip()
             name = (row.get("NAME OF COMPANY") or "").strip()
             if symbol and name:
-                rows.append({"symbol": symbol, "name": name})
+                rows.append({"symbol": symbol, "name": name, "isin": (row.get(" ISIN NUMBER") or "").strip()})
         return rows
 
-    return cached_fetch("in_equity_list", ttl_hours=6, fetch_fn=fetch, stale_on_error=True)
+    return cached_fetch("in_equity_list_v2", ttl_hours=6, fetch_fn=fetch, stale_on_error=True)
+
+
+BSE_LIST_URL = ("https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w"
+                "?Group=&Scripcode=&industry=&segment=Equity&status=Active")
+
+
+def get_bse_list():
+    """Every equity listed on the BSE: scrip code, short name, full name and ISIN. The NSE list
+    alone misses everything that trades only on the BSE, which includes new listings, and the
+    National Stock Exchange's own shares are listed there and nowhere else."""
+    def fetch():
+        response = requests.get(BSE_LIST_URL, headers={**HEADERS, "Referer": "https://www.bseindia.com/"}, timeout=60)
+        response.raise_for_status()
+        rows = [{"code": str(r["SCRIP_CD"]).strip(), "symbol": (r.get("scrip_id") or "").strip(),
+                 "name": (r.get("Issuer_Name") or r.get("Scrip_Name") or "").strip(), "isin": (r.get("ISIN_NUMBER") or "").strip()}
+                for r in response.json() if r.get("SCRIP_CD")]
+        if len(rows) < 1000:
+            raise ValueError("BSE returned a truncated list")
+        return rows
+
+    return cached_fetch("in_bse_list", ttl_hours=6, fetch_fn=fetch, stale_on_error=True)
+
+
+def get_bse_only_list():
+    """BSE listings that have no NSE listing (matched on ISIN, the one id both exchanges share)."""
+    try:
+        nse_isins = {r.get("isin") for r in get_symbol_list() if r.get("isin")}
+        nse_symbols = {r["symbol"].upper() for r in get_symbol_list()}
+        return [r for r in get_bse_list()
+                if r["isin"] not in nse_isins and r["symbol"].upper() not in nse_symbols and r["symbol"]]
+    except Exception:
+        return []
+
+
+def bse_code_for(symbol):
+    """The BSE scrip code of a BSE-only company's short name (NSE -> 544937), which is how
+    Screener names its page; None if the BSE does not list it."""
+    symbol = (symbol or "").strip().upper()
+    try:
+        return next((r["code"] for r in get_bse_list() if r["symbol"].upper() == symbol), None)
+    except Exception:
+        return None
 
 
 def _get_html(ticker, statement_type):
@@ -105,6 +147,11 @@ def fetch_screener_html(ticker):
         return standalone.text, "standalone"
     if response.status_code == 200:
         return response.text, "consolidated"
+    if not ticker.isdigit():
+        # a company listed only on the BSE has a Screener page under its scrip code, not its short name
+        code = bse_code_for(ticker)
+        if code:
+            return fetch_screener_html(code)
     response = standalone
     raise ValueError(f"Screener.in has no page for ticker {ticker} (status {response.status_code})")
 
