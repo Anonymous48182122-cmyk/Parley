@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { AGENT_META } from "../agentMeta.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 
@@ -14,6 +15,44 @@ const CAPTIONS = {
   cio: "The CIO is writing the verdict",
 };
 
+// Seats are spread evenly along the length of the table's edge, not evenly by angle. Spreading by
+// angle crowds the two ends of a wide oval (the seats there are a fraction of the gap apart) and a
+// big committee overlapped itself. `aspect` is the stage's height over its width, and every
+// distance below is in units of the stage width, so the seat size can follow the real spacing.
+function seatLayout(n, aspect) {
+  const rx = 0.43;
+  const ry = 0.39 * aspect;
+  const steps = 720;
+  const pts = [];
+  let length = 0;
+  for (let i = 0; i <= steps; i++) {
+    const t = ((-90 + (360 * i) / steps) * Math.PI) / 180;
+    const p = { x: rx * Math.cos(t), y: ry * Math.sin(t) };
+    if (i > 0) length += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y);
+    pts.push({ ...p, at: length });
+  }
+  const gap = length / n;
+  const seats = [];
+  let j = 0;
+  for (let i = 0; i < n; i++) {
+    while (j < steps && pts[j].at < i * gap) j++;
+    seats.push({ x: 50 + (pts[j].x * 100), y: 50 + (pts[j].y / aspect) * 100 });
+  }
+  return { seats, size: Math.min(9.6, gap * 100 * 0.88) };
+}
+
+function useStageAspect() {
+  const query = "(max-width: 520px)";
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return narrow ? 1 / 1.35 : 0.5; // matches .scene-stage's aspect-ratio in theme.css
+}
+
 function seatState(key, { stage, stage1, speaking }) {
   if (stage === "convening" || stage === "fetching_data") return "arriving";
   if (stage === "stage1") return stage1[key] ? "ready" : "thinking";
@@ -22,6 +61,7 @@ function seatState(key, { stage, stage1, speaking }) {
 }
 
 export default function BoardroomScene({ job, agents, ticker }) {
+  const aspect = useStageAspect();
   const list = (job?.agents && job.agents.length ? job.agents : agents) || [];
   if (list.length === 0) return null;
 
@@ -31,7 +71,7 @@ export default function BoardroomScene({ job, agents, ticker }) {
   const plan = job?.turn_plan || [];
   const speaking = stage === "debate" ? plan[debate.length] : null;
   const n = list.length;
-  const seatSize = Math.min(9.6, 176 / n); // percent of the scene width
+  const { seats, size: seatSize } = seatLayout(n, aspect);
 
   const done = Object.keys(stage1).length;
   let detail = "";
@@ -55,9 +95,7 @@ export default function BoardroomScene({ job, agents, ticker }) {
         </div>
 
         {list.map((key, i) => {
-          const angle = ((-90 + (360 / n) * i) * Math.PI) / 180;
-          const x = 50 + 43 * Math.cos(angle);
-          const y = 50 + 39 * Math.sin(angle);
+          const { x, y } = seats[i];
           const state = seatState(key, { stage, stage1, speaking });
           return (
             <div

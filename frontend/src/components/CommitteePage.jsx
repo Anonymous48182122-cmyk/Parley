@@ -428,7 +428,7 @@ export default function CommitteePage() {
             facts={job.market_data?.business_facts}
             scorecards={job.scorecards}
             agents={job.agents}
-            running={job.status === "running"}
+            running={job.status === "running" && job.current_stage !== "fetching_data"}
           />
 
           {job.status === "running" && (
