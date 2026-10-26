@@ -124,6 +124,20 @@ def health_net(host: str = "www.screener.in"):
     return {"host": host, "attempts": results}
 
 
+def _people_for(symbol):
+    """The chief executive and founders the Business Lab would show for a ticker, looked up fresh."""
+    from data.common import expire_cache
+    from data.people import fetch_people
+    from data.us import edgar_fetcher
+    name = edgar_fetcher.resolve_cik(symbol)[1]
+    key = "people_" + __import__("re").sub(r"[^a-z0-9]+", "_", name.lower())[:60]
+    expire_cache(key)
+    found = fetch_people(name)
+    if not (found.get("ceo") or found.get("founders")):
+        raise ValueError("no chief executive or founders found for " + name)
+    return found
+
+
 @app.get("/health/sources")
 def health_sources(ticker: str = "AAPL"):
     """Which outside data sources this server can actually reach right now. Yahoo
@@ -154,6 +168,7 @@ def health_sources(ticker: str = "AAPL"):
         "nasdaq_statements": check(lambda: nasdaq_data._fetch_statements(symbol)),
         "sec_exec_pay": check(lambda: exec_pay._fetch(symbol)),
         "company_lists": list_status(),
+        "people": check(lambda: _people_for(symbol)),
     }
 
 
