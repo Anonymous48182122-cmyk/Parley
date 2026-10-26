@@ -71,11 +71,16 @@ def get_bse_list():
     alone misses everything that trades only on the BSE, which includes new listings, and the
     National Stock Exchange's own shares are listed there and nowhere else."""
     def fetch():
-        response = requests.get(BSE_LIST_URL, headers={**HEADERS, "Referer": "https://www.bseindia.com/"}, timeout=60)
-        response.raise_for_status()
-        rows = [{"code": str(r["SCRIP_CD"]).strip(), "symbol": (r.get("scrip_id") or "").strip(),
-                 "name": (r.get("Issuer_Name") or r.get("Scrip_Name") or "").strip(), "isin": (r.get("ISIN_NUMBER") or "").strip()}
-                for r in response.json() if r.get("SCRIP_CD")]
+        try:
+            response = requests.get(BSE_LIST_URL, headers={**HEADERS, "Referer": "https://www.bseindia.com/"}, timeout=60)
+            response.raise_for_status()
+            rows = [{"code": str(r["SCRIP_CD"]).strip(), "symbol": (r.get("scrip_id") or "").strip(),
+                     "name": (r.get("Issuer_Name") or r.get("Scrip_Name") or "").strip(), "isin": (r.get("ISIN_NUMBER") or "").strip()}
+                    for r in response.json() if r.get("SCRIP_CD")]
+        except requests.exceptions.RequestException:
+            # the BSE refuses the cloud host the backend runs on (403); the Vercel relay is not refused
+            from data.screener_client import relay_bse_list
+            rows = relay_bse_list()
         if len(rows) < 1000:
             raise ValueError("BSE returned a truncated list")
         return rows

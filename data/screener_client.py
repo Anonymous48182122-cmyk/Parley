@@ -45,6 +45,16 @@ def _relay_target(url):
     return path + (f"?{parts.query}" if parts.query else "")
 
 
+def relay_bse_list(timeout=60):
+    """The BSE's equity list, fetched through the relay, for a host the BSE refuses."""
+    if not RELAY_URL or RELAY_URL.lower() == "off":
+        raise requests.exceptions.ConnectionError("no relay configured")
+    key = relay_key()
+    response = requests.get(RELAY_URL, params={"bse": "list"}, headers={"X-Relay-Key": key} if key else None, timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
 def screener_get(url, headers=None, params=None, timeout=20):
     """requests.get for a www.screener.in URL, falling back to the relay when it cannot connect."""
     global _direct_blocked_until
