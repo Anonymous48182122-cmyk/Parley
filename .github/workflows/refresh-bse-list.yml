@@ -1,0 +1,26 @@
+name: Refresh BSE company list
+
+on:
+  schedule:
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python scripts/refresh_bse_snapshot.py
+      - name: Commit if the list changed
+        run: |
+          git config user.name "Parley Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/bse_snapshot.json
+          git diff --cached --quiet || (git commit -m "Refresh the BSE company list" && git push)

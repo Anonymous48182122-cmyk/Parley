@@ -168,7 +168,20 @@ def _get_index(entries):
     return _index_cache["index"]
 
 
+def _symbol_for_code(code):
+    """Screener names a BSE-only company by scrip code; the BSE list gives its short name (NSE)."""
+    try:
+        from data.india.bse_fetcher import get_bse_list
+        return next((r["symbol"] for r in _memoized("in_bse_all", get_bse_list) if r["code"] == code and r["symbol"]), code)
+    except Exception:
+        return code
+
+
 def _screener_matches(query, limit):
+    return _memoized(f"screener:{query}", lambda: _screener_matches_live(query, limit))
+
+
+def _screener_matches_live(query, limit):
     """Screener's own search, asked live when our lists know nothing of the query: it covers
     every company Screener has a page for, including ones listed this week."""
     try:
@@ -179,7 +192,8 @@ def _screener_matches(query, limit):
         for row in response.json():
             parts = [p for p in (row.get("url") or "").split("/") if p]
             if len(parts) >= 2 and parts[0] == "company":
-                found.append({"ticker": parts[1], "name": row.get("name") or parts[1], "market": "India"})
+                ticker = _symbol_for_code(parts[1]) if parts[1].isdigit() else parts[1]
+                found.append({"ticker": ticker, "name": row.get("name") or ticker, "market": "India"})
         return found[:limit]
     except Exception:
         return []
@@ -219,6 +233,17 @@ def search_tickers(query, limit=8, _retry=True):
                 continue
             seen_keys.add(key)
             scored.append((score, len(ticker), payload))
+
+    # Screener's own search covers every company it has a page for, listed this week or only on the
+    # BSE included, and ranks them well ("nse" finds the National Stock Exchange). Its best match
+    # goes among the strongest of ours and the rest follow our prefix matches.
+    if len(query) >= 2:
+        for rank, match in enumerate(_screener_matches(query, limit)):
+            key = (match["market"], match["ticker"].upper())
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            scored.append((1.5 if rank == 0 else 3.5, len(match["ticker"]), match))
 
     if not scored and _retry and len(query) >= 3:
         if may_refresh_lists():

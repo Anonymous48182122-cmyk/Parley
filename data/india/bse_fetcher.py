@@ -66,6 +66,12 @@ BSE_LIST_URL = ("https://api.bseindia.com/BseIndiaAPI/api/ListofScripData/w"
                 "?Group=&Scripcode=&industry=&segment=Equity&status=Active")
 
 
+def load_bse_snapshot():
+    import json
+    from pathlib import Path
+    return json.loads((Path(__file__).resolve().parent.parent / "bse_snapshot.json").read_text(encoding="utf-8"))
+
+
 def get_bse_list():
     """Every equity listed on the BSE: scrip code, short name, full name and ISIN. The NSE list
     alone misses everything that trades only on the BSE, which includes new listings, and the
@@ -78,9 +84,10 @@ def get_bse_list():
                      "name": (r.get("Issuer_Name") or r.get("Scrip_Name") or "").strip(), "isin": (r.get("ISIN_NUMBER") or "").strip()}
                     for r in response.json() if r.get("SCRIP_CD")]
         except requests.exceptions.RequestException:
-            # the BSE refuses the cloud host the backend runs on (403); the Vercel relay is not refused
-            from data.screener_client import relay_bse_list
-            rows = relay_bse_list()
+            # the BSE refuses cloud hosts (403), the backend's and Vercel's alike, so the last resort
+            # is the copy saved in the repo (refreshed weekly); Screener's live search covers anything
+            # listed since
+            rows = load_bse_snapshot()
         if len(rows) < 1000:
             raise ValueError("BSE returned a truncated list")
         return rows

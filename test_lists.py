@@ -42,3 +42,10 @@ def test_bse_only_companies_are_listed_and_matched_by_isin(monkeypatch):
     assert [r["symbol"] for r in only] == ["NSE"]
     assert bse_fetcher.bse_code_for("nse") == "544937"
     assert bse_fetcher.bse_code_for("nope") is None
+
+
+def test_snapshot_holds_the_national_stock_exchange():
+    from data.india import bse_fetcher
+    rows = bse_fetcher.load_bse_snapshot()
+    assert len(rows) > 3000
+    assert any(r["symbol"] == "NSE" and r["code"] == "544937" for r in rows)
