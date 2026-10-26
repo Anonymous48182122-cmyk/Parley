@@ -13,15 +13,58 @@ last. Indexing turns each search into an O(candidates for that letter) scan
 instead of O(everything), so it stays fast regardless of request load.
 """
 
+import threading
 import time
 from collections import defaultdict
 
+from data.common import cache_age_hours, expire_cache
 from data.india.bse_fetcher import get_symbol_list
+from data.nasdaq_data import fetch_nasdaq_universe
 from data.us.edgar_fetcher import get_ticker_map
 
 _MEMO_TTL_SECONDS = 600
 _memo = {}
 _index_cache = {"entries_id": None, "index": None}
+
+# Newly listed companies reach these lists within a day, so the lists are refreshed every few
+# hours, and a search or analysis that finds nothing forces a refresh at once (at most one every
+# ten minutes, so a typo cannot hammer the exchanges).
+_REFRESH_GAP_SECONDS = 600
+_refresh_lock = threading.Lock()
+_last_refresh = {"at": 0.0}
+
+
+def may_refresh_lists():
+    """True once per ten minutes: the caller may then force a refresh of the company lists."""
+    with _refresh_lock:
+        now = time.time()
+        if now - _last_refresh["at"] < _REFRESH_GAP_SECONDS:
+            return False
+        _last_refresh["at"] = now
+        return True
+
+
+def refresh_lists():
+    """Fetch every company list again now. Old copies stay as the fallback if a source is down."""
+    for key in ("us_ticker_map", "in_equity_list", "nasdaq_universe"):
+        expire_cache(key)
+    _memo.clear()
+    _index_cache.update(entries_id=None, index=None)
+
+
+def list_status():
+    """For the health page: how many companies each list holds and how fresh it is."""
+    out = {}
+    for label, key, fetch in (("us_sec", "us_ticker_map", get_ticker_map),
+                              ("india_nse", "in_equity_list", get_symbol_list),
+                              ("us_nasdaq", "nasdaq_universe", fetch_nasdaq_universe)):
+        try:
+            count = len(fetch())  # fetching first, so an expired list shows as just refreshed
+            age = cache_age_hours(key)
+            out[label] = {"companies": count, "age_hours": None if age is None else round(age, 1)}
+        except Exception as exc:  # noqa: BLE001
+            out[label] = {"error": str(exc)[:200]}
+    return out
 
 
 def _memoized(key, fetch_fn):
@@ -63,6 +106,17 @@ def _build_all_entries():
         seen.add(key)
         entries.append((ticker, name, {"ticker": entry["ticker"], "name": entry["title"], "market": "US"}))
 
+    # Nasdaq's own list of listed stocks has a company the day it starts trading; the SEC list
+    # follows once its first filings are indexed
+    for row in _memoized("us_universe", fetch_nasdaq_universe):
+        symbol = row["symbol"].upper().replace("/", "-")
+        key = ("US", symbol)
+        if key in seen or not symbol.replace("-", "").replace(".", "").isalnum():
+            continue
+        seen.add(key)
+        entries.append((symbol, (row.get("name") or "").upper(),
+                        {"ticker": symbol, "name": row.get("name") or symbol, "market": "US"}))
+
     in_list = _memoized("in_list", get_symbol_list)
     for entry in in_list:
         ticker, name = entry["symbol"].upper(), entry["name"].upper()
@@ -98,7 +152,7 @@ def _get_index(entries):
     return _index_cache["index"]
 
 
-def search_tickers(query, limit=8):
+def search_tickers(query, limit=8, _retry=True):
     query = (query or "").strip().upper()
     if not query:
         return []
@@ -132,6 +186,10 @@ def search_tickers(query, limit=8):
                 continue
             seen_keys.add(key)
             scored.append((score, len(ticker), payload))
+
+    if not scored and _retry and len(query) >= 3 and may_refresh_lists():
+        refresh_lists()
+        return search_tickers(query, limit, _retry=False)
 
     scored.sort(key=lambda row: (row[0], row[1]))
     return [row[2] for row in scored[:limit]]

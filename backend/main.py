@@ -81,6 +81,8 @@ def _job_response(job):
         "verdict": job.get("verdict"),
         "conviction": job.get("conviction"),
         "error": job.get("error"),
+        "error_kind": job.get("error_kind"),
+        "suggestions": job.get("suggestions") or [],
     }
 
 
@@ -127,6 +129,7 @@ def health_sources(ticker: str = "AAPL"):
     until a stock card goes blank, so this makes it checkable."""
     from data import nasdaq_data
     from data.us import exec_pay
+    from data.search import list_status
     import yfinance as yf
 
     def check(fn):
@@ -148,6 +151,7 @@ def health_sources(ticker: str = "AAPL"):
         "nasdaq_history": check(lambda: nasdaq_data._fetch_history(symbol)),
         "nasdaq_statements": check(lambda: nasdaq_data._fetch_statements(symbol)),
         "sec_exec_pay": check(lambda: exec_pay._fetch(symbol)),
+        "company_lists": list_status(),
     }
 
 

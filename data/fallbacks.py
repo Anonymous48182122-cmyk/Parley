@@ -17,6 +17,30 @@ from data.technicals import compute_technicals
 from data.yahoo_fundamentals import apply_statement_rows
 
 
+def _yahoo_market_cap(ticker):
+    """Yahoo's own market cap (its share count times the price), from the quote endpoint that
+    still answers cloud servers. None whenever it will not say."""
+    try:
+        import yfinance as yf
+
+        cap = yf.Ticker(ticker).fast_info.get("marketCap")
+        return float(cap) if cap and cap > 0 else None
+    except Exception:
+        return None
+
+
+def checked_market_cap(ticker, nasdaq_cap, financials):
+    """Nasdaq's market cap uses its own share count, which is wrong for some companies (Ferrari
+    comes out 33% too high). Where Yahoo's figure disagrees by more than 8%, Yahoo's is used, and
+    the agents are told. Where Yahoo says nothing, Nasdaq's stands."""
+    other = _yahoo_market_cap(ticker)
+    if other and nasdaq_cap and abs(nasdaq_cap / other - 1) > 0.08:
+        _note(financials, f"market cap: two sources disagreed ({nasdaq_cap / 1e9:,.1f}B and {other / 1e9:,.1f}B); "
+                          f"using {other / 1e9:,.1f}B, the share count times the price")
+        return other
+    return nasdaq_cap
+
+
 def _note(financials, text):
     notes = financials.setdefault("data_sources", [])
     if text not in notes:
@@ -92,7 +116,7 @@ def fill_market_gaps(financials):
         if financials.get("price") is None and q.get("price") is not None:
             financials["price"], used = q["price"], True
         if financials.get("market_cap") is None and q.get("market_cap") is not None:
-            financials["market_cap"], used = q["market_cap"], True
+            financials["market_cap"], used = checked_market_cap(ticker, q["market_cap"], financials), True
         if financials.get("sector") in (None, "N/A") and q.get("sector"):
             financials["sector"], used = q["sector"], True
 

@@ -6,6 +6,7 @@ market — see format_for_agents below.
 """
 
 import json
+import os
 import statistics
 from datetime import datetime
 import time
@@ -20,14 +21,35 @@ CACHE_DIR.mkdir(exist_ok=True)
 FINANCIALS_TTL_HOURS = 24
 
 
-def cached_fetch(cache_key, ttl_hours, fetch_fn):
-    """Return fetch_fn()'s JSON-serializable result, cached on disk for ttl_hours."""
+def expire_cache(cache_key):
+    """Mark a cached result as out of date without deleting it, so it still serves as the
+    fallback if the source cannot be reached."""
+    path = CACHE_DIR / f"{cache_key}.json"
+    if path.exists():
+        os.utime(path, (0, 0))
+
+
+def cache_age_hours(cache_key):
+    """How old a cached result is, or None when there is none."""
+    path = CACHE_DIR / f"{cache_key}.json"
+    return (time.time() - path.stat().st_mtime) / 3600 if path.exists() else None
+
+
+def cached_fetch(cache_key, ttl_hours, fetch_fn, stale_on_error=False):
+    """Return fetch_fn()'s JSON-serializable result, cached on disk for ttl_hours.
+    With stale_on_error, an expired copy is served when the source cannot be reached, so a
+    list that rarely changes (every listed company) is never lost to one bad fetch."""
     path = CACHE_DIR / f"{cache_key}.json"
     if path.exists():
         age_hours = (time.time() - path.stat().st_mtime) / 3600
         if age_hours < ttl_hours:
             return json.loads(path.read_text(encoding="utf-8"))
-    result = fetch_fn()
+    try:
+        result = fetch_fn()
+    except Exception:
+        if stale_on_error and path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+        raise
     path.write_text(json.dumps(result), encoding="utf-8")
     return result
 

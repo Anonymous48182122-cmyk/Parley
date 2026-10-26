@@ -59,7 +59,7 @@ def get_symbol_list():
                 rows.append({"symbol": symbol, "name": name})
         return rows
 
-    return cached_fetch("in_equity_list", ttl_hours=24 * 7, fetch_fn=fetch)
+    return cached_fetch("in_equity_list", ttl_hours=6, fetch_fn=fetch, stale_on_error=True)
 
 
 def _get_html(ticker, statement_type):

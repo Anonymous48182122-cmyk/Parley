@@ -333,7 +333,7 @@ def _fetch_universe():
 def fetch_nasdaq_universe():
     """Every listed US stock with market cap, sector and industry; [] on failure."""
     try:
-        return cached_fetch("nasdaq_universe", 24, _fetch_universe)
+        return cached_fetch("nasdaq_universe", 6, _fetch_universe, stale_on_error=True)
     except Exception:
         return []
 

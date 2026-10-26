@@ -369,14 +369,43 @@ export default function CommitteePage() {
       {job && job.status === "error" && (
         <div className="card fade-in" style={{ borderColor: "var(--danger)", marginBottom: 20 }}>
           <div style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 6 }}>
-            Analysis failed
+            {job.error_kind === "not_found" ? `We could not find ${ticker}` : "Analysis failed"}
           </div>
           <div style={{ color: "var(--text-dim)", fontSize: "0.9rem", marginBottom: 14 }}>
             {job.error}
           </div>
-          <button className="button-primary" onClick={handleRetry}>
-            Retry
-          </button>
+          {job.error_kind === "not_found" ? (
+            <>
+              {(job.suggestions || []).length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ color: "var(--text-faint)", fontSize: "0.8rem", marginBottom: 8 }}>Did you mean</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {job.suggestions.map((s) => (
+                      <Link
+                        key={`${s.market}-${s.ticker}`}
+                        to={`/analysis/${encodeURIComponent(s.ticker)}`}
+                        state={{ agents: requestedAgents }}
+                        className="committee-chip"
+                        style={{ textDecoration: "none" }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{s.ticker}</span>
+                        <span style={{ color: "var(--text-dim)", fontSize: "0.8rem" }}>
+                          {s.name} · {s.market === "India" ? "NSE" : "US"}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Link to="/" className="button-primary" style={{ display: "inline-block", textDecoration: "none" }}>
+                Search again
+              </Link>
+            </>
+          ) : (
+            <button className="button-primary" onClick={handleRetry}>
+              Retry
+            </button>
+          )}
         </div>
       )}
 

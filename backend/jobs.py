@@ -22,6 +22,37 @@ ANALYSIS_TTL_HOURS = 48
 log = logging.getLogger("parley.jobs")
 
 
+_NOT_FOUND_WORDS = ("no page for ticker", "not found", "no cik", "could not resolve", "no such")
+
+
+def _is_not_found(exc, stage):
+    return stage == "data" and isinstance(exc, ValueError) and any(k in str(exc).lower() for k in _NOT_FOUND_WORDS)
+
+
+def not_found_message(ticker):
+    text = (f"We could not find {ticker}. Parley covers companies listed on the US exchanges (NYSE and Nasdaq) "
+            "and on India's NSE. Please check the spelling, or search by company name.")
+    if len(ticker) == 5 and ticker.endswith("F") and ticker.isalpha():
+        text += (" A five letter ticker ending in F is usually a foreign share traded over the counter, "
+                 "which Parley does not cover yet. Try the company's main stock exchange listing instead.")
+    return text
+
+
+def _fail_data(job, exc, ticker):
+    """Marks a run as failed while getting data. A ticker that does not exist gets its own kind of
+    failure, with close matches, because trying the same ticker again can never work."""
+    job["status"] = "error"
+    job["error"] = friendly_error(exc, ticker, "data")
+    if _is_not_found(exc, "data"):
+        from data.search import search_tickers
+        job["error_kind"] = "not_found"
+        try:
+            job["suggestions"] = [m for m in search_tickers(ticker, limit=5) if m["ticker"].upper() != ticker.upper()][:4]
+        except Exception:
+            job["suggestions"] = []
+    job["completed_at"] = time.time()
+
+
 def friendly_error(exc, ticker, stage):
     """What the user sees when a run fails: short, plain, and about what to do next. The technical
     detail (connection pool names, model lists) goes to the server log instead of the screen."""
@@ -32,8 +63,8 @@ def friendly_error(exc, ticker, stage):
     if isinstance(exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
         return "We could not reach one of our data sources just now. This is usually brief. Please try again in a minute."
     if stage == "data" and isinstance(exc, ValueError):
-        if any(k in text for k in ("no page for ticker", "not found", "no cik", "could not resolve", "no such")):
-            return f"We could not find a company with the ticker {ticker}. Please check the spelling and the market, US or India."
+        if _is_not_found(exc, stage):
+            return not_found_message(ticker)
         if "could not reach" in text:
             return "We could not reach our data sources for this company. Please try again in a minute."
         return "We could not get financial data for this company right now. It may be newly listed or have no recent filings."
@@ -221,16 +252,12 @@ def _run_job(ticker_key, market, agent_keys):
     except ValueError as exc:
         with _lock:
             job = _jobs[ticker_key]
-            job["status"] = "error"
-            job["error"] = friendly_error(exc, ticker_key, "data")
-            job["completed_at"] = time.time()
+            _fail_data(job, exc, ticker_key)
         return
     except Exception as exc:
         with _lock:
             job = _jobs[ticker_key]
-            job["status"] = "error"
-            job["error"] = friendly_error(exc, ticker_key, "data")
-            job["completed_at"] = time.time()
+            _fail_data(job, exc, ticker_key)
         return
 
     def on_update(event_type, payload):

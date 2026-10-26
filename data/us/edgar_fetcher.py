@@ -119,19 +119,35 @@ def fetch_sic_description(ticker):
         return None
 
 
+LIST_TTL_HOURS = 6  # a company that listed this morning should be findable by the afternoon
+
+
 def get_ticker_map():
     def fetch():
         return _throttled_get(TICKER_MAP_URL).json()
 
-    return cached_fetch("us_ticker_map", ttl_hours=24 * 7, fetch_fn=fetch)
+    return cached_fetch("us_ticker_map", ttl_hours=LIST_TTL_HOURS, fetch_fn=fetch, stale_on_error=True)
+
+
+def refresh_ticker_map():
+    """Fetch the SEC list now, whatever the cache says. Used when a ticker is not found, which
+    is what a company listed since the last refresh looks like."""
+    from data.common import expire_cache
+    expire_cache("us_ticker_map")  # the old copy stays as the fallback if the fetch fails
+    return get_ticker_map()
 
 
 def resolve_cik(ticker):
-    ticker_map = get_ticker_map()
     ticker_upper = ticker.upper()
-    for entry in ticker_map.values():
-        if entry["ticker"] == ticker_upper:
-            return str(entry["cik_str"]).zfill(10), entry["title"]
+    for attempt in (0, 1):
+        for entry in get_ticker_map().values():
+            if entry["ticker"] == ticker_upper:
+                return str(entry["cik_str"]).zfill(10), entry["title"]
+        if attempt == 0:
+            from data.search import may_refresh_lists
+            if not may_refresh_lists():
+                break
+            refresh_ticker_map()
     raise ValueError(f"Ticker {ticker} not found in SEC company_tickers.json")
 
 
