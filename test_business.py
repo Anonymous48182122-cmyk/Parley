@@ -88,3 +88,16 @@ def test_a_surname_only_chief_executive_gets_the_full_name_and_degrees_are_dropp
         "insiders_nasdaq": {"recent": [{"who": "Karp Alexander C", "relation": "Officer", "held": 5.0}]}}}
     leaders = management_facts(fin, "USD")["leaders"]
     assert leaders[0]["name"] == "Alexander C Karp" and leaders[0]["ceo"]
+
+
+def test_wikidata_names_the_ceo_and_founders_and_joins_the_same_person():
+    fin = {"price": 10.0, "governance": {
+        "officers": [{"name": "Mr. Lawrence Edward Page II", "title": "Co-Founder & Director", "pay": 1},
+                     {"name": "Mr. Nikhil Meswani", "title": "Executive Director"},
+                     {"name": "Mr. Hital Meswani", "title": "Executive Director"}]}}
+    people = {"ceo": ["Sundar Pichai"], "founders": ["Larry Page", "Sergey Brin"]}
+    leaders = management_facts(fin, "USD", people)["leaders"]
+    names = [l["name"] for l in leaders]
+    assert names[0] == "Sundar Pichai" and leaders[0]["ceo"]
+    assert names.count("Larry Page") == 1 and "Lawrence Edward Page II" not in names
+    assert "Sergey Brin" in names and "Nikhil Meswani" in names and "Hital Meswani" in names  # two different people

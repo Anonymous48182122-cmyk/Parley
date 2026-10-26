@@ -14,6 +14,7 @@ import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
 from agents.business import management_facts, money_flow, pick_wisdom, wisdom_features
+from data.people import fetch_people
 from agents.runner import AgentCallError, run_committee
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
@@ -219,7 +220,8 @@ def _business_facts(financials):
         currency = financials.get("price_currency") or financials.get("currency")
         flow = money_flow(financials)
         net = flow["net"] if flow else None
-        management = management_facts(financials, "INR" if financials.get("market") == "India" else currency)
+        people = fetch_people(financials.get("name"))
+        management = management_facts(financials, "INR" if financials.get("market") == "India" else currency, people)
         features = wisdom_features(financials.get("ratios"), net, financials.get("market"), management)
         return {
             "money_flow": flow,

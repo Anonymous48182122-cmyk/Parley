@@ -234,7 +234,7 @@ function whoRunsIt(mgmt, card) {
   }
   add(card?.people?.ceo, { ceo: true });
   for (const name of card?.people?.founders || []) add(name, { founder: true });
-  return people.sort((a, b) => Number(b.ceo) - Number(a.ceo)).slice(0, 5);
+  return people.sort((a, b) => Number(b.ceo) - Number(a.ceo)).slice(0, 6);
 }
 
 function Management({ card, mgmt }) {

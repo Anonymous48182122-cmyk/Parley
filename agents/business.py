@@ -333,10 +333,21 @@ def _nasdaq_name(name):
     return " ".join(parts[1:] + parts[:1]) if len(parts) > 1 else " ".join(parts)
 
 
+_GENERATIONAL = {"jr", "sr", "ii", "iii", "iv", "v"}
+
+
+def _surname_and_initial(name):
+    tokens = [t.strip(".,").lower() for t in name.split() if t.strip(".,")]
+    while len(tokens) > 1 and tokens[-1] in _GENERATIONAL:
+        tokens.pop()
+    return (tokens[-1] if tokens else "", tokens[0][0] if len(tokens) > 1 else "")
+
+
 def _same_person(a, b):
-    ta = {t.lower().strip(".") for t in a.split() if len(t) > 1}
-    tb = {t.lower().strip(".") for t in b.split() if len(t) > 1}
-    return bool(ta) and bool(tb) and (ta <= tb or tb <= ta or len(ta & tb) >= 2)
+    """The same surname and, when both names have a first name, the same first initial. That joins
+    "Larry Page" and "Lawrence Edward Page II" and keeps Nikhil and Hital Meswani apart."""
+    (sa, ia), (sb, ib) = _surname_and_initial(a), _surname_and_initial(b)
+    return bool(sa) and sa == sb and (not ia or not ib or ia == ib)
 
 
 def _leaders(gov, price, ceo_row):
@@ -386,7 +397,29 @@ def _leaders(gov, price, ceo_row):
     return leaders[:6]
 
 
-def management_facts(financials, currency):
+def _merge_wikidata(leaders, people):
+    """Wikidata's chief executive and founders: full names, and a card for anyone not listed yet."""
+    def find(name):
+        return next((l for l in leaders if _same_person(name, l["name"])), None)
+
+    for i, name in enumerate(people.get("ceo") or []):
+        hit = find(name)
+        if hit:
+            hit["ceo"] = True
+            hit["name"] = name  # Wikidata's name is the one the person is known by
+        elif i == 0:
+            leaders.insert(0, {"name": name, "role": "Chief executive", "ceo": True})
+    for name in people.get("founders") or []:
+        hit = find(name)
+        if hit:
+            hit["founder"] = True
+            hit["name"] = name
+        else:
+            leaders.append({"name": name, "role": "Founder", "founder": True})
+    return leaders
+
+
+def management_facts(financials, currency, people=None):
     """Officers, chief executive pay and the ownership signals that show whose money is on the line."""
     gov = financials.get("governance") or {}
     out = {"currency": currency}
@@ -407,6 +440,8 @@ def management_facts(financials, currency):
             ceo_row = {"name": clean_name(pay["ceo_name"]), "role": "Chief executive", "ceo": True,
                        "pay": years[0]["ceo_total"], "realised": years[0].get("ceo_paid"), "year": years[0]["period_end"][:4]}
     leaders = _leaders(gov, _num(financials.get("price")), ceo_row)
+    if people:
+        leaders = _merge_wikidata(leaders, people)
     if leaders:
         out["leaders"] = leaders
     ins = gov.get("insiders_6m")
