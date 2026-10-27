@@ -224,9 +224,12 @@ def _candidates(f):
                  "economics, it is the reputation of the business that remains intact.", "Warren Buffett",
             "Thin margins say the business, not the managers, sets the result.")
     # quality, time and compounding
-    if avg is not None and avg >= 7.5 and pe is not None and pe < 35:
-        add(3.6, "It is far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
-            "Warren Buffett", "The committee likes the business, and the price is not extreme.")
+    if avg is not None and avg >= 8.5 and pe is not None and 12 <= pe < 30:
+        add(3.1, "It is far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
+            "Warren Buffett", "The committee loves the business, and the price is not extreme.")
+    if avg is not None and avg >= 8 and (engines is None or engines <= 3):
+        add(3.3, "I try to buy businesses that are so wonderful that an idiot can run them, because sooner or later one will.",
+            "Warren Buffett", "A business this strong does not depend on genius at the top.")
     if avg is not None and avg >= 7 and roe is not None and roe >= 20 and (de is None or de < 1) and op is not None and op >= 20:
         add(3.3, "Someone is sitting in the shade today because someone planted a tree a long time ago.",
             "Warren Buffett", "High returns on little debt are how businesses compound over the years.")
@@ -289,6 +292,58 @@ def _candidates(f):
             "Fast growth at scale in India is the kind of ambition he built Reliance on.")
     if engines is not None and engines <= 2 and op is not None and op >= 20:
         add(2.6, "Focusing is about saying no.", "Steve Jobs", "The business does a few things and does them very well.")
+    # pricing power, margins and the kind of business
+    gross, yld, own, mcap = f.get("gross"), f.get("yield"), f.get("own"), f.get("mcap_b")
+    drop, high = f.get("drawdown"), f.get("near_high")
+    if op is not None and op >= 20 and (("brand" in moat) or (strength or 0) >= 7):
+        add(3.3, "The single most important decision in evaluating a business is pricing power.", "Warren Buffett",
+            "Margins this high mean customers accept the company's prices.")
+    if gross is not None and gross >= 70:
+        add(3.2, "Monopoly is the condition of every successful business.", "Peter Thiel",
+            "A gross margin this high is what a product with no close substitute looks like.")
+    if any(w in sector for w in ("technology", "software", "semiconductor", "internet")):
+        add(2.9, "Only the paranoid survive.", "Andy Grove", "Technology leaders are always one product cycle from being the old guard.")
+    if any(w in sector for w in ("financial", "bank", "insurance")):
+        add(3.0, "Stability breeds instability.", "Hyman Minsky",
+            "Financial companies look safest right before the leverage in them is tested.")
+        add(2.8, "Never ask the barber whether you need a haircut.", "Warren Buffett",
+            "Financial firms are full of advisers who earn more when you do more.")
+    if any(w in sector for w in ("utilit", "infrastructure", "telecom", "staples", "household")) and (beta is None or beta < 0.9):
+        add(2.8, "Slow and steady wins the race.", "Aesop", "A steady business with a low swing rarely makes headlines and often makes money.")
+    if any(w in sector for w in ("e-commerce", "internet retail", "retail")) and growth is not None and growth >= 12:
+        add(3.0, "It's always Day 1.", "Jeff Bezos", "A growing retailer survives by acting like a start up.")
+    if any(w in sector for w in ("communication", "media", "entertainment")):
+        add(2.6, "It's kind of fun to do the impossible.", "Walt Disney", "Media lives or dies on whether the next hit lands.")
+    if drop is not None and drop >= 30:
+        add(3.5 + min((drop - 30) / 40, 0.8), "Be fearful when others are greedy, and greedy when others are fearful.", "Warren Buffett",
+            f"The stock is down about {drop:.0f}% from its 52 week high, so the crowd is nervous.")
+    if high and pe is not None and pe >= 30:
+        add(3.4, "Trees do not grow to the sky.", "German proverb", "The stock sits near its 52 week high at a rich price.")
+    if beta is not None and beta >= 1.3 and avg is not None and avg >= 6:
+        add(3.0, "Volatility is far from synonymous with risk.", "Warren Buffett",
+            "A bumpy share price is not the same as a weak business.")
+    if mcap is not None and mcap >= 500 and growth is not None and growth < 10:
+        add(3.1, "Size is the anchor of performance.", "Warren Buffett", "A company this large needs enormous wins to move the needle.")
+    if mcap is not None and 0 < mcap < 2 and growth is not None and growth >= 20:
+        add(3.0, "A journey of a thousand miles begins with a single step.", "Lao Tzu", "A small company growing fast is at the start of a long road.")
+    if yld is not None and yld >= 4:
+        add(2.9, "The intelligent investor is a realist who sells to optimists and buys from pessimists.", "Benjamin Graham",
+            "A high yield often means pessimism, which is where the bargains are.")
+    if own is not None and own >= 20:
+        add(3.0, "In looking for people to hire, look for three qualities: integrity, intelligence and energy. "
+                 "And if they do not have the first, the other two will kill you.", "Warren Buffett",
+            "Insiders own a big slice, so their integrity decides how that slice is treated.")
+    if (sells >= 10 and sells >= 3 * max(buys, 1)) or (ceo_pct is not None and ceo_pct >= 0.5):
+        add(3.0, "In looking for people to hire, look for three qualities: integrity, intelligence and energy. "
+                 "And if they do not have the first, the other two will kill you.", "Warren Buffett",
+            "How insiders trade and get paid says a lot about their integrity.")
+    if avg is not None and avg >= 7 and pe is not None and pe >= 25:
+        add(3.2, "The stock market is a device for transferring money from the impatient to the patient.", "Warren Buffett",
+            "Good business, full price: the patient are the ones who get paid.")
+    if avg is not None and avg >= 8 and roe is not None and roe >= 20 and (de is None or de < 1):
+        add(3.4, "Our favorite holding period is forever.", "Warren Buffett", "A business this strong is one to hold, not trade.")
+    if growth is not None and growth < 0 and (net is None or net > 0):
+        add(3.0, "The only constant in life is change.", "Heraclitus", "Sales are shrinking while profits hold, so change is what to watch.")
     # nothing stands out, so any of these fits equally and the company's own seed picks one
     for quote, who, why in (
         ("Know what you own, and know why you own it.", "Peter Lynch", "A business is only worth owning if you can explain how it makes money."),
@@ -303,7 +358,7 @@ def _candidates(f):
 
 
 def wisdom_features(ratios, net_margin=None, market=None, management=None, card=None, scorecards=None,
-                    sector=None, rnd_pct=None):
+                    sector=None, rnd_pct=None, **extra):
     """The few numbers the quote picker looks at, gathered from whatever is known so far."""
     ratios = ratios or {}
     de = _num(ratios.get("Debt to Equity"))
@@ -321,16 +376,41 @@ def wisdom_features(ratios, net_margin=None, market=None, management=None, card=
         "avg": sum(scores) / len(scores) if scores else None,
         "buys": ins.get("buys"), "sells": ins.get("sells"),
         "ceo_pct": ((management or {}).get("ceo_pay") or {}).get("pct_of_profit"),
+        "gross": _num(ratios.get("Gross Margin")), "yield": _num(ratios.get("Dividend Yield")),
+        "own": _num(ratios.get("Insider Ownership")), "mcap_b": extra.get("mcap_b"),
+        "drawdown": extra.get("drawdown"), "near_high": extra.get("near_high"),
     }
 
 
+_BAND = 0.5  # lines this close to the best fit count as equally apt, so companies are not all given one line
+
+
+def _ranked_distinct(features):
+    """Candidates best first, one per distinct quote (the same line can fit for several reasons)."""
+    seen, out = set(), []
+    for c in sorted(_candidates(features), key=lambda c: -c[0]):
+        if c[1] not in seen:
+            seen.add(c[1])
+            out.append(c)
+    return out
+
+
+def pick_wisdom_options(features, seed="", n=4):
+    """The most apt quotes, best first, as dicts. The first is the seeded pick among the equally apt, and
+    the rest are the next best, so the page can show a different one when the reader has just seen the first."""
+    ranked = _ranked_distinct(features)
+    if not ranked:
+        return []
+    near = [c for c in ranked if c[0] >= ranked[0][0] - _BAND]
+    first = near[sum(map(ord, seed)) % len(near)]
+    rest = [c for c in ranked if c is not first][: n - 1]
+    return [{"quote": q, "who": w, "why": y} for _, q, w, y in [first] + rest]
+
+
 def pick_wisdom(features, seed=""):
-    """The single most apt real quote for this business. Ties go to a seeded pick so the same
-    company always gets the same line while different companies do not all get the same one."""
-    ranked = sorted(_candidates(features), key=lambda c: -c[0])
-    top = [c for c in ranked if c[0] >= ranked[0][0] - 0.05]
-    _, quote, who, why = top[sum(map(ord, seed)) % len(top)] if top else (0, "", "", "")
-    return {"quote": quote, "who": who, "why": why}
+    """The single most apt real quote for this business."""
+    options = pick_wisdom_options(features, seed, 1)
+    return options[0] if options else {"quote": "", "who": "", "why": ""}
 
 
 # ---------------------------------------------------------------------------------------------

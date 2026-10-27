@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AGENT_META, AGENT_ORDER } from "../agentMeta.js";
 import BioAvatar from "./BioAvatar.jsx";
 
@@ -275,7 +275,33 @@ function Management({ card, mgmt }) {
   );
 }
 
+// The server offers a few equally apt quotes, best first. The reader has often just seen the first one on
+// another stock, so show the first one that has not appeared among the last ten.
+const RECENT_KEY = "parley.recentQuotes";
+
+function chooseQuote(facts, remember) {
+  const options = [facts?.wisdom, ...(facts?.wisdom_options || [])].filter((q) => q?.quote);
+  if (options.length === 0) return null;
+  let recent = [];
+  try {
+    recent = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+  } catch {
+    recent = [];
+  }
+  const pick = options.find((q) => !recent.includes(q.quote)) || options[0];
+  if (remember) {
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify([pick.quote, ...recent.filter((r) => r !== pick.quote)].slice(0, 10)));
+    } catch {
+      // remembering is a nicety
+    }
+  }
+  return pick;
+}
+
 export default function BusinessLab({ card, facts, scorecards, agents, running }) {
+  // only a finished run counts as "seen", so the line does not change under the reader's eyes while it is still settling
+  const wisdom = useMemo(() => chooseQuote(facts, !running), [facts?.wisdom?.quote, running]); // eslint-disable-line react-hooks/exhaustive-deps
   const order = (agents && agents.length ? agents : AGENT_ORDER).filter((k) => AGENT_META[k]);
   const hasScores = scorecards && Object.keys(scorecards).length > 0;
   if (!card && !facts && !hasScores && !running) return null;
@@ -325,11 +351,11 @@ export default function BusinessLab({ card, facts, scorecards, agents, running }
       <Moat moat={card?.moat} />
       <Management card={card} mgmt={facts?.management} />
 
-      {facts?.wisdom && (
+      {wisdom && (
         <div className="lab-quote">
-          <div className="lab-quote-text">“{facts.wisdom.quote}”</div>
-          <div className="lab-quote-who">{facts.wisdom.who}</div>
-          <div className="lab-sub">{facts.wisdom.why}</div>
+          <div className="lab-quote-text">“{wisdom.quote}”</div>
+          <div className="lab-quote-who">{wisdom.who}</div>
+          <div className="lab-sub">{wisdom.why}</div>
         </div>
       )}
 

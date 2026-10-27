@@ -122,3 +122,23 @@ def test_a_new_chief_executive_replaces_the_one_in_the_old_proxy_statement():
     ceos = [l["name"] for l in leaders if l.get("ceo")]
     assert ceos == ["John Ternus"]
     assert any(l["name"] == "Steve Jobs" and l["founder"] for l in leaders)
+
+
+def test_options_vary_and_the_overused_line_needs_a_clear_case():
+    from agents.business import pick_wisdom_options
+    strong = wisdom_features({"P/E Ratio (Trailing)": 24, "Return on Equity": 30, "Operating Margin": 30, "Debt to Equity": 0.2},
+                             scorecards={"a": {"score": 9}, "b": {"score": 9}}, card={"moat": {"type": "Brand", "strength": 9}})
+    opts = pick_wisdom_options(strong, "ABC")
+    assert len(opts) == 4 and len({o["quote"] for o in opts}) == 4
+    assert all("fair price" not in o["quote"] for o in opts[:1])  # not the line every good business gets
+    seen = {pick_wisdom_options(strong, t)[0]["quote"] for t in ("AAPL", "KO", "MSFT", "V", "COST", "NVDA", "HD", "PG")}
+    assert len(seen) >= 3
+
+
+def test_situations_bring_their_own_lines():
+    pick = lambda **kw: pick_wisdom(wisdom_features(**kw))["who"]
+    assert pick(ratios={}, drawdown=45) == "Warren Buffett"
+    assert pick(ratios={"P/E Ratio (Trailing)": 40}, near_high=True) in ("German proverb", "John Templeton", "Oscar Wilde")
+    assert pick(ratios={"Gross Margin": 82}) in ("Peter Thiel",)
+    assert pick(ratios={}, sector="Financial Services") in ("Hyman Minsky", "Warren Buffett", "Benjamin Franklin", "William Shakespeare")
+    assert pick(ratios={"Revenue Growth (YoY, latest quarter)": -4, "Net Profit Margin": 8}) in ("Heraclitus", "John F. Kennedy")

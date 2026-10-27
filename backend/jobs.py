@@ -14,7 +14,7 @@ import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
 from backend import job_store
-from agents.business import management_facts, money_flow, pick_wisdom, wisdom_features
+from agents.business import management_facts, money_flow, pick_wisdom, pick_wisdom_options, wisdom_features
 from data.people import fetch_people
 from agents.runner import AgentCallError, run_cio, run_committee
 from data.common import CACHE_DIR, format_for_agents
@@ -275,6 +275,25 @@ def start_analysis(ticker, market=None, agents=None, force=False):
     return job
 
 
+def _price_inputs(financials):
+    """Size and where the share price sits in its 52 week range, for choosing an apt quote."""
+    out = {}
+    try:
+        cap, unit = financials.get("market_cap"), financials.get("market_cap_unit") or financials.get("unit_label")
+        if cap:
+            out["mcap_b"] = cap / 1e9 if unit == "USD" else cap / 8500 if unit and "Cr" in unit else None
+        price = financials.get("price")
+        ratios = financials.get("ratios") or {}
+        high, low = (str(ratios.get(k, "")).replace("%", "").replace(",", "") for k in ("52-Week High", "52-Week Low"))
+        high = float(high) if high else None
+        if price and high:
+            out["drawdown"] = max(0.0, (1 - price / high) * 100)
+            out["near_high"] = price >= 0.95 * high
+    except Exception:
+        pass
+    return out
+
+
 def _business_facts(financials):
     """What the Business Lab draws from the figures themselves: where each 100 of sales goes, who
     runs the company and whose money is on the line, and a real line of investing wisdom that fits."""
@@ -286,12 +305,13 @@ def _business_facts(financials):
         management = management_facts(financials, "INR" if financials.get("market") == "India" else currency, people)
         last = (financials.get("annual") or [{}])[-1]
         rnd = (last.get("rnd") / last["revenue"] * 100) if last.get("rnd") and last.get("revenue") else None
-        inputs = {"sector": financials.get("sector"), "rnd_pct": rnd}
+        inputs = {"sector": financials.get("sector"), "rnd_pct": rnd, **_price_inputs(financials)}
         features = wisdom_features(financials.get("ratios"), net, financials.get("market"), management, **inputs)
         return {
             "money_flow": flow,
             "management": management,
             "wisdom": pick_wisdom(features, financials.get("ticker", "")),
+            "wisdom_options": pick_wisdom_options(features, financials.get("ticker", "")),
             "wisdom_inputs": inputs,
         }
     except Exception:
@@ -311,6 +331,7 @@ def _refresh_wisdom(job):
                                    facts.get("management"), job.get("business_card"), job.get("scorecards"),
                                    **(facts.get("wisdom_inputs") or {}))
         facts["wisdom"] = pick_wisdom(features, job.get("ticker", ""))
+        facts["wisdom_options"] = pick_wisdom_options(features, job.get("ticker", ""))
     except Exception:
         log.exception("could not refresh the quote")
 
