@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { AGENT_META, DEFAULT_AGENTS } from "../agentMeta.js";
-import { startAnalysis, getAnalysis, clearCache, saveToHistory, getLatestForTicker } from "../api.js";
+import { startAnalysis, getAnalysis, clearCache, saveToHistory, getLatestForTicker, retryCio } from "../api.js";
 import { useAuth } from "../AuthContext.jsx";
 import AgentAvatar from "./AgentAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
@@ -257,6 +257,7 @@ export default function CommitteePage() {
   const [previousEntry, setPreviousEntry] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [reconnecting, setReconnecting] = useState(false);
+  const [retryingCio, setRetryingCio] = useState(false);
   const pollRef = useRef(null);
   const waiting = !job || (job.status === "running" && job.current_stage === "fetching_data");
   // a run that stops part way keeps everything it already produced on the page
@@ -321,6 +322,26 @@ export default function CommitteePage() {
       clearInterval(pollRef.current);
     };
   }, [ticker, requestedAgents, attempt]);
+
+  // The memo was only the automatic summary: ask the CIO again, then watch for the real one.
+  async function askCioAgain() {
+    setRetryingCio(true);
+    try {
+      await retryCio(ticker);
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const latest = await getAnalysis(ticker);
+        if (!latest.cio_fallback && !latest.cio_retrying) {
+          setJob(latest);
+          break;
+        }
+      }
+    } catch {
+      // the summary stays, and the button can be pressed again
+    } finally {
+      setRetryingCio(false);
+    }
+  }
 
   async function handleRetry() {
     clearInterval(pollRef.current);
@@ -537,7 +558,16 @@ export default function CommitteePage() {
 
           {job.cio_memo && (
             <section id="cio-memo" className="scroll-anchor">
-              <CIOMemo text={job.cio_memo} verdict={job.verdict} conviction={job.conviction} stage1={job.stage1} debate={job.debate} />
+              <CIOMemo
+                text={job.cio_memo}
+                verdict={job.verdict}
+                conviction={job.conviction}
+                stage1={job.stage1}
+                debate={job.debate}
+                fallback={job.cio_fallback}
+                retrying={retryingCio || job.cio_retrying}
+                onRetry={askCioAgain}
+              />
               <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
             </section>
           )}

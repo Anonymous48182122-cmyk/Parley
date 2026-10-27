@@ -29,6 +29,10 @@ export function getAnalysis(ticker) {
   return fetch(`${BASE}/analysis/${encodeURIComponent(ticker)}`).then(handle);
 }
 
+export function retryCio(ticker) {
+  return fetch(`${BASE}/analysis/${encodeURIComponent(ticker)}/cio-retry`, { method: "POST" }).then(handle);
+}
+
 export function clearCache(ticker) {
   return fetch(`${BASE}/analysis/${encodeURIComponent(ticker)}/cache`, {
     method: "DELETE",

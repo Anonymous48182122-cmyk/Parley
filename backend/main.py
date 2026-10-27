@@ -82,6 +82,8 @@ def _job_response(job):
         "cio_memo": job.get("cio_memo"),
         "verdict": job.get("verdict"),
         "conviction": job.get("conviction"),
+        "cio_fallback": bool(job.get("cio_fallback")),
+        "cio_retrying": bool(job.get("cio_retrying")),
         "error": job.get("error"),
         "error_kind": job.get("error_kind"),
         "suggestions": job.get("suggestions") or [],
@@ -212,6 +214,14 @@ def get_summary(ticker: str):
         "cio_memo": job.get("cio_memo"),
         "error": job.get("error"),
     }
+
+
+@app.post("/analysis/{ticker}/cio-retry")
+def cio_retry(ticker: str):
+    job = jobs.retry_cio(ticker)
+    if not job:
+        raise HTTPException(404, "No analysis found for this ticker. POST /analyze first.")
+    return _job_response(job)
 
 
 @app.delete("/analysis/{ticker}/cache")

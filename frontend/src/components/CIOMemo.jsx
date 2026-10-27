@@ -113,7 +113,7 @@ function Gauge({ conviction, shown, color }) {
   );
 }
 
-export default function CIOMemo({ text, verdict, conviction, stage1, debate }) {
+export default function CIOMemo({ text, verdict, conviction, stage1, debate, fallback, retrying, onRetry }) {
   const color = VERDICT_COLORS[verdict] || "var(--text-dim)";
   const counts = stage1 ? tallyFinal(finalStances(stage1, debate)) : null;
   const votes = counts ? ["buy", "pass", "sell", "unclear"].filter((k) => counts[k] > 0) : [];
@@ -146,6 +146,16 @@ export default function CIOMemo({ text, verdict, conviction, stage1, debate }) {
         </div>
       </div>
 
+      {fallback && (
+        <div className="cio-fallback">
+          <span>The CIO's models were busy, so this is an automatic count of where each member ended up.</span>
+          {onRetry && (
+            <button type="button" className="button-secondary" onClick={onRetry} disabled={retrying}>
+              {retrying ? "Asking the CIO…" : "Ask the CIO again"}
+            </button>
+          )}
+        </div>
+      )}
       <div className="cio-note">A synthesis, not a vote: a map of where the committee actually landed.</div>
       <div className="cio-body">
         <FormattedText text={text} accentColor="var(--gold)" />

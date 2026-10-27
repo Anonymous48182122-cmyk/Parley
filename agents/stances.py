@@ -69,6 +69,41 @@ def final_stances(stage1, turns):
     return out
 
 
+def fallback_summary(stage1, turns, names):
+    """(memo, verdict, conviction) worked out from the committee's final calls alone, for when the CIO's
+    models cannot be reached. It is plainly an automatic summary with low conviction, never a pretence
+    of the CIO's own judgement. BUY needs most of the room to say buy; SELL needs a real bear camp;
+    anything else is HOLD, matching how the CIO prompt defines the three."""
+    stances = final_stances(stage1, turns)
+    groups = {"buy": [], "pass": [], "sell": [], "unclear": []}
+    for agent, s in stances.items():
+        groups[s["final"]].append(names.get(agent, agent))
+    decided = len(groups["buy"]) + len(groups["pass"]) + len(groups["sell"])
+    verdict = "HOLD"
+    if decided:
+        if len(groups["buy"]) / decided > 0.5:
+            verdict = "BUY"
+        elif len(groups["sell"]) / decided >= 0.35:
+            verdict = "SELL"
+    moved = [(names.get(a, a), LABELS[s["opening"]], LABELS[s["final"]]) for a, s in stances.items() if s["changed"]]
+
+    def line(title, who):
+        return f"{title} ({len(who)}): {', '.join(who)}." if who else f"{title}: nobody."
+
+    parts = [
+        "This is an automatic summary. The CIO's models were busy, so it only counts where each member ended up. "
+        "Use the button above to ask the CIO again.",
+        "Where the committee landed",
+        line("Buy", groups["buy"]), line("Pass", groups["pass"]), line("Sell", groups["sell"]),
+    ]
+    if groups["unclear"]:
+        parts.append(line("Undecided", groups["unclear"]))
+    if moved:
+        parts.append("Changed their mind during the debate: " + "; ".join(f"{n} went from {a} to {b}" for n, a, b in moved) + ".")
+    memo = "\n\n".join(parts)
+    return f"VERDICT: {verdict} | CONVICTION: 3/10\n\n" + memo, verdict, 3
+
+
 def positions_table(stage1, turns, names):
     """Plain lines for the CIO prompt: each agent's opening and final call."""
     lines = []

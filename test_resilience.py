@@ -42,3 +42,29 @@ def test_a_debate_turn_is_retried_and_a_stubborn_one_is_skipped(monkeypatch):
     speakers = [a for a, _ in turns]
     assert "munger" not in speakers  # skipped after three tries each time
     assert speakers.count("lynch") >= 1 and speakers.count("buffett") >= 1  # the retried turn went through
+
+
+def test_cio_failure_gives_an_honest_automatic_summary(monkeypatch):
+    from agents.stances import fallback_summary
+    names = {"buffett": "Warren Buffett", "munger": "Charlie Munger", "lynch": "Peter Lynch", "thiel": "Peter Thiel"}
+    stage1 = {"buffett": "Verdict: Pass", "munger": "Verdict: Pass", "lynch": "Verdict: Buy", "thiel": "Verdict: Buy"}
+    turns = [("thiel", "I am changing my call.\nVerdict: Sell")]
+    memo, verdict, conviction = fallback_summary(stage1, turns, names)
+    assert verdict == "HOLD" and conviction == 3
+    assert memo.startswith("VERDICT: HOLD | CONVICTION: 3/10") and "automatic summary" in memo
+    assert "Peter Thiel went from Buy to Sell" in memo
+    assert fallback_summary({"a": "Verdict: Buy", "b": "Verdict: Buy", "c": "Verdict: Pass"}, [], {})[1] == "BUY"
+    assert fallback_summary({"a": "Verdict: Sell", "b": "Verdict: Sell", "c": "Verdict: Pass", "d": "Verdict: Pass"}, [], {})[1] == "SELL"
+    assert fallback_summary({"a": "Verdict: Sell", "b": "Verdict: Pass", "c": "Verdict: Pass"}, [], {})[1] == "HOLD"  # one bear is not a camp
+
+
+def test_run_committee_survives_a_failed_cio(monkeypatch):
+    monkeypatch.setattr(runner, "run_stage1_all", lambda *a, **k: {"buffett": "Verdict: Pass", "munger": "Verdict: Pass", "lynch": "Verdict: Buy"})
+    monkeypatch.setattr(runner, "run_business_card", lambda *a, **k: None)
+    monkeypatch.setattr(runner, "run_full_debate", lambda *a, **k: [("buffett", "Verdict: Pass")])
+    monkeypatch.setattr(runner, "run_cio", lambda *a, **k: (_ for _ in ()).throw(_agent_error()))
+    seen = []
+    out = runner.run_committee("X", "d", agent_keys=["buffett", "munger", "lynch"], on_update=lambda k, p: seen.append((k, p)))
+    assert out["verdict"] == "HOLD"
+    cio = next(p for k, p in seen if k == "cio")
+    assert cio["fallback"] is True and "VERDICT" not in cio["text"]

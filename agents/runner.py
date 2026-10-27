@@ -26,7 +26,7 @@ from google.genai import errors as gemini_errors
 from google.genai import types
 
 from agents.business import CARD_PROMPT, CARD_SYSTEM, SCORECARD_INSTRUCTION, parse_card, split_scorecard
-from agents.stances import positions_table
+from agents.stances import fallback_summary, positions_table
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
     DEFAULT_AGENTS,
@@ -603,8 +603,17 @@ def run_committee(ticker, data, agent_keys=None, on_update=None):
     turns = run_full_debate(ticker, data, stage1, agent_keys=agent_keys, on_update=on_update)
 
     _emit(on_update, "stage_start", {"stage": "cio"})
-    memo, verdict, conviction = run_cio(ticker, data, turns, stage1)
-    _emit(on_update, "cio", {"text": memo, "verdict": verdict, "conviction": conviction})
+    fallback = False
+    try:
+        memo, verdict, conviction = run_cio(ticker, data, turns, stage1)
+    except AgentCallError as exc:
+        # the session is worth keeping even if the very last step cannot be done: summarise the
+        # committee's own final calls, say so, and let the reader ask the CIO again later
+        log.warning("CIO failed for %s, using the automatic summary: %.200s", ticker, exc)
+        memo, verdict, conviction = fallback_summary(stage1, turns, AGENT_DISPLAY_NAMES)
+        memo = _parse_cio_verdict(memo)[0]
+        fallback = True
+    _emit(on_update, "cio", {"text": memo, "verdict": verdict, "conviction": conviction, "fallback": fallback})
     card_thread.join(timeout=120)
 
     return {"stage1": stage1, "debate": turns, "cio_memo": memo, "verdict": verdict, "conviction": conviction}

@@ -2615,3 +2615,10 @@ input::placeholder {
 @media (prefers-reduced-motion: reduce) {
   .lab-flow-fill, .lab-meter span.on { animation: none; }
 }
+
+.cio-fallback {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 0 0 14px; padding: 12px 14px; border-radius: var(--radius-md);
+  border: 1px dashed rgba(201, 160, 78, 0.45); background: rgba(201, 160, 78, 0.06);
+  color: var(--text-dim); font-size: 0.85rem; line-height: 1.45;
+}

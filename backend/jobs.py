@@ -15,7 +15,7 @@ import requests
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
 from agents.business import management_facts, money_flow, pick_wisdom, wisdom_features
 from data.people import fetch_people
-from agents.runner import AgentCallError, run_committee
+from agents.runner import AgentCallError, run_cio, run_committee
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
 
@@ -269,6 +269,7 @@ def _update(ticker_key, event_type, payload):
             job["cio_memo"] = payload["text"]
             job["verdict"] = payload.get("verdict")
             job["conviction"] = payload.get("conviction")
+            job["cio_fallback"] = bool(payload.get("fallback"))
         elif event_type == "stage_start":
             job["current_stage"] = payload["stage"]
 
@@ -332,6 +333,34 @@ def _run_job(ticker_key, market, agent_keys):
             job["status"] = "error"
             job["error"] = friendly_error(exc, ticker_key, "committee")
             job["completed_at"] = time.time()
+
+
+def retry_cio(ticker):
+    """Ask the CIO again for a finished session whose memo was only the automatic summary. Runs in the
+    background; the page polls. Returns the job, or None when there is nothing to retry."""
+    ticker_key = ticker.upper()
+    with _lock:
+        job = _jobs.get(ticker_key)
+        if not job or not job.get("cio_fallback") or job.get("cio_retrying") or not job.get("data_text"):
+            return job
+        job["cio_retrying"] = True
+
+    def work():
+        try:
+            turns = [(t["agent"], t["text"]) for t in job["debate"]]
+            memo, verdict, conviction = run_cio(ticker_key, job["data_text"], turns, job["stage1"])
+            with _lock:
+                job["cio_memo"], job["verdict"], job["conviction"] = memo, verdict, conviction
+                job["cio_fallback"] = False
+                _save_cache(ticker_key, job)
+        except Exception:
+            log.warning("asking the CIO again for %s failed", ticker_key)
+        finally:
+            with _lock:
+                job["cio_retrying"] = False
+
+    threading.Thread(target=work, daemon=True).start()
+    return job
 
 
 def progress_fraction(job):
