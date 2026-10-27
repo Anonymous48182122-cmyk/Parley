@@ -126,6 +126,18 @@ def health_net(host: str = "www.screener.in"):
     return {"host": host, "attempts": results}
 
 
+def _job_store_roundtrip():
+    """Whether runs can be saved and read back (needs the parley_jobs table from sql/parley_jobs.sql)."""
+    from backend import job_store
+    job_store._paused_until = 0.0  # a health check should try for real, not report an earlier pause
+    job_store.save("_HEALTH", '{"status": "complete"}')
+    found = job_store.load("_HEALTH")
+    job_store.delete("_HEALTH")
+    if not found:
+        raise ValueError("could not save and read back a run; has sql/parley_jobs.sql been run?")
+    return True
+
+
 def _people_for(symbol):
     """The chief executive and founders the Business Lab would show for a ticker, looked up fresh."""
     from data.common import expire_cache
@@ -171,6 +183,7 @@ def health_sources(ticker: str = "AAPL"):
         "sec_exec_pay": check(lambda: exec_pay._fetch(symbol)),
         "company_lists": list_status(),
         "people": check(lambda: _people_for(symbol)),
+        "job_store": check(_job_store_roundtrip),
     }
 
 

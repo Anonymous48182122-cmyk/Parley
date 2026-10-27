@@ -13,6 +13,7 @@ import time
 import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
+from backend import job_store
 from agents.business import management_facts, money_flow, pick_wisdom, wisdom_features
 from data.people import fetch_people
 from agents.runner import AgentCallError, run_cio, run_committee
@@ -98,10 +99,61 @@ def _cache_path(ticker):
     return CACHE_DIR / f"analysis_{ticker.upper()}.json"
 
 
+_dirty = set()
+_dirty_lock = threading.Lock()
+_saver_started = False
+_PRUNE_EVERY = 3600
+
+
+def _touch(ticker_key):
+    """Note that a run changed, so the background saver writes it to the durable store soon."""
+    global _saver_started
+    with _dirty_lock:
+        _dirty.add(ticker_key)
+        if _saver_started:
+            return
+        _saver_started = True
+    threading.Thread(target=_saver, daemon=True).start()
+
+
+def _saver():
+    last_prune = 0.0
+    while True:
+        time.sleep(3)
+        with _dirty_lock:
+            keys = list(_dirty)
+            _dirty.clear()
+        for key in keys:
+            with _lock:
+                job = _jobs.get(key)
+                text = json.dumps(job) if job else None
+            if text:
+                job_store.save(key, text)
+        if time.time() - last_prune > _PRUNE_EVERY:
+            last_prune = time.time()
+            job_store.prune()
+
+
+def _load_durable(ticker_key):
+    """A run saved before a restart. One that was still running when the server went down has no thread
+    behind it any more, so it is shown as stopped early, with everything it had produced."""
+    job = job_store.load(ticker_key)
+    if not job:
+        return None
+    if job.get("status") == "running":
+        if not (job.get("stage1") or job.get("debate")):
+            return None  # it had produced nothing yet: starting again loses nothing
+        job["status"] = "error"
+        job["error_kind"] = "interrupted"
+        job["error"] = "The server restarted while this was running."
+    return job
+
+
 def _load_cached(ticker):
     path = _cache_path(ticker)
     if not path.exists():
-        return None
+        durable = _load_durable(ticker.upper())
+        return durable if durable and durable.get("status") == "complete" else None
     age_hours = (time.time() - path.stat().st_mtime) / 3600
     if age_hours >= ANALYSIS_TTL_HOURS:
         return None
@@ -119,8 +171,16 @@ def _save_cache(ticker, job):
 
 
 def get_job(ticker):
+    key = ticker.upper()
     with _lock:
-        return _jobs.get(ticker.upper())
+        job = _jobs.get(key)
+    if job:
+        return job
+    job = _load_durable(key)
+    if not job:
+        return None
+    with _lock:
+        return _jobs.setdefault(key, job)
 
 
 def record_chat(ticker, entry):
@@ -134,7 +194,8 @@ def record_chat(ticker, entry):
             return None
         job["user_chat"].append(entry)
         _save_cache(ticker_key, job)
-        return job
+    _touch(ticker_key)
+    return job
 
 
 def clear_cache(ticker):
@@ -144,6 +205,7 @@ def clear_cache(ticker):
         path.unlink()
     with _lock:
         _jobs.pop(ticker_key, None)
+    job_store.delete(ticker_key)
 
 
 def _new_job(ticker_key, market, agent_keys):
@@ -272,6 +334,7 @@ def _update(ticker_key, event_type, payload):
             job["cio_fallback"] = bool(payload.get("fallback"))
         elif event_type == "stage_start":
             job["current_stage"] = payload["stage"]
+    _touch(ticker_key)
 
 
 def _run_job(ticker_key, market, agent_keys):
@@ -304,12 +367,16 @@ def _run_job(ticker_key, market, agent_keys):
         with _lock:
             job = _jobs[ticker_key]
             _fail_data(job, exc, ticker_key)
+        _touch(ticker_key)
         return
     except Exception as exc:
         with _lock:
             job = _jobs[ticker_key]
             _fail_data(job, exc, ticker_key)
+        _touch(ticker_key)
         return
+
+    _touch(ticker_key)  # the figures are in: keep the run from here on
 
     def on_update(event_type, payload):
         _update(ticker_key, event_type, payload)
@@ -321,24 +388,20 @@ def _run_job(ticker_key, market, agent_keys):
             job["status"] = "complete"
             job["completed_at"] = time.time()
             _save_cache(ticker_key, job)
-    except AgentCallError as exc:
+    except Exception as exc:  # AgentCallError and anything unexpected end the run the same way
         with _lock:
             job = _jobs[ticker_key]
             job["status"] = "error"
             job["error"] = friendly_error(exc, ticker_key, "committee")
             job["completed_at"] = time.time()
-    except Exception as exc:
-        with _lock:
-            job = _jobs[ticker_key]
-            job["status"] = "error"
-            job["error"] = friendly_error(exc, ticker_key, "committee")
-            job["completed_at"] = time.time()
+    _touch(ticker_key)
 
 
 def retry_cio(ticker):
     """Ask the CIO again for a finished session whose memo was only the automatic summary. Runs in the
     background; the page polls. Returns the job, or None when there is nothing to retry."""
     ticker_key = ticker.upper()
+    get_job(ticker_key)  # loads it from the durable store if the server has restarted
     with _lock:
         job = _jobs.get(ticker_key)
         if not job or not job.get("cio_fallback") or job.get("cio_retrying") or not job.get("data_text"):
@@ -353,6 +416,7 @@ def retry_cio(ticker):
                 job["cio_memo"], job["verdict"], job["conviction"] = memo, verdict, conviction
                 job["cio_fallback"] = False
                 _save_cache(ticker_key, job)
+            _touch(ticker_key)
         except Exception:
             log.warning("asking the CIO again for %s failed", ticker_key)
         finally:
