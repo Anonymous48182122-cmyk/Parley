@@ -259,6 +259,8 @@ export default function CommitteePage() {
   const [reconnecting, setReconnecting] = useState(false);
   const pollRef = useRef(null);
   const waiting = !job || (job.status === "running" && job.current_stage === "fetching_data");
+  // a run that stops part way keeps everything it already produced on the page
+  const hasPartial = !!job && (Object.keys(job.stage1 || {}).length > 0 || (job.debate || []).length > 0);
   const elapsed = useElapsedSeconds(waiting && !fatalError);
   // From the committee picker on SearchPage — absent on a direct link/refresh,
   // in which case the backend falls back to its own default committee.
@@ -391,12 +393,18 @@ export default function CommitteePage() {
       )}
 
       {job && job.status === "error" && (
-        <div className="card fade-in" style={{ borderColor: "var(--danger)", marginBottom: 20 }}>
-          <div style={{ color: "var(--danger)", fontWeight: 600, marginBottom: 6 }}>
-            {job.error_kind === "not_found" ? `We could not find ${ticker}` : "Analysis failed"}
+        <div className="card fade-in" style={{ borderColor: hasPartial ? "var(--gold)" : "var(--danger)", marginBottom: 20 }}>
+          <div style={{ color: hasPartial ? "var(--gold)" : "var(--danger)", fontWeight: 600, marginBottom: 6 }}>
+            {job.error_kind === "not_found"
+              ? `We could not find ${ticker}`
+              : hasPartial
+                ? "The session stopped early"
+                : "Analysis failed"}
           </div>
           <div style={{ color: "var(--text-dim)", fontSize: "0.9rem", marginBottom: 14 }}>
-            {job.error}
+            {hasPartial
+              ? `${job.error} Everything the committee has said so far is kept below, so you can carry on reading.`
+              : job.error}
           </div>
           {job.error_kind === "not_found" ? (
             <>
@@ -427,13 +435,13 @@ export default function CommitteePage() {
             </>
           ) : (
             <button className="button-primary" onClick={handleRetry}>
-              Retry
+              {hasPartial ? "Run it again" : "Retry"}
             </button>
           )}
         </div>
       )}
 
-      {job && job.status !== "error" && (
+      {job && (job.status !== "error" || hasPartial) && (
         <>
           {job.status === "running" && <BoardroomScene job={job} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />}
           {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}

@@ -30,6 +30,7 @@ from agents.stances import positions_table
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
     DEFAULT_AGENTS,
+    MIN_AGENTS,
     CIO_PROMPT_TEMPLATE,
     CIO_SYSTEM_PROMPT,
     CROSS_EXAM_TEMPLATE,
@@ -344,12 +345,21 @@ def run_stage1_all(ticker, data, agent_keys=None, on_update=None):
             executor.submit(run_stage1, agent_key, ticker, data, "groq" if i % 2 else None): agent_key
             for i, agent_key in enumerate(agent_keys)
         }
+        failed = {}
         for future in as_completed(future_to_agent):
             agent_key = future_to_agent[future]
-            # the scorecard at the end is split off, so everything downstream reads the plain write up
-            text, scorecard = split_scorecard(future.result())
+            try:
+                # the scorecard at the end is split off, so everything downstream reads the plain write up
+                text, scorecard = split_scorecard(future.result())
+            except AgentCallError as exc:
+                # one member's models being busy must not end the whole session: carry on without them
+                failed[agent_key] = exc
+                log.warning("first pass for %s failed, carrying on without them: %.200s", agent_key, exc)
+                continue
             results[agent_key] = text
             _emit(on_update, "stage1", {"agent": agent_key, "text": text, "scorecard": scorecard})
+    if len(results) < MIN_AGENTS:
+        raise next(iter(failed.values()), AgentCallError("too few first passes finished"))
     return results
 
 
@@ -401,10 +411,25 @@ def run_full_debate(ticker, data, stage1, agent_keys=None, on_update=None):
     roster = roster_line(agent_keys)
     turn_plan = build_debate_turn_plan(agent_keys)
     turns = []
+    skipped = 0
     for turn_number, agent_key, instruction in turn_plan:
-        text = run_debate_turn(
-            agent_key, ticker, data, turns, instruction, roster, own_position=stage1.get(agent_key)
-        )
+        text = None
+        for attempt in range(3):
+            try:
+                text = run_debate_turn(
+                    agent_key, ticker, data, turns, instruction, roster, own_position=stage1.get(agent_key)
+                )
+                break
+            except AgentCallError as exc:
+                # the free models' limits reset every minute, so wait and try the same turn again
+                log.warning("debate turn %s (%s) failed, attempt %d: %.200s", turn_number, agent_key, attempt + 1, exc)
+                if attempt < 2:
+                    time.sleep(25)
+        if text is None:
+            skipped += 1
+            if skipped > 3:
+                raise AgentCallError("several debate turns failed in a row")
+            continue
         turns.append((agent_key, text))
         _emit(on_update, "debate_turn", {"turn": turn_number, "agent": agent_key, "text": text})
     return turns
@@ -562,6 +587,7 @@ def run_committee(ticker, data, agent_keys=None, on_update=None):
     agent_keys = agent_keys or DEFAULT_AGENTS
     _emit(on_update, "stage_start", {"stage": "stage1"})
     stage1 = run_stage1_all(ticker, data, agent_keys=agent_keys, on_update=on_update)
+    agent_keys = [k for k in agent_keys if k in stage1]  # whoever could not give a first pass sits the debate out
 
     # the business card is written while the debate runs, and the run waits for it before it ends
     card_box = {}
