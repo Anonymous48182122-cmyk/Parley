@@ -11,3 +11,6 @@ create table if not exists public.parley_jobs (
 alter table public.parley_jobs enable row level security;
 
 create index if not exists parley_jobs_updated_at on public.parley_jobs (updated_at);
+
+-- Newer Supabase projects do not give the service role access to new tables automatically.
+grant select, insert, update, delete on public.parley_jobs to service_role;
