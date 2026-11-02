@@ -1194,7 +1194,8 @@ STAGE1_OUTPUT_SPEC = {
 STAGE1_PROMPT_TEMPLATE = """Analyse {ticker} through your framework as {agent} for this investment
 committee's first-pass review.
 
-Structure your response with exactly these section headers, in this order:
+Structure your response with exactly these section headers, in this order, each on its own line
+as plain text (no bullet, no bold, no hash marks) with your paragraph beneath it:
 {sections}
 
 Under "Verdict", give a clear directional lean (e.g. Buy / Pass / Sell / Too
@@ -1215,6 +1216,10 @@ provisional view; so do you.
 
 Financial data:
 {data}
+
+Before you write: every company fact, figure or ratio you state must be one you can point to in the data
+above. A peer average, a segment share, a subscriber count or a historical return that is not shown there
+is either left out or labelled "my rough estimate". Never present a remembered number as if it were data.
 """
 
 # ---------------------------------------------------------------------------
@@ -1471,6 +1476,15 @@ sections, in this order:
 6. What Would Change Our Mind — specific, falsifiable triggers (a metric
    crossing a threshold, a disclosure, an event) that would flip the
    committee's view, attributed to whichever agent's framework they'd flip.
+7. Price Levels — each member's first pass ends by naming the price or fact
+   that would change their answer. List the prices members actually named,
+   lowest to highest, with who named each and what it would turn into. Use
+   only prices that appear in the first passes; if few members named one,
+   say so rather than filling the list.
+
+Throughout, back claims with the figures in the "Framework checks" block of
+the data (growth, margin trend, return on capital, cash conversion, share
+count, the quality score) where they bear on the point, and name the figure.
 
 Full committee transcript:
 {transcript}

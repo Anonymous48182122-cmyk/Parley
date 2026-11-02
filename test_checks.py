@@ -59,3 +59,9 @@ def test_debate_and_first_pass_prompts_still_format_and_ask_for_something_new():
                                         transcript="x", instruction="i")
     assert "Add something new each turn" in prompts.DEBATE_TURN_TEMPLATE
     assert "change your answer" in prompts.STAGE1_PROMPT_TEMPLATE
+
+
+def test_first_pass_asks_for_plain_headers_and_a_data_reminder_and_the_cio_gathers_price_levels():
+    assert "plain text (no bullet, no bold" in prompts.STAGE1_PROMPT_TEMPLATE
+    assert "my rough estimate" in prompts.STAGE1_PROMPT_TEMPLATE
+    assert "7. Price Levels" in prompts.CIO_PROMPT_TEMPLATE and "Framework checks" in prompts.CIO_PROMPT_TEMPLATE
