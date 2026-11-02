@@ -1479,8 +1479,10 @@ sections, in this order:
 7. Price Levels — each member's first pass ends by naming the price or fact
    that would change their answer. List the prices members actually named,
    lowest to highest, with who named each and what it would turn into. Use
-   only prices that appear in the first passes; if few members named one,
-   say so rather than filling the list.
+   only prices that appear in the first passes, one short line each as plain
+   text (no table). Never add a row for a price nobody named and never round
+   up to a neat level; if only one or two members named a price, list just
+   those, and if none did, say so in one sentence.
 
 Throughout, back claims with the figures in the "Framework checks" block of
 the data (growth, margin trend, return on capital, cash conversion, share
