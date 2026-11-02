@@ -607,6 +607,11 @@ def format_for_agents(data):
         latest.get("net_income") if str(unit_label) == "USD" else None,
     )
     lines += _derived_metrics(data, latest, ttm, cap_unit, unit_label)
+    try:
+        from data.checks import framework_check_lines
+        lines += framework_check_lines(data)
+    except Exception:
+        pass  # extra tests must never stop the figures themselves from reaching the agents
     lines += _data_notes(data, latest, ttm, ratios, cap_unit, unit_label)
 
     shareholding = data.get("shareholding") or []
