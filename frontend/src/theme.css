@@ -2622,3 +2622,19 @@ input::placeholder {
   border: 1px dashed rgba(201, 160, 78, 0.45); background: rgba(201, 160, 78, 0.06);
   color: var(--text-dim); font-size: 0.85rem; line-height: 1.45;
 }
+
+/* ---- Price ladder ------------------------------------------------------- */
+
+.ladder { margin-top: 20px; padding: 20px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--border); }
+.ladder-note { margin: 14px 0 6px; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; }
+.ladder-note--sell { color: var(--danger); }
+.ladder-note--buy { color: var(--success); }
+.ladder-row { display: grid; grid-template-columns: 72px 1fr 48px; grid-template-areas: "price bar pct" "who who who"; gap: 4px 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
+.ladder-price { grid-area: price; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ladder-bar { grid-area: bar; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.05); overflow: hidden; }
+.ladder-bar span { display: block; height: 100%; border-radius: 4px; }
+.ladder-row--below .ladder-bar span { background: var(--success); }
+.ladder-row--above .ladder-bar span { background: var(--danger); }
+.ladder-pct { grid-area: pct; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-dim); font-size: 0.85rem; }
+.ladder-who { grid-area: who; color: var(--text-dim); font-size: 0.82rem; line-height: 1.4; }
+.ladder-now { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--gold-soft); border: 1px solid rgba(201, 160, 78, 0.4); color: var(--gold); font-weight: 700; }

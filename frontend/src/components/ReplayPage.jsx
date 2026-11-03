@@ -7,6 +7,7 @@ import AgentAvatar from "./AgentAvatar.jsx";
 import BioAvatar from "./BioAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
 import BusinessLab from "./BusinessLab.jsx";
+import PriceLadder from "./PriceLadder.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
@@ -155,6 +156,8 @@ export default function ReplayPage() {
       {entry.cio_memo && (
         <section>
           <CIOMemo text={entry.cio_memo} verdict={entry.verdict} conviction={entry.conviction} stage1={entry.stage1} debate={entry.debate} />
+          <PriceLadder levels={entry.market_data?.price_levels} price={entry.market_data?.price}
+            currency={entry.market_data?.price_currency || entry.market_data?.currency} />
         </section>
       )}
     </div>

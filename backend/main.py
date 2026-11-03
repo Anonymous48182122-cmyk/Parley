@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from agents.levels import price_levels
 from agents.prompts import AGENT_DISPLAY_NAMES, AGENT_KIND, AGENTS
 from agents.runner import AgentCallError, run_cross_exam, run_user_question, run_user_question_all
 from backend import jobs
@@ -72,6 +73,7 @@ def _job_response(job):
         "progress": jobs.progress_fraction(job),
         "stage1": job["stage1"],
         "scorecards": job.get("scorecards", {}),
+        "price_levels": price_levels(job["stage1"], (job.get("market_data") or {}).get("price"), AGENT_DISPLAY_NAMES),
         "business_card": job.get("business_card"),
         "debate": job["debate"],
         "agents": job.get("agents", []),

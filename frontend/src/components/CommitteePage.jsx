@@ -14,6 +14,7 @@ import SpeakerRail from "./SpeakerRail.jsx";
 import BoardroomScene from "./BoardroomScene.jsx";
 import WhatChanged from "./WhatChanged.jsx";
 import BusinessLab from "./BusinessLab.jsx";
+import PriceLadder from "./PriceLadder.jsx";
 
 function SaveToHistory({ ticker, job, crossExams }) {
   const { session, user } = useAuth();
@@ -44,7 +45,7 @@ function SaveToHistory({ ticker, job, crossExams }) {
         user_chat: job.user_chat,
         cross_exams: crossExams,
         // the Business Lab's parts ride along inside market_data, so no new column is needed
-        market_data: { ...job.market_data, business_card: job.business_card, scorecards: job.scorecards },
+        market_data: { ...job.market_data, business_card: job.business_card, scorecards: job.scorecards, price_levels: job.price_levels },
         verdict: job.verdict,
         conviction: job.conviction,
       });
@@ -568,6 +569,7 @@ export default function CommitteePage() {
                 retrying={retryingCio || job.cio_retrying}
                 onRetry={askCioAgain}
               />
+              <PriceLadder levels={job.price_levels} price={job.market_data?.price} currency={job.market_data?.price_currency || job.market_data?.currency} />
               <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
             </section>
           )}
