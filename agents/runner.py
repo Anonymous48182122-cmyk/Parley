@@ -529,12 +529,14 @@ def _compact_cio_limits(system, n_agents, turns):
 
     budget = (_GROQ_MAX_REQUEST_TOKENS - _CIO_COMPACT_MAX_TOKENS) * _CHARS_PER_TOKEN
     fixed = len(system) + len(CIO_PROMPT_TEMPLATE) + _CIO_COMPACT_DATA_CHARS + 600 + 120 * n_agents  # + slack and the positions table
-    for turn_cap in (450, 340, 260):
+    # a big committee (the full 21) needs the clips cut further than the old floor of 300 and 260 characters
+    # or the request never fits Groq at all, which left the memo to models that were out of quota
+    for turn_cap, floor in ((450, 300), (340, 300), (260, 300), (200, 180), (150, 140)):
         transcript = sum(min(len(t), turn_cap) + 25 for _, t in turns)
         per_agent = (budget - fixed - transcript) / max(n_agents, 1)
-        if per_agent >= 300:
+        if per_agent >= floor:
             return int(min(per_agent, 1100)), turn_cap
-    return 300, 260
+    return 140, 150
 
 
 def run_cio(ticker, data, turns, stage1_analyses):

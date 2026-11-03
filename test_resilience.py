@@ -68,3 +68,18 @@ def test_run_committee_survives_a_failed_cio(monkeypatch):
     assert out["verdict"] == "HOLD"
     cio = next(p for k, p in seen if k == "cio")
     assert cio["fallback"] is True and "VERDICT" not in cio["text"]
+
+
+def test_the_compact_cio_prompt_fits_groq_even_for_all_21_agents():
+    from agents.prompts import AGENTS, CIO_PROMPT_TEMPLATE, CIO_SYSTEM_PROMPT
+    names = runner.AGENT_DISPLAY_NAMES
+    stage1 = {k: "x " * 1500 + "Verdict: Pass at today's price." for k in AGENTS}
+    turns = [(k, "y " * 400) for k in list(AGENTS) * 1]
+    system = CIO_SYSTEM_PROMPT.format(ticker="X")
+    first, per_turn = runner._compact_cio_limits(system, len(stage1), turns)
+    text = "\n\n".join(f"--- {names[a]} first pass ---\n{runner._condense(t, first)}" for a, t in stage1.items())
+    prompt = CIO_PROMPT_TEMPLATE.format(
+        ticker="X", positions=runner.positions_table(stage1, turns, names),
+        transcript=runner._format_transcript(turns, per_turn), stage1_analyses=text, data="d" * runner._CIO_COMPACT_DATA_CHARS)
+    tokens = (len(prompt) + len(system)) / runner._CHARS_PER_TOKEN + runner._CIO_COMPACT_MAX_TOKENS
+    assert tokens <= runner._GROQ_MAX_REQUEST_TOKENS, tokens
