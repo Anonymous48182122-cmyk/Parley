@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
-import { deleteHistoryEntry, listHistory } from "../api.js";
+import { deleteHistoryEntry, getPrices, listHistory } from "../api.js";
 import ConvictionRing from "./ConvictionRing.jsx";
 import Sparkline from "./Sparkline.jsx";
 
@@ -26,7 +26,19 @@ function formatDate(iso) {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-function HistoryCard({ entry, onDelete }) {
+// How a saved call has done since it was made. For a Buy, up is right; for a Sell, down is right; a Hold has
+// no right or wrong, so it is shown without a colour.
+function sinceCall(entry, prices) {
+  const then = entry.market_data?.price;
+  const now = prices?.[`${entry.ticker.toUpperCase()}:${entry.market === "India" ? "India" : "US"}`];
+  if (!then || !now) return null;
+  const pct = (now / then - 1) * 100;
+  const days = (Date.now() - new Date(entry.created_at).getTime()) / 86400000;
+  const right = entry.verdict === "BUY" ? pct > 0 : entry.verdict === "SELL" ? pct < 0 : null;
+  return { pct, days, right, counts: days >= 3 && right !== null };
+}
+
+function HistoryCard({ entry, onDelete, move }) {
   const [confirming, setConfirming] = useState(false);
   const timer = useRef(null);
   const closes = entry.market_data?.technicals?.closes;
@@ -56,6 +68,16 @@ function HistoryCard({ entry, onDelete }) {
           <div className="history-card-head">
             <span className="ticker history-ticker">{entry.ticker}</span>
             {entry.market && <span className="pill" style={{ fontSize: "0.68rem", padding: "3px 10px" }}>{entry.market}</span>}
+            {move && (
+              <span
+                className="history-since"
+                style={{ color: move.right === null ? "var(--text-dim)" : move.right ? "var(--success)" : "var(--danger)" }}
+                title="Share price change since this debate was saved"
+              >
+                {move.pct > 0 ? "+" : ""}
+                {move.pct.toFixed(1)}% since
+              </span>
+            )}
             <span className="history-verdict" style={{ color }}>
               {entry.verdict || "No call"}
             </span>
@@ -115,6 +137,25 @@ export default function HistoryPage() {
 export function HistoryView({ entries, error, onDelete }) {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
+  const [prices, setPrices] = useState({});
+
+  // today's prices for the tickers saved here, to show how each call has aged; best effort
+  useEffect(() => {
+    if (!entries?.length) return;
+    const items = [...new Set(entries.filter((e) => e.market_data?.price).map((e) => `${e.ticker.toUpperCase()}:${e.market === "India" ? "India" : "US"}`))];
+    if (items.length === 0) return;
+    getPrices(items.slice(0, 40)).then(setPrices).catch(() => {});
+  }, [entries]);
+
+  const record = useMemo(() => {
+    const scored = (entries || []).map((e) => ({ e, m: sinceCall(e, prices) })).filter((x) => x.m?.counts);
+    if (scored.length === 0) return null;
+    const avg = (v) => {
+      const xs = scored.filter((x) => x.e.verdict === v).map((x) => x.m.pct);
+      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+    };
+    return { total: scored.length, right: scored.filter((x) => x.m.right).length, buyAvg: avg("BUY"), sellAvg: avg("SELL") };
+  }, [entries, prices]);
 
   const counts = useMemo(() => {
     const c = { BUY: 0, HOLD: 0, SELL: 0 };
@@ -194,6 +235,20 @@ export function HistoryView({ entries, error, onDelete }) {
             ))}
           </div>
 
+          {record && (
+            <div className="history-record">
+              <div className="lab-kicker">Track record</div>
+              <div className="history-record-line">
+                <b>{record.right}</b> of <b>{record.total}</b> Buy and Sell calls have gone the right way since you saved them.
+              </div>
+              <div className="lab-sub">
+                {record.buyAvg !== null && <>Buy calls: {record.buyAvg > 0 ? "+" : ""}{record.buyAvg.toFixed(1)}% on average. </>}
+                {record.sellAvg !== null && <>Sell calls: {record.sellAvg > 0 ? "+" : ""}{record.sellAvg.toFixed(1)}% on average, where down is right. </>}
+                Only calls at least three days old count, and a few calls prove little. This is not advice.
+              </div>
+            </div>
+          )}
+
           <div className="history-tools">
             <div className="committee-tabs" role="tablist" aria-label="Filter by verdict">
               {FILTERS.map((f) => (
@@ -226,7 +281,7 @@ export function HistoryView({ entries, error, onDelete }) {
           ) : (
             <div className="history-list">
               {shown.map((entry) => (
-                <HistoryCard key={entry.id} entry={entry} onDelete={onDelete} />
+                <HistoryCard key={entry.id} entry={entry} onDelete={onDelete} move={sinceCall(entry, prices)} />
               ))}
             </div>
           )}

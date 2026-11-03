@@ -17,6 +17,10 @@ export function searchRemote(query, signal) {
   return fetch(`${BASE}/search?q=${encodeURIComponent(query)}`, { signal }).then(handle);
 }
 
+export function getPrices(items) {
+  return fetch(`${BASE}/prices?items=${encodeURIComponent(items.join(","))}`).then(handle);
+}
+
 export function startAnalysis(ticker, market, agents) {
   return fetch(`${BASE}/analyze`, {
     method: "POST",

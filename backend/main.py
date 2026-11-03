@@ -197,6 +197,23 @@ def list_agents():
     ]
 
 
+@app.get("/prices")
+def prices(items: str = ""):
+    """Latest share prices for the History page's track record. items is "AAPL:US,TCS:India"; a ticker with no
+    price is null. At most 40, fetched in parallel, cached for half an hour."""
+    from concurrent.futures import ThreadPoolExecutor
+    from data.prices import latest_price
+
+    pairs = []
+    for raw in items.split(",")[:40]:
+        ticker, _, market = raw.strip().partition(":")
+        if ticker:
+            pairs.append((ticker.upper(), "India" if market.lower() == "india" else "US"))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda p: latest_price(*p), pairs))
+    return {f"{t}:{m}": price for (t, m), price in zip(pairs, results)}
+
+
 @app.get("/search")
 def search(q: str = ""):
     return search_tickers(q, limit=8)

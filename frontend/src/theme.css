@@ -2623,6 +2623,12 @@ input::placeholder {
   color: var(--text-dim); font-size: 0.85rem; line-height: 1.45;
 }
 
+/* ---- History track record ----------------------------------------------- */
+
+.history-record { margin: 0 0 18px; padding: 16px 18px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); }
+.history-record-line { font-size: 1.05rem; margin: 2px 0 6px; }
+.history-since { font-size: 0.78rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
 /* ---- Price ladder ------------------------------------------------------- */
 
 .ladder { margin-top: 20px; padding: 20px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--border); }
