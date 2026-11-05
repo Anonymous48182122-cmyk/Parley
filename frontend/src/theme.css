@@ -2627,6 +2627,7 @@ input::placeholder {
 
 .flag { display: inline-block; vertical-align: middle; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); }
 .flag--unknown { display: inline-grid; place-items: center; color: var(--text-faint); box-shadow: none; }
+.flag--code { display: inline-grid; place-items: center; font-weight: 700; letter-spacing: 0.04em; color: var(--text-dim); background: rgba(255, 255, 255, 0.08); }
 
 /* ---- History track record ----------------------------------------------- */
 
