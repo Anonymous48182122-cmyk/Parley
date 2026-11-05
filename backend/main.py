@@ -128,6 +128,30 @@ def health_net(host: str = "www.screener.in"):
     return {"host": host, "attempts": results}
 
 
+def _global_search_probe():
+    import requests
+    r = requests.get("https://query2.finance.yahoo.com/v1/finance/search",
+                     params={"q": "toyota", "quotesCount": 5, "newsCount": 0, "listsCount": 0},
+                     headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+    r.raise_for_status()
+    return any(q.get("symbol") == "7203.T" for q in r.json().get("quotes", []))
+
+
+def _global_statements_probe():
+    import yfinance as yf
+    return not yf.Ticker("SAP.DE").income_stmt.empty
+
+
+def _global_currency_probe():
+    import requests
+    now = int(time.time())
+    r = requests.get("https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/0700.HK",
+                     params={"type": "annualTotalRevenue", "period1": now - 3 * 366 * 86400, "period2": now},
+                     headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+    r.raise_for_status()
+    return r.json()["timeseries"]["result"][0]["annualTotalRevenue"][-1]["currencyCode"] == "CNY"
+
+
 def _job_store_roundtrip():
     """Whether runs can be saved and read back (needs the parley_jobs table from sql/parley_jobs.sql)."""
     from backend import job_store
@@ -186,6 +210,9 @@ def health_sources(ticker: str = "AAPL"):
         "company_lists": list_status(),
         "people": check(lambda: _people_for(symbol)),
         "job_store": check(_job_store_roundtrip),
+        "global_search": check(_global_search_probe),
+        "global_statements": check(_global_statements_probe),
+        "global_currency": check(_global_currency_probe),
     }
 
 
