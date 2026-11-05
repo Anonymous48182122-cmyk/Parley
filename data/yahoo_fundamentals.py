@@ -97,6 +97,10 @@ def _fetch(ticker, market):
         currency = (stock.info or {}).get("financialCurrency")
     except Exception:
         currency = None
+    if not currency and market != "India":
+        # the profile page is refused to the cloud server; the timeseries endpoint states the currency too
+        from data.global_equities import financial_currency
+        currency = financial_currency(_symbol(ticker, market))
 
     scale = 1e7 if market == "India" else 1.0  # raw rupees -> crores, matching Screener's unit
     columns = sorted({c for f in frames.values() if f is not None and not f.empty for c in f.columns})
@@ -161,7 +165,7 @@ def _same_currency(financials, currency):
 def complete_with_yahoo(financials):
     """Fill gaps in `financials["annual"]` from Yahoo, in place. Returns the dict."""
     market = financials.get("market")
-    if market not in ("US", "India"):
+    if market not in ("US", "India", "Global"):
         return financials
     data = fetch_yahoo_annual(financials["ticker"], market)
     return apply_statement_rows(financials, data.get("rows") or [], data.get("currency"), "Yahoo Finance")
@@ -315,7 +319,7 @@ def add_latest_quarter_balance(financials):
         ratios = financials.setdefault("ratios", {})
         need_cash = latest.get("cash") is None and not any(k.startswith("Cash & Equivalents") for k in ratios)
         need_debt = latest.get("total_debt") is None and not any(k.startswith("Total Debt") for k in ratios)
-        if market not in ("US", "India") or not (need_cash or need_debt):
+        if market not in ("US", "India", "Global") or not (need_cash or need_debt):
             return financials
         rows = fetch_yahoo_quarterly(financials["ticker"], market).get("rows") or []
         if not rows:

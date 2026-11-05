@@ -2623,6 +2623,11 @@ input::placeholder {
   color: var(--text-dim); font-size: 0.85rem; line-height: 1.45;
 }
 
+/* ---- Flags ---------------------------------------------------------------- */
+
+.flag { display: inline-block; vertical-align: middle; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); }
+.flag--unknown { display: inline-grid; place-items: center; color: var(--text-faint); box-shadow: none; }
+
 /* ---- History track record ----------------------------------------------- */
 
 .history-record { margin: 0 0 18px; padding: 16px 18px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); }

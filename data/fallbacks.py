@@ -403,7 +403,8 @@ def derive_ratios(financials):
         mcap = financials.get("market_cap")
         unit = str(financials.get("unit_label") or "")
         same_ccy = (financials.get("market") == "US" and unit == "USD") or \
-                   (financials.get("market") == "India" and "Cr" in unit)
+                   (financials.get("market") == "India" and "Cr" in unit) or \
+                   (financials.get("market") == "Global" and (financials.get("market_cap_unit") or unit) == unit)
         if mcap and same_ccy:
             if ni and ni > 0:
                 put("P/E Ratio (Trailing)", round(mcap / ni, 2))
@@ -412,7 +413,7 @@ def derive_ratios(financials):
                 put("Dividend Yield", f"{round(div / mcap * 100, 2)}%")
             if eq and eq > 0:
                 put("Price to Book", round(mcap / eq, 2))
-                if financials.get("price"):
+                if financials.get("price") and (financials.get("price_currency") or unit) == unit:
                     put("Book Value per Share", round(eq / (mcap / financials["price"]), 2))
             nq = fetch_nasdaq_quote(financials["ticker"]) if financials.get("market") == "US" else {}
             if nq.get("annual_dividend") and financials.get("price") and last.get("dividends") is None:

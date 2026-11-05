@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { searchRemote } from "../api.js";
+import { countryFor } from "../countryNames.js";
+import Flag from "./Flag.jsx";
 import { searchLocal } from "../popularTickers.js";
 import { isTickerIndexReady, preloadTickerIndex, searchFullIndex } from "../tickerIndex.js";
 
@@ -158,8 +160,11 @@ export default function TickerSearchBox({ onSelect }) {
                   {result.name}
                 </span>
               </div>
-              <span className="pill" style={{ fontSize: "0.7rem", flexShrink: 0 }}>
-                {result.market}
+              <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {result.market === "Global" && result.exchange && (
+                  <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>{result.exchange}</span>
+                )}
+                <Flag code={countryFor(result)} size={18} />
               </span>
             </div>
           ))}

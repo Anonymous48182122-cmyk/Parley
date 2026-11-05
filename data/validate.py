@@ -52,7 +52,8 @@ def _same_unit(financials):
     """Whether market cap and the statements are in one currency, so they can be divided."""
     unit = str(financials.get("unit_label") or "")
     market = financials.get("market")
-    return (market == "US" and unit == "USD") or (market == "India" and "Cr" in unit)
+    return ((market == "US" and unit == "USD") or (market == "India" and "Cr" in unit)
+            or (market == "Global" and (financials.get("market_cap_unit") or unit) == unit))
 
 
 def _earnings_and_equity(financials):

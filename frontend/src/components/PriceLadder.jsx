@@ -1,10 +1,10 @@
+import { currencySymbol } from "../currency.js";
+
 // "Where the committee changes its mind": the prices members named in their verdicts, from the highest down,
 // with today's price as a marker among them and how far each is from it. The distance is the point: it shows
 // at a glance whether a Buy would need the stock to fall a little or a lot, and who would act first.
 function symbolFor(currency) {
-  if (currency === "INR") return "₹";
-  if (currency === "USD" || !currency) return "$";
-  return "";
+  return currencySymbol(currency || "USD");
 }
 
 function fmt(n) {

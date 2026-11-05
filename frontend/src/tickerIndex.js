@@ -101,5 +101,5 @@ export function searchFullIndex(query, limit = 8) {
   }
 
   scored.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  return scored.slice(0, limit).map(([, , [ticker, name, market]]) => ({ ticker, name, market }));
+  return scored.slice(0, limit).map(([, , [ticker, name, market, country]]) => ({ ticker, name, market, country }));
 }

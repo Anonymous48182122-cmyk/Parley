@@ -13,8 +13,11 @@ last. Indexing turns each search into an O(candidates for that letter) scan
 instead of O(everything), so it stays fast regardless of request load.
 """
 
+import re
 import threading
 import time
+
+from data.countries import country_of_symbol, is_global_symbol, suffix_of
 from collections import defaultdict
 
 from data.common import cache_age_hours, expire_cache
@@ -46,7 +49,7 @@ def may_refresh_lists():
 
 def refresh_lists():
     """Fetch every company list again now. Old copies stay as the fallback if a source is down."""
-    for key in ("us_ticker_map", "in_equity_list_v2", "in_bse_list", "nasdaq_universe"):
+    for key in ("us_ticker_map", "in_equity_list_v2", "in_bse_list", "nasdaq_universe_v2"):
         expire_cache(key)
     _memo.clear()
     _index_cache.update(entries_id=None, index=None)
@@ -64,7 +67,7 @@ def list_status():
     for label, key, fetch in (("us_sec", "us_ticker_map", get_ticker_map),
                               ("india_nse", "in_equity_list_v2", get_symbol_list),
                               ("india_bse_only", "in_bse_list", _bse_only_or_raise),
-                              ("us_nasdaq", "nasdaq_universe", fetch_nasdaq_universe)):
+                              ("us_nasdaq", "nasdaq_universe_v2", fetch_nasdaq_universe)):
         try:
             count = len(fetch())  # fetching first, so an expired list shows as just refreshed
             age = cache_age_hours(key)
@@ -104,6 +107,9 @@ def _build_all_entries():
     entries = []
     seen = set()
 
+    universe = _memoized("us_universe", fetch_nasdaq_universe)
+    home = {row["symbol"].upper().replace("/", "-"): row.get("country") for row in universe}
+
     us_map = _memoized("us_map", get_ticker_map)
     for entry in us_map.values():
         ticker, name = entry["ticker"].upper(), entry["title"].upper()
@@ -111,18 +117,20 @@ def _build_all_entries():
         if key in seen:
             continue
         seen.add(key)
-        entries.append((ticker, name, {"ticker": entry["ticker"], "name": entry["title"], "market": "US"}))
+        entries.append((ticker, name, {"ticker": entry["ticker"], "name": entry["title"], "market": "US",
+                                       "country": home.get(ticker)}))
 
     # Nasdaq's own list of listed stocks has a company the day it starts trading; the SEC list
     # follows once its first filings are indexed
-    for row in _memoized("us_universe", fetch_nasdaq_universe):
+    for row in universe:
         symbol = row["symbol"].upper().replace("/", "-")
         key = ("US", symbol)
         if key in seen or not symbol.replace("-", "").replace(".", "").isalnum():
             continue
         seen.add(key)
         entries.append((symbol, (row.get("name") or "").upper(),
-                        {"ticker": symbol, "name": row.get("name") or symbol, "market": "US"}))
+                        {"ticker": symbol, "name": row.get("name") or symbol, "market": "US",
+                         "country": row.get("country")}))
 
     in_list = _memoized("in_list", get_symbol_list)
     for entry in in_list:
@@ -131,7 +139,7 @@ def _build_all_entries():
         if key in seen:
             continue
         seen.add(key)
-        entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India"}))
+        entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India", "country": "IN"}))
 
     # companies listed only on the BSE (the National Stock Exchange's own shares among them)
     for entry in _memoized("in_bse_only", get_bse_only_list):
@@ -140,7 +148,7 @@ def _build_all_entries():
         if key in seen:
             continue
         seen.add(key)
-        entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India"}))
+        entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India", "country": "IN"}))
 
     return entries
 
@@ -168,6 +176,38 @@ def _get_index(entries):
     return _index_cache["index"]
 
 
+_MINOR_VENUES = {"F", "BE", "DU", "HM", "MU", "SG", "HA", "IL"}  # secondary German and London orderbook venues
+_RECEIPT = re.compile(r"\b(CEDEAR|BDR|DRN?|SDR)\b", re.I)
+
+
+def _yahoo_global_matches_live(query, limit):
+    """Companies on exchanges outside the US and India, from Yahoo's own search (7203.T, SAP.DE, 0700.HK).
+    Anything without a known exchange suffix (US listings, OTC) is left out, since our own lists cover it."""
+    try:
+        import requests
+        r = requests.get("https://query2.finance.yahoo.com/v1/finance/search",
+                         params={"q": query, "quotesCount": 12, "newsCount": 0, "listsCount": 0},
+                         headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+        r.raise_for_status()
+        out = []
+        for q in r.json().get("quotes", []):
+            symbol = q.get("symbol") or ""
+            name = q.get("longname") or q.get("shortname") or symbol
+            if q.get("quoteType") != "EQUITY" or not is_global_symbol(symbol) or suffix_of(symbol) in _MINOR_VENUES:
+                continue
+            if _RECEIPT.search(name):
+                continue
+            out.append({"ticker": symbol, "name": name, "market": "Global",
+                        "country": country_of_symbol(symbol), "exchange": q.get("exchDisp")})
+        return out[:limit]
+    except Exception:
+        return []
+
+
+def _yahoo_global_matches(query, limit):
+    return _memoized(f"yahoo:{query}", lambda: _yahoo_global_matches_live(query, limit))
+
+
 def _symbol_for_code(code):
     """Screener names a BSE-only company by scrip code; the BSE list gives its short name (NSE)."""
     try:
@@ -193,7 +233,7 @@ def _screener_matches_live(query, limit):
             parts = [p for p in (row.get("url") or "").split("/") if p]
             if len(parts) >= 2 and parts[0] == "company":
                 ticker = _symbol_for_code(parts[1]) if parts[1].isdigit() else parts[1]
-                found.append({"ticker": ticker, "name": row.get("name") or ticker, "market": "India"})
+                found.append({"ticker": ticker, "name": row.get("name") or ticker, "market": "India", "country": "IN"})
         return found[:limit]
     except Exception:
         return []
@@ -244,6 +284,16 @@ def search_tickers(query, limit=8, _retry=True):
                 continue
             seen_keys.add(key)
             scored.append((1.5 if rank == 0 else 3.5, len(match["ticker"]), match))
+
+    # Companies on other exchanges around the world: Yahoo's search, asked live. Its first hit ranks with the
+    # best of ours; the rest follow.
+    if len(query) >= 2:
+        for rank, match in enumerate(_yahoo_global_matches(query, limit)):
+            key = ("Global", match["ticker"].upper())
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            scored.append((2.5 if rank == 0 else 3.6, len(match["ticker"]), match))
 
     if not scored and _retry and len(query) >= 3:
         if may_refresh_lists():

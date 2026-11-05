@@ -192,7 +192,8 @@ def framework_check_lines(data):
 
     # --- valuation tests ----------------------------------------------------------------------------------
     price = _n(data.get("price"))
-    comparable = (market == "US" and unit == "USD") or market == "India"
+    comparable = ((market == "US" and unit == "USD") or market == "India"
+                  or (market == "Global" and (data.get("price_currency") or unit) == unit))
     eps = _n(ttm.get("eps_diluted")) if _n(ttm.get("eps_diluted")) is not None else _n(latest.get("eps_diluted"))
     bvps = _n(ratios.get("Book Value per Share"))
     if bvps is None and _n(latest.get("total_equity")) and _n(latest.get("shares_outstanding")):

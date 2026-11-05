@@ -228,6 +228,9 @@ def fetch_peers(ticker, market, own_name=None, own_market_cap=None):
     """Returns a list of peer dicts (possibly empty). `own_market_cap` must be
     in the same unit the fetcher reported (crores for India, dollars for US)."""
 
+    if market not in ("US", "India"):
+        return []  # no peer source outside the US and India
+
     def fetch():
         last = None
         for attempt in range(2):  # a throttled/failed first try is common; one retry

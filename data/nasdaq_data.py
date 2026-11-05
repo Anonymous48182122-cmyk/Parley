@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta
 
 import requests
 
+from data.countries import iso_from_name
 from data.common import cached_fetch
 
 NASDAQ_TTL_HOURS = 1
@@ -324,7 +325,8 @@ def _fetch_universe():
         cap = _num(r.get("marketCap"))
         if r.get("symbol") and cap:
             out.append({"symbol": r["symbol"].strip(), "name": (r.get("name") or "").strip(),
-                        "cap": cap, "sector": r.get("sector") or None, "industry": r.get("industry") or None})
+                        "cap": cap, "sector": r.get("sector") or None, "industry": r.get("industry") or None,
+                        "country": iso_from_name(r.get("country"))})
     if len(out) < 500:
         raise ValueError("Nasdaq screener returned a truncated list")
     return out
@@ -333,7 +335,7 @@ def _fetch_universe():
 def fetch_nasdaq_universe():
     """Every listed US stock with market cap, sector and industry; [] on failure."""
     try:
-        return cached_fetch("nasdaq_universe", 6, _fetch_universe, stale_on_error=True)
+        return cached_fetch("nasdaq_universe_v2", 6, _fetch_universe, stale_on_error=True)
     except Exception:
         return []
 

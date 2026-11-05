@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { deleteHistoryEntry, getPrices, listHistory } from "../api.js";
+import { countryFor } from "../countryNames.js";
+import Flag from "./Flag.jsx";
 import ConvictionRing from "./ConvictionRing.jsx";
 import Sparkline from "./Sparkline.jsx";
 
@@ -30,7 +32,7 @@ function formatDate(iso) {
 // no right or wrong, so it is shown without a colour.
 function sinceCall(entry, prices) {
   const then = entry.market_data?.price;
-  const now = prices?.[`${entry.ticker.toUpperCase()}:${entry.market === "India" ? "India" : "US"}`];
+  const now = prices?.[`${entry.ticker.toUpperCase()}:${entry.market === "India" ? "India" : entry.market === "Global" ? "Global" : "US"}`];
   if (!then || !now) return null;
   const pct = (now / then - 1) * 100;
   const days = (Date.now() - new Date(entry.created_at).getTime()) / 86400000;
@@ -67,7 +69,11 @@ function HistoryCard({ entry, onDelete, move }) {
         <div className="history-card-main">
           <div className="history-card-head">
             <span className="ticker history-ticker">{entry.ticker}</span>
-            {entry.market && <span className="pill" style={{ fontSize: "0.68rem", padding: "3px 10px" }}>{entry.market}</span>}
+            {entry.market && (
+              <span className="pill" style={{ fontSize: "0.68rem", padding: "3px 10px", display: "inline-flex", alignItems: "center" }}>
+                <Flag code={entry.market_data?.country || countryFor(entry)} size={13} />
+              </span>
+            )}
             {move && (
               <span
                 className="history-since"
@@ -142,7 +148,7 @@ export function HistoryView({ entries, error, onDelete }) {
   // today's prices for the tickers saved here, to show how each call has aged; best effort
   useEffect(() => {
     if (!entries?.length) return;
-    const items = [...new Set(entries.filter((e) => e.market_data?.price).map((e) => `${e.ticker.toUpperCase()}:${e.market === "India" ? "India" : "US"}`))];
+    const items = [...new Set(entries.filter((e) => e.market_data?.price).map((e) => `${e.ticker.toUpperCase()}:${e.market === "India" ? "India" : e.market === "Global" ? "Global" : "US"}`))];
     if (items.length === 0) return;
     getPrices(items.slice(0, 40)).then(setPrices).catch(() => {});
   }, [entries]);

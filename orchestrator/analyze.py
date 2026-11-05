@@ -12,7 +12,9 @@ from data.india import bse_fetcher
 from data.market_data import fetch_market_data
 from data.peers import fetch_peers
 from data.groups import fetch_segment_comps
+from data.countries import is_global_symbol
 from data.fallbacks import complete_with_nasdaq, derive_ratios, fill_market_gaps, finish_india_skeleton, india_skeleton
+from data.global_equities import finish_global, global_skeleton
 from data.validate import validate_financials
 from data.yahoo_fundamentals import add_latest_quarter_balance, complete_with_yahoo
 from data.us import edgar_fetcher
@@ -48,7 +50,11 @@ def _merge_market_data(financials):
 
 
 def fetch_financials(ticker, market=None):
-    if market == "US":
+    if market is None and is_global_symbol(ticker):
+        market = "Global"  # 7203.T, SAP.DE, 0700.HK: the exchange suffix says where it trades
+    if market == "Global":
+        financials = global_skeleton(ticker)
+    elif market == "US":
         financials = edgar_fetcher.fetch(ticker)
     elif market == "India":
         try:
@@ -68,6 +74,10 @@ def fetch_financials(ticker, market=None):
     if financials.get("qualitative", "").startswith("Screener.in could not"):
         financials = finish_india_skeleton(financials)
     financials = add_latest_quarter_balance(financials)
+    if financials.get("market") == "Global":
+        if not financials.get("annual"):
+            raise ValueError(f"No financial statements found for {ticker}")
+        financials = finish_global(financials)
     financials = complete_with_nasdaq(financials)  # Yahoo is empty from cloud IPs; Nasdaq is the backup
     financials = _merge_market_data(financials)
     financials = fill_market_gaps(financials)

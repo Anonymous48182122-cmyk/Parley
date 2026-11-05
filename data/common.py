@@ -383,6 +383,13 @@ def _data_notes(data, latest, ttm, ratios, cap_unit, unit_label):
             "Board composition and executive pay are not in our data for Indian companies. "
             "Use the promoter and institutional holding trend shown below as the governance signal."
         )
+    if data.get("market") == "Global":
+        notes.append(
+            "This company is listed outside the US and India. Its figures are Yahoo Finance's annual statements "
+            "and price history; board composition, executive pay, shareholding and peers are not in our data, "
+            "and only the last fiscal year is available, with no trailing twelve months. Say what you are "
+            "inferring from the numbers and from the sector."
+        )
     group = group_note(data.get("ticker"))
     if group:
         notes.append(group + " Value it segment by segment, with the segment reference points if they are "
@@ -456,7 +463,7 @@ def format_for_agents(data):
 
     lines = [
         f"Company: {data.get('name', data['ticker'])} ({data['ticker']}), "
-        f"{data.get('market', '')} listed, {data.get('sector', 'Sector N/A')}",
+        f"{data.get('listing') or str(data.get('market', '')) + ' listed'}, {data.get('sector', 'Sector N/A')}",
         f"Market cap: {_fmt(data.get('market_cap'))} {cap_unit} | "
         f"Share price: {_fmt(data.get('price'))} {price_ccy}",
         "",

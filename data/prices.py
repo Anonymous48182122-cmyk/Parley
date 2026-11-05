@@ -45,6 +45,18 @@ def _india_price(ticker):
     return None
 
 
+def _global_price(symbol):
+    """Last close of a company on a world exchange, in the main currency unit (pence become pounds)."""
+    import yfinance as yf
+    from data.global_equities import _trading_currency
+    stock = yf.Ticker(symbol)
+    closes = stock.history(period="5d")["Close"].dropna()
+    if not len(closes):
+        return None
+    _, divisor = _trading_currency(stock, symbol)
+    return float(closes.iloc[-1]) / divisor
+
+
 def latest_price(ticker, market):
     key = (ticker.upper(), market)
     now = time.time()
@@ -53,7 +65,8 @@ def latest_price(ticker, market):
         if hit and now - hit[0] < _TTL:
             return hit[1]
     try:
-        price = _india_price(ticker) if market == "India" else _us_price(ticker)
+        price = (_india_price(ticker) if market == "India" else _global_price(ticker) if market == "Global"
+                 else _us_price(ticker))
     except Exception:
         price = None
     with _LOCK:

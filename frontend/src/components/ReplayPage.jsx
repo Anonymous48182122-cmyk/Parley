@@ -7,6 +7,8 @@ import AgentAvatar from "./AgentAvatar.jsx";
 import BioAvatar from "./BioAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
 import BusinessLab from "./BusinessLab.jsx";
+import Flag from "./Flag.jsx";
+import { countryFor } from "../countryNames.js";
 import PriceLadder from "./PriceLadder.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
@@ -110,7 +112,11 @@ export default function ReplayPage() {
         <h1 className="ticker" style={{ fontSize: "2rem" }}>
           {entry.ticker}
         </h1>
-        {entry.market && <span className="pill">{entry.market}</span>}
+        {entry.market && (
+          <span className="pill" style={{ display: "inline-flex", alignItems: "center" }}>
+            <Flag code={entry.market_data?.country || countryFor(entry)} size={14} />
+          </span>
+        )}
         <span style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>
           Saved {new Date(entry.created_at).toLocaleString()}
         </span>

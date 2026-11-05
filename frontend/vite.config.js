@@ -17,6 +17,15 @@ export default defineConfig({
         // too, letting repeat app opens search instantly with zero network
         // fetch at all, not just zero per-keystroke round-trips.
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,json}"],
+        // the flags load on demand and are then kept, instead of all being downloaded with the app
+        globIgnores: ["flags/**"],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith("/flags/"),
+            handler: "CacheFirst",
+            options: { cacheName: "flags", expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 365 } },
+          },
+        ],
       },
       includeAssets: ["favicon-64.png"],
       manifest: {

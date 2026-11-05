@@ -275,6 +275,24 @@ def start_analysis(ticker, market=None, agents=None, force=False):
     return job
 
 
+def _country_of(financials):
+    """The company's home country as a two letter code: from its exchange for a global listing, India for an
+    Indian one, and Nasdaq's record of where a US listed company is based (TSMC is Taiwan, Ferrari is Italy)."""
+    if financials.get("country"):
+        return financials["country"]
+    if financials.get("market") == "India":
+        return "IN"
+    try:
+        from data.nasdaq_data import fetch_nasdaq_universe
+        want = str(financials.get("ticker") or "").upper().replace(".", "-").replace("/", "-")
+        for row in fetch_nasdaq_universe():
+            if row["symbol"].upper().replace(".", "-").replace("/", "-") == want:
+                return row.get("country") or "US"
+    except Exception:
+        pass
+    return "US"
+
+
 def _price_inputs(financials):
     """Size and where the share price sits in its 52 week range, for choosing an apt quote."""
     out = {}
@@ -365,6 +383,8 @@ def _run_job(ticker_key, market, agent_keys):
         with _lock:
             job = _jobs[ticker_key]
             job["market"] = financials.get("market")
+            job["country"] = _country_of(financials)
+            job["exchange"] = financials.get("exchange")
             job["data_text"] = data_text
             # Structured subset for the frontend's price/range visual — the
             # rest of `financials` (annual rows, shareholding, qualitative
@@ -380,6 +400,8 @@ def _run_job(ticker_key, market, agent_keys):
                 "market_cap_unit": financials.get("market_cap_unit") or financials.get("unit_label"),
                 "price_currency": financials.get("price_currency") or financials.get("currency"),
                 "sector": financials.get("sector"),
+                "country": _country_of(financials),
+                "exchange": financials.get("exchange"),
                 "ratios": financials.get("ratios", {}),
                 "technicals": financials.get("technicals") or {},
                 "business_facts": _business_facts(financials),

@@ -49,7 +49,7 @@ def _warm_search_cache():
 
 class AnalyzeRequest(BaseModel):
     ticker: str
-    market: Optional[str] = None  # "US" | "India" | None (auto-detect)
+    market: Optional[str] = None  # "US" | "India" | "Global" | None (auto-detect)
     agents: Optional[List[str]] = None  # subset of AGENTS; None/invalid -> default committee
 
 
@@ -68,6 +68,8 @@ def _job_response(job):
     return {
         "ticker": job["ticker"],
         "market": job["market"],
+        "country": job.get("country"),
+        "exchange": job.get("exchange"),
         "status": job["status"],
         "current_stage": job.get("current_stage"),
         "progress": jobs.progress_fraction(job),
@@ -235,7 +237,8 @@ def prices(items: str = ""):
     for raw in items.split(",")[:40]:
         ticker, _, market = raw.strip().partition(":")
         if ticker:
-            pairs.append((ticker.upper(), "India" if market.lower() == "india" else "US"))
+            kind = market.lower()
+            pairs.append((ticker.upper(), "India" if kind == "india" else "Global" if kind == "global" else "US"))
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda p: latest_price(*p), pairs))
     return {f"{t}:{m}": price for (t, m), price in zip(pairs, results)}

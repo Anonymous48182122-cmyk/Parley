@@ -1,6 +1,8 @@
 import Sparkline from "./Sparkline.jsx";
 
-const CURRENCY_SYMBOLS = { USD: "$", INR: "₹" };
+import { compactMoney, currencySymbol } from "../currency.js";
+
+const CURRENCY_SYMBOLS = new Proxy({}, { get: (_t, code) => currencySymbol(String(code)) });
 
 function formatPrice(price, currency) {
   if (price == null) return null;
@@ -10,15 +12,9 @@ function formatPrice(price, currency) {
 
 function formatMarketCap(marketCap, unitLabel) {
   if (marketCap == null) return null;
-  if (unitLabel === "USD") {
-    const abs = Math.abs(marketCap);
-    if (abs >= 1e12) return `$${(marketCap / 1e12).toFixed(2)}T`;
-    if (abs >= 1e9) return `$${(marketCap / 1e9).toFixed(2)}B`;
-    if (abs >= 1e6) return `$${(marketCap / 1e6).toFixed(2)}M`;
-    return `$${marketCap.toLocaleString()}`;
-  }
   // India: Screener already reports this in crores, matching unit_label.
-  return `₹${marketCap.toLocaleString("en-IN")} Cr.`;
+  if (!unitLabel || String(unitLabel).includes("Cr")) return `₹${marketCap.toLocaleString("en-IN")} Cr.`;
+  return compactMoney(marketCap, unitLabel);
 }
 
 // Ratios arrive as numbers from one source and as "29.85%" strings from another.

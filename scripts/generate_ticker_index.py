@@ -21,7 +21,8 @@ OUT_PATH = Path(__file__).resolve().parent.parent / "frontend" / "public" / "tic
 
 def build_entries():
     """The same list the server searches: SEC and Nasdaq for the US, NSE and BSE for India."""
-    return [[p["ticker"], p["name"], p["market"]] for _, _, p in _build_all_entries()]
+    # the fourth item is the company's country code, which the page turns into a flag
+    return [[p["ticker"], p["name"], p["market"], p.get("country")] for _, _, p in _build_all_entries()]
 
 
 def main():

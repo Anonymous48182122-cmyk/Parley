@@ -15,6 +15,8 @@ import BoardroomScene from "./BoardroomScene.jsx";
 import WhatChanged from "./WhatChanged.jsx";
 import BusinessLab from "./BusinessLab.jsx";
 import PriceLadder from "./PriceLadder.jsx";
+import Flag from "./Flag.jsx";
+import { countryFor } from "../countryNames.js";
 
 function SaveToHistory({ ticker, job, crossExams }) {
   const { session, user } = useAuth();
@@ -267,6 +269,7 @@ export default function CommitteePage() {
   // From the committee picker on SearchPage — absent on a direct link/refresh,
   // in which case the backend falls back to its own default committee.
   const requestedAgents = location.state?.agents;
+  const requestedMarket = location.state?.market;
 
   function handleExamsChange(turn, exams) {
     setCrossExams((prev) => ({ ...prev, [turn]: exams }));
@@ -299,14 +302,14 @@ export default function CommitteePage() {
       setFatalError,
       setReconnecting,
       restart: async () => {
-        const again = await startAnalysis(ticker, undefined, requestedAgents);
+        const again = await startAnalysis(ticker, requestedMarket, requestedAgents);
         if (!cancelled) setJob(again);
       },
     });
 
     async function begin() {
       try {
-        const initial = await startAnalysis(ticker, undefined, requestedAgents);
+        const initial = await startAnalysis(ticker, requestedMarket, requestedAgents);
         if (cancelled) return;
         setJob(initial);
         if (initial.status === "running") {
@@ -356,7 +359,7 @@ export default function CommitteePage() {
     try {
       // Re-run with the same committee this job actually used, not whatever
       // (possibly stale) navigation state got us here.
-      const initial = await startAnalysis(ticker, undefined, job?.agents || requestedAgents);
+      const initial = await startAnalysis(ticker, requestedMarket, job?.agents || requestedAgents);
       setJob(initial);
       if (initial.status === "running") {
         pollRef.current = setInterval(
@@ -380,8 +383,8 @@ export default function CommitteePage() {
           {ticker.toUpperCase()}
         </h1>
         {job?.market && (
-          <span className="pill" style={{ fontSize: "0.75rem" }}>
-            {job.market}
+          <span className="pill" style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Flag code={job.country || job.market_data?.country || countryFor(job)} size={14} />{job.market === "Global" ? job.exchange || "" : ""}
           </span>
         )}
       </div>
@@ -444,7 +447,7 @@ export default function CommitteePage() {
                       >
                         <span style={{ fontWeight: 600 }}>{s.ticker}</span>
                         <span style={{ color: "var(--text-dim)", fontSize: "0.8rem" }}>
-                          {s.name} · {s.market === "India" ? "NSE" : "US"}
+                          {s.name} <Flag code={countryFor(s)} size={12} />
                         </span>
                       </Link>
                     ))}

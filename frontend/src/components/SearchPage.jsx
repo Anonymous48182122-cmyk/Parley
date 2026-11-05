@@ -68,10 +68,11 @@ export default function SearchPage() {
     }
   }, [selected]);
 
-  function goToTicker(value) {
+  function goToTicker(value, market) {
     const clean = value.trim().toUpperCase();
     if (!clean || selected.size < MIN_AGENTS) return;
-    const go = () => navigate(`/analysis/${encodeURIComponent(clean)}`, { state: { agents: [...selected] } });
+    // the market the person picked travels with them, so a ticker that exists in two markets analyses the one they chose
+    const go = () => navigate(`/analysis/${encodeURIComponent(clean)}`, { state: { agents: [...selected], market: market || undefined } });
     const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (document.startViewTransition && !calm) {
       // the page cross-fades into the boardroom instead of cutting
@@ -119,7 +120,7 @@ export default function SearchPage() {
         <InstallAppButton />
       </div>
 
-      <TickerSearchBox onSelect={(ticker) => goToTicker(ticker)} />
+      <TickerSearchBox onSelect={(ticker, market) => goToTicker(ticker, market)} />
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 48, justifyContent: "center" }}>
         {QUICK_PICKS.map((pick) => (
