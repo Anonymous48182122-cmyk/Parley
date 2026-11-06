@@ -338,7 +338,8 @@ def run_stage1_all(ticker, data, agent_keys=None, on_update=None):
     first, not agent_keys order."""
     agent_keys = agent_keys or DEFAULT_AGENTS
     results = {}
-    with ThreadPoolExecutor(max_workers=len(agent_keys)) as executor:
+    # at most 16 at a time: a committee of thirty or more all asking at once trips the free tiers per minute limits
+    with ThreadPoolExecutor(max_workers=min(len(agent_keys), 16)) as executor:
         # Alternate which provider each agent tries first, so a big roster's
         # simultaneous requests don't all hit one provider's per-minute limit.
         future_to_agent = {
@@ -467,7 +468,8 @@ def run_user_question_all(ticker, data, turns, question, agent_keys=None, cio_me
     depend on each other's answer."""
     agent_keys = agent_keys or DEFAULT_AGENTS
     results = {}
-    with ThreadPoolExecutor(max_workers=len(agent_keys)) as executor:
+    # at most 16 at a time: a committee of thirty or more all asking at once trips the free tiers per minute limits
+    with ThreadPoolExecutor(max_workers=min(len(agent_keys), 16)) as executor:
         future_to_agent = {
             executor.submit(run_user_question, agent_key, ticker, data, turns, question, agent_keys, cio_memo):
                 agent_key
