@@ -26,7 +26,7 @@ from google.genai import errors as gemini_errors
 from google.genai import types
 
 from agents.business import CARD_PROMPT, CARD_SYSTEM, SCORECARD_INSTRUCTION, parse_card, split_scorecard
-from agents.stances import fallback_summary, positions_table
+from agents.stances import fallback_summary, positions_grouped, positions_table
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
     DEFAULT_AGENTS,
@@ -527,22 +527,22 @@ def _compact_cio_limits(system, n_agents, turns):
     first (the transcript is the bulkier part), then each first pass."""
     from agents.prompts import CIO_PROMPT_TEMPLATE  # local: template is large
 
-    budget = (_GROQ_MAX_REQUEST_TOKENS - _CIO_COMPACT_MAX_TOKENS) * _CHARS_PER_TOKEN
-    fixed = len(system) + len(CIO_PROMPT_TEMPLATE) + _CIO_COMPACT_DATA_CHARS + 600 + 120 * n_agents  # + slack and the positions table
-    # a big committee (the full 21) needs the clips cut further than the old floor of 300 and 260 characters
-    # or the request never fits Groq at all, which left the memo to models that were out of quota
-    for turn_cap, floor in ((450, 300), (340, 300), (260, 300), (200, 180), (150, 140)):
+    budget = 0.94 * (_GROQ_MAX_REQUEST_TOKENS - _CIO_COMPACT_MAX_TOKENS) * _CHARS_PER_TOKEN  # 6% safety margin on the estimate
+    fixed = len(system) + len(CIO_PROMPT_TEMPLATE) + _CIO_COMPACT_DATA_CHARS + 600 + 70 * n_agents  # + slack, each first pass header and the grouped positions
+    # a big committee needs the clips cut further than the old floor of 300 and 260 characters or the request
+    # never fits Groq at all, which left the memo to models that were out of quota
+    for turn_cap, floor in ((450, 300), (340, 300), (260, 300), (200, 180), (150, 140), (120, 100), (90, 70)):
         transcript = sum(min(len(t), turn_cap) + 25 for _, t in turns)
         per_agent = (budget - fixed - transcript) / max(n_agents, 1)
         if per_agent >= floor:
             return int(min(per_agent, 1100)), turn_cap
-    return 140, 150
+    return 70, 90
 
 
 def run_cio(ticker, data, turns, stage1_analyses):
     system = CIO_SYSTEM_PROMPT.format(ticker=ticker)
 
-    def build(stage1_limit=None, data_limit=None, turn_limit=None):
+    def build(stage1_limit=None, data_limit=None, turn_limit=None, compact=False):
         stage1_text = "\n\n".join(
             f"--- {AGENT_DISPLAY_NAMES[a]} first pass ---\n"
             f"{_condense(text, stage1_limit) if stage1_limit else text}"
@@ -550,7 +550,7 @@ def run_cio(ticker, data, turns, stage1_analyses):
         )
         return CIO_PROMPT_TEMPLATE.format(
             ticker=ticker,
-            positions=positions_table(stage1_analyses, turns, AGENT_DISPLAY_NAMES),
+            positions=(positions_grouped if compact else positions_table)(stage1_analyses, turns, AGENT_DISPLAY_NAMES),
             transcript=_format_transcript(turns, turn_limit),
             stage1_analyses=stage1_text,
             data=data[:data_limit] if data_limit else data,
@@ -564,7 +564,7 @@ def run_cio(ticker, data, turns, stage1_analyses):
                     "(first pass %d chars, turn %d chars)", exc, stage1_limit, turn_limit)
         text = _call(
             CIO_CANDIDATES, system,
-            build(stage1_limit, _CIO_COMPACT_DATA_CHARS, turn_limit), _CIO_COMPACT_MAX_TOKENS,
+            build(stage1_limit, _CIO_COMPACT_DATA_CHARS, turn_limit, compact=True), _CIO_COMPACT_MAX_TOKENS,
         )
     return _parse_cio_verdict(text)
 

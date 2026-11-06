@@ -104,6 +104,20 @@ def fallback_summary(stage1, turns, names):
     return f"VERDICT: {verdict} | CONVICTION: 3/10\n\n" + memo, verdict, 3
 
 
+def positions_grouped(stage1, turns, names):
+    """The same facts as positions_table in a fraction of the space: the final calls grouped by stance, then who
+    changed their mind. Used when the CIO prompt has to be squeezed under a model's request limit."""
+    stances = final_stances(stage1, turns)
+    groups = {"buy": [], "pass": [], "sell": [], "unclear": []}
+    for agent, s in stances.items():
+        groups[s["final"]].append(names.get(agent, agent))
+    lines = [f"- FINAL {LABELS[k].upper()} ({len(v)}): {', '.join(v)}" for k, v in groups.items() if v]
+    moved = [f"{names.get(a, a)} ({LABELS[s['opening']]} to {LABELS[s['final']]})" for a, s in stances.items() if s["changed"]]
+    if moved:
+        lines.append("- Changed their mind during the debate: " + "; ".join(moved))
+    return "\n".join(lines)
+
+
 def positions_table(stage1, turns, names):
     """Plain lines for the CIO prompt: each agent's opening and final call."""
     lines = []

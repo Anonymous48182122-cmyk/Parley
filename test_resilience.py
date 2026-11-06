@@ -70,16 +70,30 @@ def test_run_committee_survives_a_failed_cio(monkeypatch):
     assert cio["fallback"] is True and "VERDICT" not in cio["text"]
 
 
-def test_the_compact_cio_prompt_fits_groq_even_for_all_21_agents():
-    from agents.prompts import AGENTS, CIO_PROMPT_TEMPLATE, CIO_SYSTEM_PROMPT
-    names = runner.AGENT_DISPLAY_NAMES
-    stage1 = {k: "x " * 1500 + "Verdict: Pass at today's price." for k in AGENTS}
-    turns = [(k, "y " * 400) for k in list(AGENTS) * 1]
+def test_the_compact_cio_prompt_fits_groq_for_committees_up_to_forty_agents():
+    from agents.prompts import CIO_PROMPT_TEMPLATE, CIO_SYSTEM_PROMPT
+    from agents.stances import positions_grouped
     system = CIO_SYSTEM_PROMPT.format(ticker="X")
-    first, per_turn = runner._compact_cio_limits(system, len(stage1), turns)
-    text = "\n\n".join(f"--- {names[a]} first pass ---\n{runner._condense(t, first)}" for a, t in stage1.items())
-    prompt = CIO_PROMPT_TEMPLATE.format(
-        ticker="X", positions=runner.positions_table(stage1, turns, names),
-        transcript=runner._format_transcript(turns, per_turn), stage1_analyses=text, data="d" * runner._CIO_COMPACT_DATA_CHARS)
-    tokens = (len(prompt) + len(system)) / runner._CHARS_PER_TOKEN + runner._CIO_COMPACT_MAX_TOKENS
-    assert tokens <= runner._GROQ_MAX_REQUEST_TOKENS, tokens
+    for n in (21, 27, 33, 40):
+        keys = [f"agent{i}" for i in range(n)]
+        names = {k: f"Investor Number {i}" for i, k in enumerate(keys)}
+        stage1 = {k: "x " * 1500 + "Verdict: Pass at today's price." for k in keys}
+        turns = [(k, "y " * 400) for k in keys]
+        first, per_turn = runner._compact_cio_limits(system, n, turns)
+        text = "\n\n".join(f"--- {names[a]} first pass ---\n{runner._condense(t, first)}" for a, t in stage1.items())
+        transcript = "\n".join(f"{names[a]}: {t[:per_turn]}" for a, t in turns)
+        prompt = CIO_PROMPT_TEMPLATE.format(ticker="X", positions=positions_grouped(stage1, turns, names), transcript=transcript,
+                                            stage1_analyses=text, data="d" * runner._CIO_COMPACT_DATA_CHARS)
+        tokens = (len(prompt) + len(system)) / runner._CHARS_PER_TOKEN + runner._CIO_COMPACT_MAX_TOKENS
+        assert tokens <= runner._GROQ_MAX_REQUEST_TOKENS, (n, tokens)
+
+
+def test_grouped_positions_say_the_same_things_in_less_space():
+    from agents.stances import positions_grouped, positions_table
+    names = {"a": "Warren Buffett", "b": "Charlie Munger", "c": "Peter Lynch"}
+    stage1 = {"a": "Verdict: Pass", "b": "Verdict: Buy", "c": "Verdict: Pass"}
+    turns = [("c", "I am changing my call.\nVerdict: Sell")]
+    grouped = positions_grouped(stage1, turns, names)
+    assert "FINAL PASS (1): Warren Buffett" in grouped and "FINAL BUY (1): Charlie Munger" in grouped
+    assert "FINAL SELL (1): Peter Lynch" in grouped and "Peter Lynch (Pass to Sell)" in grouped
+    assert len(grouped) < len(positions_table(stage1, turns, names)) * 1.2

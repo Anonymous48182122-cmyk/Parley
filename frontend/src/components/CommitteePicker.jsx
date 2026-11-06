@@ -43,6 +43,10 @@ export default function CommitteePicker({ selected, onChange }) {
   const tooFew = n < MIN_AGENTS;
   const tooMany = n > LARGE_COMMITTEE;
 
+  // A portrait is 11.5% of the table, which is as large as 21 seats fit round it. A bigger committee gets smaller
+  // portraits (never overlapping) instead of piling up.
+  const seatPercent = Math.min(11.5, ((2 * Math.PI * 41) / SEATS.length) * 0.94);
+
   // Seat positions on a circle, starting from the top and going clockwise.
   const seats = useMemo(
     () =>
@@ -81,6 +85,7 @@ export default function CommitteePicker({ selected, onChange }) {
       <div
         className="table-stage"
         ref={stageRef}
+        style={{ "--seat": `${seatPercent}%` }}
         onMouseLeave={() => setFocus(null)}
       >
         <div className="table-surface" aria-hidden="true">

@@ -712,7 +712,7 @@ input::placeholder {
 
 .seat {
   position: absolute;
-  width: 11.5%;
+  width: var(--seat, 11.5%);
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   padding: 0;
