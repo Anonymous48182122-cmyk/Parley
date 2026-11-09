@@ -9,10 +9,9 @@ import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
 import ChatPanel from "./ChatPanel.jsx";
-import MarketSnapshot from "./MarketSnapshot.jsx";
 import SpeakerRail from "./SpeakerRail.jsx";
 import BoardroomScene from "./BoardroomScene.jsx";
-import WhatChanged from "./WhatChanged.jsx";
+import AnalysisWorkspace from "./AnalysisWorkspace.jsx";
 import BusinessLab from "./BusinessLab.jsx";
 import PriceLadder from "./PriceLadder.jsx";
 import BalanceSheetCard from "./BalanceSheetCard.jsx";
@@ -48,7 +47,7 @@ function SaveToHistory({ ticker, job, crossExams }) {
         user_chat: job.user_chat,
         cross_exams: crossExams,
         // the Business Lab's parts ride along inside market_data, so no new column is needed
-        market_data: { ...job.market_data, business_card: job.business_card, scorecards: job.scorecards, price_levels: job.price_levels },
+        market_data: { ...job.market_data, business_card: job.business_card, plain_brief: job.plain_brief, scorecards: job.scorecards, price_levels: job.price_levels },
         verdict: job.verdict,
         conviction: job.conviction,
       });
@@ -181,59 +180,6 @@ function friendlyError(message) {
     return "We could not reach the Parley server. Check your connection, then try again.";
   }
   return message || "Something unexpected happened. Please try again.";
-}
-
-// Drives the persistent "where am I" strip — deliberately reuses the same
-// job.current_stage/status fields the poll loop already tracks, rather than
-// scroll-spying the page, since that's a more reliable progress signal than
-// scroll position on a page whose content is still arriving.
-const PHASE_ORDER = ["stage1", "debate", "cio"];
-const PHASE_LABELS = { stage1: "First Pass", debate: "Debate", cio: "CIO Memo" };
-const PHASE_ANCHORS = { stage1: "#stage1", debate: "#debate", cio: "#cio-memo" };
-
-function PhaseStrip({ job }) {
-  const currentIndex = PHASE_ORDER.indexOf(job.current_stage);
-  const contentReady = {
-    stage1: Object.keys(job.stage1 || {}).length > 0,
-    debate: (job.debate || []).length > 0,
-    cio: !!job.cio_memo,
-  };
-
-  return (
-    <div className="phase-strip">
-      {PHASE_ORDER.map((key, i) => {
-        const done = job.status === "complete" || (currentIndex >= 0 && i < currentIndex);
-        const current = i === currentIndex;
-        const className = [
-          "phase-step",
-          done && "phase-step--done",
-          current && "phase-step--current",
-        ]
-          .filter(Boolean)
-          .join(" ");
-        const label = `${done ? "✓ " : ""}${PHASE_LABELS[key]}`;
-        return contentReady[key] ? (
-          <a key={key} href={PHASE_ANCHORS[key]} className={className}>
-            {label}
-          </a>
-        ) : (
-          <span key={key} className={className}>
-            {label}
-          </span>
-        );
-      })}
-      {(job.business_card || job.market_data?.business_facts) && (
-        <a href="#business-lab" className="phase-step">
-          Business Lab
-        </a>
-      )}
-      {contentReady.stage1 && (
-        <a href="#ask-committee" className="phase-step">
-          Ask the Committee
-        </a>
-      )}
-    </div>
-  );
 }
 
 function TypingIndicator({ agentKey }) {
@@ -373,22 +319,169 @@ export default function CommitteePage() {
     }
   }
 
+  // The analysis is one workspace: the page here owns the live run and hands the workspace a plain model plus
+  // the heavy views, so a saved debate (ReplayPage) can use exactly the same layout.
+  function renderWorkspace() {
+    const md = job.market_data || {};
+    const stage1Count = Object.keys(job.stage1 || {}).length;
+    const inDebate = running && job.current_stage === "debate";
+    const model = {
+      ticker,
+      name: md.name,
+      market: job.market,
+      country: job.country || md.country,
+      exchange: job.exchange,
+      price: md.price,
+      currency: md.price_currency || md.currency,
+      status: job.status,
+      stage: job.current_stage,
+      stage1: job.stage1,
+      debate: job.debate,
+      verdict: job.verdict,
+      conviction: job.conviction,
+      hasMemo: !!job.cio_memo,
+      cioFallback: job.cio_fallback,
+      priceLevels: job.price_levels,
+      scorecards: job.scorecards,
+      businessCard: job.business_card,
+      plainBrief: job.plain_brief,
+      wisdom: md.business_facts?.wisdom,
+      hasBusiness: !!(job.business_card || md.business_facts),
+      balanceSheet: md.balance_sheet,
+      marketData: job.market_data,
+    };
+
+    const progress = running && (
+      <div className="ws-progress">
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>{STAGE_LABELS[job.current_stage] || "Working…"}</span>
+          <span style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>{Math.round(job.progress * 100)}%</span>
+        </div>
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${job.progress * 100}%` }} />
+        </div>
+        {STAGE_BLURBS[job.current_stage] && (
+          <div style={{ marginTop: 10, color: "var(--text-faint)", fontSize: "0.8rem" }}>{STAGE_BLURBS[job.current_stage]}</div>
+        )}
+        {reconnecting && (
+          <div className="fade-in" style={{ marginTop: 10, color: "var(--gold)", fontSize: "0.8rem" }}>
+            Connection hiccup. Still trying to reach the server, your analysis is safe.
+          </div>
+        )}
+        {job.current_stage === "fetching_data" && <WaitingHint secs={elapsed} />}
+      </div>
+    );
+
+    const panels = {
+      business: (
+        <BusinessLab
+          card={job.business_card}
+          facts={md.business_facts}
+          scorecards={job.scorecards}
+          agents={job.agents}
+          running={running && job.current_stage !== "fetching_data"}
+        />
+      ),
+      books: <BalanceSheetCard reading={md.balance_sheet} />,
+      room: (
+        <>
+          {progress}
+          {stage1Count > 0 && (
+            <section style={{ marginBottom: 36 }}>
+              <SectionLabel>Independent First Pass</SectionLabel>
+              <AgentCommitteeStrip stage1={job.stage1} debate={job.debate} total={(job.agents || []).length} />
+            </section>
+          )}
+          {(job.debate || []).length > 0 && (
+            <section style={{ marginBottom: 20 }}>
+              <SectionLabel>Live Debate</SectionLabel>
+              <SpeakerRail
+                agents={job.agents}
+                debate={job.debate}
+                speaking={inDebate ? (job.turn_plan || [])[job.debate.length] : null}
+              />
+              <div className="card">
+                {job.debate.map((turn) => (
+                  <DebateMessage
+                    key={turn.turn}
+                    ticker={ticker}
+                    turn={turn.turn}
+                    agentKey={turn.agent}
+                    text={turn.text}
+                    initialExams={crossExams[turn.turn] || []}
+                    onExamsChange={handleExamsChange}
+                    agents={job.agents}
+                  />
+                ))}
+                {inDebate && job.debate.length < (job.turn_plan || []).length && (
+                  <TypingIndicator agentKey={job.turn_plan[job.debate.length]} />
+                )}
+              </div>
+            </section>
+          )}
+        </>
+      ),
+      ruling: job.cio_memo && (
+        <section>
+          <CIOMemo
+            text={job.cio_memo}
+            verdict={job.verdict}
+            conviction={job.conviction}
+            stage1={job.stage1}
+            debate={job.debate}
+            fallback={job.cio_fallback}
+            retrying={retryingCio || job.cio_retrying}
+            onRetry={askCioAgain}
+          />
+          <PriceLadder levels={job.price_levels} price={md.price} currency={md.price_currency || md.currency} />
+          <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
+        </section>
+      ),
+      ask: <ChatPanel ticker={ticker} initialChat={job.user_chat} ready={job.status !== "error"} agents={job.agents} />,
+    };
+
+    const liveTop = running && (
+      <>
+        <BoardroomScene job={job} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />
+        {progress}
+      </>
+    );
+
+    return (
+      <AnalysisWorkspace
+        model={model}
+        panels={panels}
+        liveTop={liveTop}
+        snapshotSkeleton={<SnapshotSkeleton />}
+        previousEntry={previousEntry}
+        job={job}
+        live
+      />
+    );
+  }
+
+
+  const showWorkspace = !!job && (job.status !== "error" || hasPartial);
+  const running = job?.status === "running";
+
   return (
     <div className="container">
       <Link to="/" style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>
         ← back to search
       </Link>
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "16px 0 28px" }}>
-        <h1 className="ticker" style={{ fontSize: "2rem" }}>
-          {ticker.toUpperCase()}
-        </h1>
-        {job?.market && (
-          <span className="pill" style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Flag code={job.country || job.market_data?.country || countryFor(job)} size={14} />{job.market === "Global" ? job.exchange || "" : ""}
-          </span>
-        )}
-      </div>
+      {!showWorkspace && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "16px 0 28px" }}>
+          <h1 className="ticker" style={{ fontSize: "2rem" }}>
+            {ticker.toUpperCase()}
+          </h1>
+          {job?.market && (
+            <span className="pill" style={{ fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Flag code={job.country || job.market_data?.country || countryFor(job)} size={14} />{job.market === "Global" ? job.exchange || "" : ""}
+            </span>
+          )}
+        </div>
+      )}
 
       {job?.agent_warning && (
         <div style={{ color: "var(--text-dim)", fontSize: "0.82rem", marginBottom: 20 }}>
@@ -467,119 +560,7 @@ export default function CommitteePage() {
         </div>
       )}
 
-      {job && (job.status !== "error" || hasPartial) && (
-        <>
-          {job.status === "running" && <BoardroomScene job={job} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />}
-          {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}
-          {job.market_data?.balance_sheet && <BalanceSheetCard reading={job.market_data.balance_sheet} />}
-          <WhatChanged previous={previousEntry} current={job} />
-          <PhaseStrip job={job} />
-
-          <BusinessLab
-            card={job.business_card}
-            facts={job.market_data?.business_facts}
-            scorecards={job.scorecards}
-            agents={job.agents}
-            running={job.status === "running" && job.current_stage !== "fetching_data"}
-          />
-
-          {job.status === "running" && (
-            <div style={{ marginBottom: 32 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ color: "var(--text-dim)", fontSize: "0.85rem" }}>
-                  {STAGE_LABELS[job.current_stage] || "Working…"}
-                </span>
-                <span style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>
-                  {Math.round(job.progress * 100)}%
-                </span>
-              </div>
-              <div className="progress-track">
-                <div className="progress-fill" style={{ width: `${job.progress * 100}%` }} />
-              </div>
-              {STAGE_BLURBS[job.current_stage] && (
-                <div style={{ marginTop: 10, color: "var(--text-faint)", fontSize: "0.8rem" }}>
-                  {STAGE_BLURBS[job.current_stage]}
-                </div>
-              )}
-              {reconnecting && (
-                <div className="fade-in" style={{ marginTop: 10, color: "var(--gold)", fontSize: "0.8rem" }}>
-                  Connection hiccup. Still trying to reach the server, your analysis is safe.
-                </div>
-              )}
-              {job.current_stage === "fetching_data" && <WaitingHint secs={elapsed} />}
-            </div>
-          )}
-
-          {Object.keys(job.stage1 || {}).length > 0 && (
-            <section id="stage1" className="scroll-anchor" style={{ marginBottom: 40 }}>
-              <SectionLabel>Independent First Pass</SectionLabel>
-              <AgentCommitteeStrip stage1={job.stage1} debate={job.debate} total={(job.agents || []).length} />
-            </section>
-          )}
-
-          {(job.debate || []).length > 0 && (
-            <section id="debate" className="scroll-anchor" style={{ marginBottom: 40 }}>
-              <SectionLabel>Live Debate</SectionLabel>
-              <SpeakerRail
-                agents={job.agents}
-                debate={job.debate}
-                speaking={
-                  job.status === "running" && job.current_stage === "debate"
-                    ? (job.turn_plan || [])[job.debate.length]
-                    : null
-                }
-              />
-              <div className="card">
-                {job.debate.map((turn) => (
-                  <DebateMessage
-                    key={turn.turn}
-                    ticker={ticker}
-                    turn={turn.turn}
-                    agentKey={turn.agent}
-                    text={turn.text}
-                    initialExams={crossExams[turn.turn] || []}
-                    onExamsChange={handleExamsChange}
-                    agents={job.agents}
-                  />
-                ))}
-                {job.status === "running" &&
-                  job.current_stage === "debate" &&
-                  job.debate.length < (job.turn_plan || []).length && (
-                    <TypingIndicator agentKey={job.turn_plan[job.debate.length]} />
-                  )}
-              </div>
-            </section>
-          )}
-
-          {(Object.keys(job.stage1 || {}).length > 0 || job.status === "complete") && (
-            <div id="ask-committee" className="scroll-anchor">
-              <ChatPanel
-                ticker={ticker}
-                initialChat={job.user_chat}
-                ready={job.status !== "error"}
-                agents={job.agents}
-              />
-            </div>
-          )}
-
-          {job.cio_memo && (
-            <section id="cio-memo" className="scroll-anchor">
-              <CIOMemo
-                text={job.cio_memo}
-                verdict={job.verdict}
-                conviction={job.conviction}
-                stage1={job.stage1}
-                debate={job.debate}
-                fallback={job.cio_fallback}
-                retrying={retryingCio || job.cio_retrying}
-                onRetry={askCioAgain}
-              />
-              <PriceLadder levels={job.price_levels} price={job.market_data?.price} currency={job.market_data?.price_currency || job.market_data?.currency} />
-              <SaveToHistory ticker={ticker} job={job} crossExams={crossExams} />
-            </section>
-          )}
-        </>
-      )}
+      {showWorkspace && renderWorkspace()}
     </div>
   );
 }

@@ -7,13 +7,12 @@ import AgentAvatar from "./AgentAvatar.jsx";
 import BioAvatar from "./BioAvatar.jsx";
 import AgentCommitteeStrip from "./AgentCommitteeStrip.jsx";
 import BusinessLab from "./BusinessLab.jsx";
-import Flag from "./Flag.jsx";
 import { countryFor } from "../countryNames.js";
 import PriceLadder from "./PriceLadder.jsx";
 import BalanceSheetCard from "./BalanceSheetCard.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
-import MarketSnapshot from "./MarketSnapshot.jsx";
+import AnalysisWorkspace from "./AnalysisWorkspace.jsx";
 import SectionLabel from "./SectionLabel.jsx";
 
 function Highlighted({ text }) {
@@ -103,71 +102,84 @@ export default function ReplayPage() {
     );
   }
 
+  const md = entry.market_data || {};
+  const model = {
+    ticker: entry.ticker,
+    name: md.name,
+    market: entry.market,
+    country: md.country || countryFor(entry),
+    exchange: md.exchange,
+    price: md.price,
+    currency: md.price_currency || md.currency,
+    status: "complete",
+    stage1: entry.stage1,
+    debate: entry.debate,
+    verdict: entry.verdict,
+    conviction: entry.conviction,
+    hasMemo: !!entry.cio_memo,
+    cioFallback: false,
+    priceLevels: md.price_levels,
+    scorecards: md.scorecards,
+    businessCard: md.business_card,
+    plainBrief: md.plain_brief,
+    wisdom: md.business_facts?.wisdom,
+    hasBusiness: !!(md.business_card || md.business_facts),
+    balanceSheet: md.balance_sheet,
+    marketData: entry.market_data,
+    userChat: entry.user_chat,
+  };
+
+  const panels = {
+    business: (
+      <BusinessLab card={md.business_card} facts={md.business_facts} scorecards={md.scorecards} agents={Object.keys(entry.stage1 || {})} />
+    ),
+    books: <BalanceSheetCard reading={md.balance_sheet} />,
+    room: (
+      <>
+        {Object.keys(entry.stage1 || {}).length > 0 && (
+          <section style={{ marginBottom: 36 }}>
+            <SectionLabel>Independent First Pass</SectionLabel>
+            <AgentCommitteeStrip stage1={entry.stage1} debate={entry.debate} />
+          </section>
+        )}
+        {(entry.debate || []).length > 0 && (
+          <section style={{ marginBottom: 20 }}>
+            <SectionLabel>Live Debate</SectionLabel>
+            <div className="card">
+              {entry.debate.map((turn) => (
+                <DebateMessage
+                  key={turn.turn}
+                  ticker={entry.ticker}
+                  turn={turn.turn}
+                  agentKey={turn.agent}
+                  text={turn.text}
+                  allowCrossExam={false}
+                  initialExams={(entry.cross_exams || {})[turn.turn] || []}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </>
+    ),
+    ruling: entry.cio_memo && (
+      <section>
+        <CIOMemo text={entry.cio_memo} verdict={entry.verdict} conviction={entry.conviction} stage1={entry.stage1} debate={entry.debate} />
+        <PriceLadder levels={md.price_levels} price={md.price} currency={md.price_currency || md.currency} />
+      </section>
+    ),
+    ask: <ChatReplay chat={entry.user_chat} />,
+  };
+
   return (
     <div className="container">
       <Link to="/history" style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>
         ← back to history
       </Link>
-
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, margin: "16px 0 28px" }}>
-        <h1 className="ticker" style={{ fontSize: "2rem" }}>
-          {entry.ticker}
-        </h1>
-        {entry.market && (
-          <span className="pill" style={{ display: "inline-flex", alignItems: "center" }}>
-            <Flag code={entry.market_data?.country || countryFor(entry)} size={14} />
-          </span>
-        )}
-        <span style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>
-          Saved {new Date(entry.created_at).toLocaleString()}
-        </span>
+      <div style={{ color: "var(--text-faint)", fontSize: "0.8rem", margin: "10px 0 0" }}>
+        Saved {new Date(entry.created_at).toLocaleString()}
       </div>
-
-      <MarketSnapshot data={entry.market_data} />
-      {entry.market_data?.balance_sheet && <BalanceSheetCard reading={entry.market_data.balance_sheet} />}
-
-      <BusinessLab
-        card={entry.market_data?.business_card}
-        facts={entry.market_data?.business_facts}
-        scorecards={entry.market_data?.scorecards}
-        agents={Object.keys(entry.stage1 || {})}
-      />
-
-      {Object.keys(entry.stage1 || {}).length > 0 && (
-        <section style={{ marginBottom: 40 }}>
-          <SectionLabel>Independent First Pass</SectionLabel>
-          <AgentCommitteeStrip stage1={entry.stage1} debate={entry.debate} />
-        </section>
-      )}
-
-      {(entry.debate || []).length > 0 && (
-        <section style={{ marginBottom: 40 }}>
-          <SectionLabel>Live Debate</SectionLabel>
-          <div className="card">
-            {entry.debate.map((turn) => (
-              <DebateMessage
-                key={turn.turn}
-                ticker={entry.ticker}
-                turn={turn.turn}
-                agentKey={turn.agent}
-                text={turn.text}
-                allowCrossExam={false}
-                initialExams={(entry.cross_exams || {})[turn.turn] || []}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <ChatReplay chat={entry.user_chat} />
-
-      {entry.cio_memo && (
-        <section>
-          <CIOMemo text={entry.cio_memo} verdict={entry.verdict} conviction={entry.conviction} stage1={entry.stage1} debate={entry.debate} />
-          <PriceLadder levels={entry.market_data?.price_levels} price={entry.market_data?.price}
-            currency={entry.market_data?.price_currency || entry.market_data?.currency} />
-        </section>
-      )}
+      <AnalysisWorkspace model={model} panels={panels} />
     </div>
   );
 }

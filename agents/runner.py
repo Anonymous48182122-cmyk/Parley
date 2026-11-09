@@ -26,7 +26,8 @@ from google.genai import errors as gemini_errors
 from google.genai import types
 
 from agents.business import CARD_PROMPT, CARD_SYSTEM, SCORECARD_INSTRUCTION, parse_card, split_scorecard
-from agents.stances import fallback_summary, positions_grouped, positions_table
+from agents.brief import parse_brief, prompt_for as brief_prompt, BRIEF_SYSTEM
+from agents.stances import fallback_summary, final_stances, positions_grouped, positions_table
 from agents.prompts import (
     AGENT_DISPLAY_NAMES,
     DEFAULT_AGENTS,
@@ -587,6 +588,25 @@ def run_business_card(ticker, data):
     return parse_card(text)
 
 
+_BRIEF_MAX_TOKENS = 1400
+
+
+def run_plain_brief(ticker, memo, verdict, conviction, stage1, turns):
+    """One extra call that retells the ruling in plain words. Best effort: None when every model fails or
+    answers with something that is not the JSON asked for. The page then builds its own plainer version."""
+    try:
+        stances = final_stances(stage1, [(t["agent"], t["text"]) if isinstance(t, dict) else t for t in turns])
+        prompt = brief_prompt(ticker, verdict, conviction, memo, stage1, stances, AGENT_DISPLAY_NAMES)
+        text = _call(STAGE1_CANDIDATES, BRIEF_SYSTEM, prompt, _BRIEF_MAX_TOKENS, max_wait=75)
+    except AgentCallError as exc:
+        log.warning("plain brief for %s failed: %.200s", ticker, exc)
+        return None
+    except Exception:
+        log.exception("plain brief for %s could not be built", ticker)
+        return None
+    return parse_brief(text, list(stage1.keys()))
+
+
 def run_committee(ticker, data, agent_keys=None, on_update=None):
     agent_keys = agent_keys or DEFAULT_AGENTS
     _emit(on_update, "stage_start", {"stage": "stage1"})
@@ -618,6 +638,8 @@ def run_committee(ticker, data, agent_keys=None, on_update=None):
         memo = _parse_cio_verdict(memo)[0]
         fallback = True
     _emit(on_update, "cio", {"text": memo, "verdict": verdict, "conviction": conviction, "fallback": fallback})
+    if not fallback:
+        _emit(on_update, "plain_brief", {"brief": run_plain_brief(ticker, memo, verdict, conviction, stage1, turns)})
     card_thread.join(timeout=120)
 
     return {"stage1": stage1, "debate": turns, "cio_memo": memo, "verdict": verdict, "conviction": conviction}

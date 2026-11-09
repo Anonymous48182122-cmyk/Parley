@@ -17,7 +17,7 @@ from backend import job_store
 from data.balance_sheet import build as build_balance_sheet
 from agents.business import management_facts, money_flow, pick_wisdom, pick_wisdom_options, wisdom_features
 from data.people import fetch_people
-from agents.runner import AgentCallError, run_cio, run_committee
+from agents.runner import AgentCallError, run_cio, run_committee, run_plain_brief
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
 
@@ -224,6 +224,7 @@ def _new_job(ticker_key, market, agent_keys):
         "stage1": {},
         "scorecards": {},
         "business_card": None,
+        "plain_brief": None,
         "debate": [],
         "user_chat": [],
         "cio_memo": None,
@@ -365,6 +366,8 @@ def _update(ticker_key, event_type, payload):
         elif event_type == "business_card":
             job["business_card"] = payload.get("card")
             _refresh_wisdom(job)
+        elif event_type == "plain_brief":
+            job["plain_brief"] = payload.get("brief")
         elif event_type == "debate_turn":
             job["debate"].append(payload)
         elif event_type == "cio":
@@ -392,6 +395,7 @@ def _run_job(ticker_key, market, agent_keys):
             # text) is only ever needed as the prose already baked into
             # data_text, not as separate UI state.
             job["market_data"] = {
+                "name": financials.get("name"),
                 "price": financials.get("price"),
                 "market_cap": financials.get("market_cap"),
                 "currency": financials.get("currency"),
@@ -457,7 +461,9 @@ def retry_cio(ticker):
         try:
             turns = [(t["agent"], t["text"]) for t in job["debate"]]
             memo, verdict, conviction = run_cio(ticker_key, job["data_text"], turns, job["stage1"])
+            brief = run_plain_brief(ticker_key, memo, verdict, conviction, job["stage1"], turns)
             with _lock:
+                job["plain_brief"] = brief
                 job["cio_memo"], job["verdict"], job["conviction"] = memo, verdict, conviction
                 job["cio_fallback"] = False
                 _save_cache(ticker_key, job)

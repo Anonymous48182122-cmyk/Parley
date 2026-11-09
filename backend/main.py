@@ -77,6 +77,7 @@ def _job_response(job):
         "scorecards": job.get("scorecards", {}),
         "price_levels": price_levels(job["stage1"], (job.get("market_data") or {}).get("price"), AGENT_DISPLAY_NAMES),
         "business_card": job.get("business_card"),
+        "plain_brief": job.get("plain_brief"),
         "debate": job["debate"],
         "agents": job.get("agents", []),
         "turn_plan": job.get("turn_plan", []),
