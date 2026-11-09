@@ -10,6 +10,7 @@ import BusinessLab from "./BusinessLab.jsx";
 import Flag from "./Flag.jsx";
 import { countryFor } from "../countryNames.js";
 import PriceLadder from "./PriceLadder.jsx";
+import BalanceSheetCard from "./BalanceSheetCard.jsx";
 import DebateMessage from "./DebateMessage.jsx";
 import CIOMemo from "./CIOMemo.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
@@ -123,6 +124,7 @@ export default function ReplayPage() {
       </div>
 
       <MarketSnapshot data={entry.market_data} />
+      {entry.market_data?.balance_sheet && <BalanceSheetCard reading={entry.market_data.balance_sheet} />}
 
       <BusinessLab
         card={entry.market_data?.business_card}

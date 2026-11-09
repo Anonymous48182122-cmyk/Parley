@@ -15,6 +15,7 @@ import BoardroomScene from "./BoardroomScene.jsx";
 import WhatChanged from "./WhatChanged.jsx";
 import BusinessLab from "./BusinessLab.jsx";
 import PriceLadder from "./PriceLadder.jsx";
+import BalanceSheetCard from "./BalanceSheetCard.jsx";
 import Flag from "./Flag.jsx";
 import { countryFor } from "../countryNames.js";
 
@@ -470,6 +471,7 @@ export default function CommitteePage() {
         <>
           {job.status === "running" && <BoardroomScene job={job} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />}
           {job.market_data ? <MarketSnapshot data={job.market_data} /> : job.status === "running" && <SnapshotSkeleton />}
+          {job.market_data?.balance_sheet && <BalanceSheetCard reading={job.market_data.balance_sheet} />}
           <WhatChanged previous={previousEntry} current={job} />
           <PhaseStrip job={job} />
 

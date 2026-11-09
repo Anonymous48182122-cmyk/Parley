@@ -619,6 +619,11 @@ def format_for_agents(data):
         lines += framework_check_lines(data)
     except Exception:
         pass  # extra tests must never stop the figures themselves from reaching the agents
+    try:
+        from data.balance_sheet import agent_lines, build
+        lines += agent_lines(build(data))
+    except Exception:
+        pass
     lines += _data_notes(data, latest, ttm, ratios, cap_unit, unit_label)
 
     shareholding = data.get("shareholding") or []

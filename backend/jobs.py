@@ -14,6 +14,7 @@ import requests
 
 from agents.prompts import AGENTS, DEFAULT_AGENTS, MIN_AGENTS, build_debate_turn_plan
 from backend import job_store
+from data.balance_sheet import build as build_balance_sheet
 from agents.business import management_facts, money_flow, pick_wisdom, pick_wisdom_options, wisdom_features
 from data.people import fetch_people
 from agents.runner import AgentCallError, run_cio, run_committee
@@ -405,6 +406,7 @@ def _run_job(ticker_key, market, agent_keys):
                 "ratios": financials.get("ratios", {}),
                 "technicals": financials.get("technicals") or {},
                 "business_facts": _business_facts(financials),
+                "balance_sheet": build_balance_sheet(financials),
             }
     except ValueError as exc:
         with _lock:
