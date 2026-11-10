@@ -35,15 +35,30 @@ export const DEFAULT_AGENTS = [
   "ackman", "historian", "future", "bull_advocate", "devils_advocate",
 ];
 
-// One tap committees for the picker. "classic" is the default roster; the rest are
-// themed sets so nobody has to tick eight boxes to get a sensible debate.
+// One tap committees for the picker. Each answers a question a person actually has about a stock, so nobody has
+// to know who thinks what. The first three follow Parley's own order of priorities: do not lose money, earn steadily,
+// then reach for more. "classic" is the default roster. Each has a plain one line blurb the picker shows.
 export const PRESETS = [
-  { id: "classic", label: "Classic", keys: DEFAULT_AGENTS },
-  { id: "value", label: "Value", keys: ["buffett", "munger", "graham", "marks", "pabrai", "damani"] },
-  { id: "growth", label: "Growth and builders", keys: ["lynch", "jhunjhunwala", "bezos", "thiel", "musk", "jobs"] },
-  { id: "founders", label: "Founders", keys: ["musk", "bezos", "jobs", "dhirubhai", "thiel"] },
-  { id: "contrarian", label: "Contrarians", keys: ["burry", "marks", "sperandeo", "simons", "historian", "devils_advocate"] },
-  { id: "everyone", label: "Everyone", keys: AGENT_ORDER },
+  { id: "classic", label: "Classic", keys: DEFAULT_AGENTS,
+    blurb: "The balanced house committee. Ten voices, with a bull and a bear built in." },
+  { id: "quick", label: "Quick Five", keys: ["buffett", "lynch", "simons", "bull_advocate", "devils_advocate"],
+    blurb: "Five sharp voices. The fastest debate, and the lightest on free model limits." },
+  { id: "safe", label: "Safe Hands", keys: ["graham", "buffett", "munger", "marks", "damani", "pabrai", "historian"],
+    blurb: "Will I lose money? Minds that put losing less ahead of winning more." },
+  { id: "compounders", label: "Steady Compounders", keys: ["buffett", "munger", "lynch", "jhunjhunwala", "bezos", "jobs", "future"],
+    blurb: "Will it keep earning for years? Quality businesses and the patience to hold them." },
+  { id: "moonshots", label: "Moonshots", keys: ["musk", "thiel", "bezos", "jobs", "future", "lynch", "bull_advocate"],
+    blurb: "Could this be enormous? Big bets, long horizons and a taste for the improbable." },
+  { id: "bears", label: "Bear Hunters", keys: ["burry", "marks", "graham", "historian", "sperandeo", "devils_advocate"],
+    blurb: "What could go wrong? The members who are paid to find the crack." },
+  { id: "timing", label: "Trader's Desk", keys: ["sperandeo", "simons", "marks", "ackman", "historian"],
+    blurb: "Is the timing right? Trends, cycles and what the crowd is doing." },
+  { id: "dalal", label: "Dalal Street", keys: ["jhunjhunwala", "damani", "dhirubhai", "pabrai", "lynch", "buffett"],
+    blurb: "Think like the Indian market. Operators, bulls and patient owners. Made for Indian stocks." },
+  { id: "founders", label: "Founders", keys: ["musk", "bezos", "jobs", "dhirubhai", "thiel"],
+    blurb: "How would a builder see this? Five founders judge the business, not the share price." },
+  { id: "everyone", label: "Everyone", keys: AGENT_ORDER,
+    blurb: "All twenty one voices. The longest debate, the widest range of views." },
 ];
 
 // Beyond this many the debate gets long and each voice gets thinner.

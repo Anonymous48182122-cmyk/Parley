@@ -40,6 +40,8 @@ export default function CommitteePicker({ selected, onChange }) {
   const n = selected.size;
   const turns = n * roundsFor(n);
   const activePreset = PRESETS.find((p) => sameSet(selected, p.keys));
+  const [peek, setPeek] = useState(null);
+  const blurbPreset = PRESETS.find((p) => p.id === peek) || activePreset;
   const tooFew = n < MIN_AGENTS;
   const tooMany = n > LARGE_COMMITTEE;
 
@@ -182,12 +184,22 @@ export default function CommitteePicker({ selected, onChange }) {
             className={`preset-pill${activePreset?.id === p.id ? " preset-pill--active" : ""}`}
             aria-pressed={activePreset?.id === p.id}
             onClick={() => onChange(new Set(p.keys))}
+            onMouseEnter={() => setPeek(p.id)}
+            onMouseLeave={() => setPeek(null)}
+            onFocus={() => setPeek(p.id)}
+            onBlur={() => setPeek(null)}
           >
             {p.label}
             <span className="preset-pill-count">{p.keys.length}</span>
           </button>
         ))}
       </div>
+
+      <p className="preset-blurb" aria-live="polite">
+        {blurbPreset
+          ? blurbPreset.blurb
+          : "A custom committee. Pick a ready made one above, or keep tapping portraits."}
+      </p>
 
       <p className="table-note">
         Founders and legends are builders, not stock pickers. They are AI interpretations of how they
