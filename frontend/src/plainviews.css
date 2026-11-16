@@ -93,7 +93,19 @@
   .pv-depth { border-radius: var(--radius-sm); padding: 10px 10px 10px 14px; }
   .pv-depth-opts { width: 100%; }
   .pv-depth-opt { flex: 1; padding: 9px 6px; font-size: 0.8rem; }
-  .pv-glance, .pv-card { padding: 20px 16px 16px; }
+  .pv-glance, .pv-card { padding: 18px 14px 14px; }
+  .pv-headline { font-size: 1.05rem; margin-bottom: 14px; }
+  .pv-headline--big { font-size: 1.18rem; }
+  .pv-lights { gap: 7px; margin-bottom: 14px; }
+  .pv-light { padding: 8px 12px; }
+  .pv-glance-top { margin: 6px 0 10px; }
   .pv-card { min-height: 0; }
   .pv-table { max-height: none; }
 }
+
+/* Tap a finance word for a plain explanation */
+.jg { display: inline; padding: 0; margin: 0; background: none; border: none; color: inherit; font: inherit; cursor: help; text-decoration: underline dotted rgba(201, 160, 78, 0.8); text-underline-offset: 3px; }
+.jg:hover, .jg[aria-expanded="true"] { color: var(--gold); }
+.jg-pop { display: block; margin: 8px 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-raised); border: 1px solid rgba(201, 160, 78, 0.4); color: var(--text-dim); font-size: 0.84rem; line-height: 1.5; font-style: normal; font-weight: 400; }
+.jg-pop b { display: block; color: var(--gold); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 3px; }
+.pv-listen { display: grid; gap: 10px; }

@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { agentColor, agentName } from "../agentMeta.js";
 import { spokenBrief } from "../brief.js";
 import { currencySymbol } from "../currency.js";
+import { shareVerdict } from "../shareCard.js";
 import AgentAvatar from "./AgentAvatar.jsx";
 import ConvictionRing from "./ConvictionRing.jsx";
+import Jargon from "./Jargon.jsx";
 
 // The two quick ways in. "Glance" is one screen you can take in within ten seconds. "Story" is a short run of
 // swipeable cards, one idea each, for the minute after that. Both read from the same `brief` (src/brief.js),
@@ -51,7 +53,8 @@ function VoteBar({ counts }) {
 
 function voteWords(brief) {
   const c = brief.counts;
-  return `${c.buy} for, ${c.pass} not sure, ${c.sell} against${c.unclear ? `, ${c.unclear} undecided` : ""}`;
+  const parts = [[c.buy, "for"], [c.pass, "not sure"], [c.sell, "against"], [c.unclear, "undecided"]].filter(([n]) => n > 0);
+  return parts.map(([n, word]) => `${n} ${word}`).join(", ") || "No votes yet";
 }
 
 // Reads the brief aloud with the browser's own voice: free, private, and nothing to install.
@@ -87,6 +90,28 @@ function ListenButton({ model, brief, className = "button-secondary" }) {
   );
 }
 
+function ShareButton({ model, brief, className = "button-secondary" }) {
+  const [state, setState] = useState("idle");
+  async function go() {
+    setState("working");
+    try {
+      const result = await shareVerdict({
+        ticker: model.ticker, name: model.name, verdict: model.verdict, conviction: model.conviction,
+        headline: brief.headline, lights: brief.lights, counts: brief.counts,
+      });
+      setState(result === "downloaded" ? "saved" : result === "shared" ? "sent" : "idle");
+    } catch {
+      setState("idle");
+    }
+    setTimeout(() => setState("idle"), 2500);
+  }
+  return (
+    <button type="button" className={className} onClick={go} disabled={state === "working"}>
+      {state === "working" ? "Making the picture" : state === "saved" ? "Saved to your downloads" : state === "sent" ? "Shared" : "Share as a picture"}
+    </button>
+  );
+}
+
 // ---- Glance: one screen ------------------------------------------------------------------------------------
 export function Glance({ model, brief, go, waiting }) {
   const color = VERDICT_COLORS[model.verdict] || "var(--text-dim)";
@@ -99,11 +124,11 @@ export function Glance({ model, brief, go, waiting }) {
         <div>
           <div className="ws-hero-verdict">{model.verdict || "No call"}</div>
           <div className="lab-sub">
-            Sure about it: {model.conviction ?? "unknown"} out of 10{model.cioFallback ? ", automatic summary" : ""}
+            {model.conviction != null ? `Sure about it: ${model.conviction} out of 10` : "No score given"}{model.cioFallback ? ", automatic summary" : ""}
           </div>
         </div>
       </div>
-      <p className="pv-headline">{brief.headline}</p>
+      <p className="pv-headline"><Jargon text={brief.headline} /></p>
 
       <Lights lights={brief.lights} />
 
@@ -120,7 +145,7 @@ export function Glance({ model, brief, go, waiting }) {
       {brief.changeMind && (
         <div className="pv-change">
           <b>What would change their mind</b>
-          {brief.changeMind}
+          <Jargon text={brief.changeMind} />
         </div>
       )}
 
@@ -134,6 +159,7 @@ export function Glance({ model, brief, go, waiting }) {
       </div>
       <div className="pv-listen">
         <ListenButton model={model} brief={brief} />
+        <ShareButton model={model} brief={brief} />
       </div>
       <div className="pv-foot">The committee's view, not advice.</div>
     </div>
@@ -148,7 +174,7 @@ function Member({ m }) {
       <div>
         <b style={{ color: agentColor(m.agent) }}>{agentName(m.agent)}</b>
         {m.changed && <em> changed their mind</em>}
-        {m.line && <span>{m.line}</span>}
+        {m.line && <span><Jargon text={m.line} /></span>}
       </div>
     </div>
   );
@@ -167,7 +193,7 @@ function buildCards(model, brief, go) {
           <ConvictionRing verdict={model.verdict} conviction={model.conviction} size={96} />
           <div className="ws-hero-verdict" style={{ color }}>{model.verdict || "No call"}</div>
         </div>
-        <p className="pv-headline pv-headline--big">{brief.headline}</p>
+        <p className="pv-headline pv-headline--big"><Jargon text={brief.headline} /></p>
         <Lights lights={brief.lights} />
       </>
     ),
@@ -180,8 +206,8 @@ function buildCards(model, brief, go) {
       title: "What it is",
       node: (
         <>
-          <p className="pv-headline pv-headline--big">{card.one_breath}</p>
-          {card.analogy && <p className="pv-analogy">{card.analogy}</p>}
+          <p className="pv-headline pv-headline--big"><Jargon text={card.one_breath} /></p>
+          {card.analogy && <p className="pv-analogy"><Jargon text={card.analogy} /></p>}
           {card.engines?.length > 0 && (
             <div className="pv-chips">
               {card.engines.map((e) => (
@@ -194,7 +220,7 @@ function buildCards(model, brief, go) {
           {card.moat?.type && card.moat.type !== "Nothing special" && (
             <div className="pv-change">
               <b>Why rivals struggle to copy it</b>
-              {card.moat.story || card.moat.type}
+              <Jargon text={card.moat.story || card.moat.type} />
             </div>
           )}
         </>
@@ -237,7 +263,7 @@ function buildCards(model, brief, go) {
               <div className="pv-why-head">What they like</div>
               <ul>
                 {brief.forList.map((t) => (
-                  <li key={t}>{t}</li>
+                  <li key={t}><Jargon text={t} /></li>
                 ))}
               </ul>
             </div>
@@ -247,7 +273,7 @@ function buildCards(model, brief, go) {
               <div className="pv-why-head">What worries them</div>
               <ul>
                 {brief.againstList.map((t) => (
-                  <li key={t}>{t}</li>
+                  <li key={t}><Jargon text={t} /></li>
                 ))}
               </ul>
             </div>
@@ -329,7 +355,7 @@ function buildCards(model, brief, go) {
         {brief.changeMind && (
           <div className="pv-change">
             <b>What would change their mind</b>
-            {brief.changeMind}
+            <Jargon text={brief.changeMind} />
           </div>
         )}
         {quote?.quote && (
@@ -340,6 +366,7 @@ function buildCards(model, brief, go) {
         )}
         <div className="pv-actions">
           <ListenButton model={model} brief={brief} className="button-primary" />
+          <ShareButton model={model} brief={brief} />
           <button type="button" className="button-secondary" onClick={() => go("full")}>
             Read everything
           </button>

@@ -46,7 +46,7 @@ function lightsFor(model, counts) {
 
   lights.push(
     avg == null
-      ? { id: "business", question: "Good business?", tone: "unknown", line: "Still being rated" }
+      ? { id: "business", question: "Good business?", tone: "unknown", line: "Not rated" }
       : { id: "business", question: "Good business?", tone: avg >= 6.5 ? "good" : avg >= 5 ? "ok" : "bad", line: businessWord(avg), detail: `${avg.toFixed(1)} out of 10` }
   );
 
@@ -80,6 +80,7 @@ function lightsFor(model, counts) {
 }
 
 function headlineFor(model, counts) {
+  if (!model.verdict) return "The committee did not reach a clear call.";
   const zone = buyZone(model.priceLevels);
   const tail = zone ? ` The first members would step in near ${money(zone.price, model.currency)}.` : "";
   const base = {
