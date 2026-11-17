@@ -79,7 +79,7 @@
 .pv-price { display: grid; gap: 10px; }
 .pv-price-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 14px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: rgba(255, 255, 255, 0.03); }
 .pv-price-row span { font-size: 0.8rem; color: var(--text-dim); }
-.pv-price-row b { grid-row: 1 / span 2; grid-column: 2; font-family: var(--font-mono); font-size: 1.3rem; align-self: center; }
+.pv-price-row b { grid-row: 1 / span 2; grid-column: 2; font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; align-self: center; }
 .pv-price-row em { font-style: normal; font-size: 0.76rem; color: var(--text-faint); }
 .pv-price-row--up { border-left: 3px solid var(--danger); }
 .pv-price-row--down { border-left: 3px solid var(--success); }

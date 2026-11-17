@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AGENT_META, AGENT_ORDER, LARGE_COMMITTEE, MIN_AGENTS, PRESETS, agentColor } from "../agentMeta.js";
 import { AGENT_BIOS } from "../agentBios.js";
 import AgentAvatar from "./AgentAvatar.jsx";
@@ -36,6 +36,19 @@ export default function CommitteePicker({ selected, onChange }) {
   const [focus, setFocus] = useState(null);
   const [bioAgent, setBioAgent] = useState(null);
   const stageRef = useRef(null);
+
+  // A tap on a seat puts that member in the middle of the table, with the button to read how they think. On a
+  // phone nothing ever "leaves" a seat the way a mouse does, so the member stays until the reader taps somewhere
+  // outside the table. (Clearing on blur was the bug: pressing the button blurred the seat, the middle redrew
+  // without the button, and the press was lost before it counted as a tap.)
+  useEffect(() => {
+    if (!focus) return undefined;
+    function away(e) {
+      if (stageRef.current && !stageRef.current.contains(e.target)) setFocus(null);
+    }
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [focus]);
 
   const n = selected.size;
   const turns = n * roundsFor(n);
@@ -108,7 +121,7 @@ export default function CommitteePicker({ selected, onChange }) {
                 <span className={`table-focus-state${focusOn ? " is-on" : ""}`}>
                   {focusOn ? "Seated" : "Not seated"}
                 </span>
-                <button type="button" className="link-button" onClick={() => setBioAgent(focus)}>
+                <button type="button" className="link-button how-they-think" onClick={() => setBioAgent(focus)}>
                   How they think
                 </button>
               </div>
@@ -147,7 +160,10 @@ export default function CommitteePicker({ selected, onChange }) {
               }}
               onMouseEnter={() => setFocus(key)}
               onFocus={() => setFocus(key)}
-              onBlur={() => setFocus((cur) => (cur === key ? null : cur))}
+              onBlur={(e) => {
+                // moving on to something else outside the table (keyboard) clears it; moving to the middle does not
+                if (e.relatedTarget && !stageRef.current?.contains(e.relatedTarget)) setFocus((cur) => (cur === key ? null : cur));
+              }}
             >
               <AgentAvatar agentKey={key} size="fill" />
             </button>

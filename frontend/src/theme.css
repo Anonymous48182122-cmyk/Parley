@@ -707,6 +707,13 @@ input::placeholder {
   }
   .table-focus-actions {
     margin-top: 6px;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .how-they-think {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 0.74rem;
   }
 }
 
@@ -862,6 +869,24 @@ input::placeholder {
 
 .link-button:hover {
   text-decoration: underline;
+}
+
+/* The button inside the table's middle: a real touch target (at least 40px tall), not a line of small text */
+.how-they-think {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(201, 160, 78, 0.55);
+  border-radius: 999px;
+  background: var(--gold-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.how-they-think:hover {
+  text-decoration: none;
+  background: rgba(201, 160, 78, 0.24);
 }
 
 .preset-blurb {
@@ -2721,7 +2746,7 @@ input::placeholder {
 .ws-exchange { font-size: 0.72rem; color: var(--text-dim); border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px 9px; }
 .ws-name { color: var(--text-dim); font-size: 0.95rem; margin-top: 2px; }
 .ws-head-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.ws-price { font-family: var(--font-mono); font-size: 1.05rem; }
+.ws-price { font-size: 1.25rem; font-weight: 600; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
 .ws-chip { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border-strong); background: rgba(255, 255, 255, 0.03); color: var(--text-dim); }
 .ws-chip--live { color: var(--gold); border-color: rgba(201, 160, 78, 0.5); animation: soft-pulse 2s ease-in-out infinite; }
 
@@ -2767,7 +2792,7 @@ input::placeholder {
 .ws-vote--sell { background: var(--danger); }
 .ws-vote--unclear { background: var(--text-faint); color: var(--text); }
 .ws-hero-level { color: var(--text-dim); font-size: 0.86rem; line-height: 1.5; margin-bottom: 16px; }
-.ws-hero-level b { color: var(--text); font-family: var(--font-mono); font-weight: 600; }
+.ws-hero-level b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ws-hero-cta { width: 100%; }
 
 .ws-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }

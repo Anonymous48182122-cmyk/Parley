@@ -4,6 +4,7 @@ import { currencySymbol } from "../currency.js";
 import { finalStances, tallyFinal } from "../stance.js";
 import { businessWord, deriveBrief } from "../brief.js";
 import { DepthSwitch, Glance, Story } from "./PlainViews.jsx";
+import CaseFile from "./CaseFile.jsx";
 import ConvictionRing from "./ConvictionRing.jsx";
 import Flag from "./Flag.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
@@ -246,6 +247,7 @@ export default function AnalysisWorkspace({ model, panels, liveTop, snapshotSkel
           <h1 className="ticker">{String(model.ticker).toUpperCase()}</h1>
           <Flag code={country} size={15} />
           {model.market === "Global" && model.exchange && <span className="ws-exchange">{model.exchange}</span>}
+          <CaseFile model={model} onFull={() => setDepth("full")} />
         </div>
         {model.name && model.name !== model.ticker && <div className="ws-name">{model.name}</div>}
         <div className="ws-head-row">
