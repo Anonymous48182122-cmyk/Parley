@@ -17,6 +17,7 @@ from backend import job_store
 from data.balance_sheet import build as build_balance_sheet
 from agents.business import management_facts, money_flow, pick_wisdom, pick_wisdom_options, wisdom_features
 from data.people import fetch_people
+from data.brand import find_brand, website_for_us
 from agents.runner import AgentCallError, run_cio, run_committee, run_plain_brief
 from data.common import CACHE_DIR, format_for_agents
 from orchestrator.analyze import fetch_financials
@@ -314,6 +315,18 @@ def _price_inputs(financials):
     return out
 
 
+def _brand_for(financials):
+    """How to draw the company's logo (see data/brand.py). Never raises: no logo is a fine answer."""
+    try:
+        website = financials.get("website")
+        if not website and financials.get("market") == "US":
+            website = website_for_us(financials.get("ticker", ""))
+        return find_brand(financials.get("name"), website)
+    except Exception:
+        log.exception("could not work out the logo")
+        return None
+
+
 def _business_facts(financials):
     """What the Business Lab draws from the figures themselves: where each 100 of sales goes, who
     runs the company and whose money is on the line, and a real line of investing wisdom that fits."""
@@ -330,6 +343,7 @@ def _business_facts(financials):
         return {
             "money_flow": flow,
             "management": management,
+            "brand": _brand_for(financials),
             "wisdom": pick_wisdom(features, financials.get("ticker", "")),
             "wisdom_options": pick_wisdom_options(features, financials.get("ticker", "")),
             "wisdom_inputs": inputs,

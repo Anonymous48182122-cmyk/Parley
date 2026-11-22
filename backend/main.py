@@ -18,6 +18,8 @@ from agents.prompts import AGENT_DISPLAY_NAMES, AGENT_KIND, AGENTS
 from agents.runner import AgentCallError, run_cross_exam, run_user_question, run_user_question_all
 from backend import jobs
 from backend.history import router as history_router
+from data.brand import find_brand, website_for_us
+from data.india import bse_fetcher
 from data.search import search_tickers
 
 app = FastAPI(title="Parley API")
@@ -248,6 +250,22 @@ def prices(items: str = ""):
 @app.get("/search")
 def search(q: str = ""):
     return search_tickers(q, limit=8)
+
+
+@app.get("/brand")
+def brand(name: str = "", ticker: str = "", market: str = ""):
+    """How to draw a company's logo, by name and ticker. Works for any run, old or saved. Takes no web address
+    from the caller: the address comes from the company's own exchange or filing record. Cached for days."""
+    website = None
+    t = ticker.strip().upper()[:20]
+    try:
+        if t and market == "US":
+            website = website_for_us(t)
+        elif t and market == "India":
+            website = bse_fetcher.fetch(t).get("website")
+    except Exception:
+        website = None
+    return find_brand(name.strip()[:120], website)
 
 
 @app.post("/analyze")

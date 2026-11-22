@@ -420,6 +420,19 @@ def _bullets(soup, css_class, limit=4):
     return [li.get_text(" ", strip=True) for li in soup.select(f".{css_class} li")][:limit]
 
 
+def _website(soup):
+    """The company's own web address. Screener's header lists it first, then the BSE and NSE pages, so the first
+    outside link before the exchange links is the company's site (a company with no site has the BSE link first)."""
+    for a in soup.select("a[href^=http]"):
+        href = a["href"].strip()
+        if re.search(r"bseindia|nseindia", href, re.I):
+            return None
+        if re.search(r"screener.in|sebi.gov|google|cloudflare|gstatic|twitter|facebook|linkedin|youtube", href, re.I):
+            continue
+        return href
+    return None
+
+
 def _about(soup, limit=650):
     node = soup.select_one(".company-profile .about")
     if not node:
@@ -509,6 +522,7 @@ def _parse(html):
         "pros": _bullets(soup, "pros"),
         "cons": _bullets(soup, "cons"),
         "about": _about(soup),
+        "website": _website(soup),
         "ratios": ratios,
         "shareholding": parse_shareholding(soup),
     }
@@ -526,7 +540,7 @@ def fetch(ticker, _allow_parent_lookup=True):
         return parsed
 
     ticker_upper = ticker.upper()
-    parsed = cached_fetch(f"in_screener_v4_{ticker_upper}", ttl_hours=24, fetch_fn=do_fetch)
+    parsed = cached_fetch(f"in_screener_v6_{ticker_upper}", ttl_hours=24, fetch_fn=do_fetch)
     result = {
         "ticker": ticker_upper,
         "name": parsed.get("name") or ticker_upper,
@@ -544,6 +558,7 @@ def fetch(ticker, _allow_parent_lookup=True):
         "pros": parsed.get("pros") or [],
         "cons": parsed.get("cons") or [],
         "business_summary": parsed.get("about"),
+        "website": parsed.get("website"),
         "technicals": parsed.get("technicals") or {},
         "ratios": {**({"Industry": parsed["industry"]} if parsed.get("industry") else {}),
                    **parsed.get("ratios", {})},

@@ -1,8 +1,8 @@
 /* ---- The company case file ------------------------------------------------- */
 
 .kd-btn {
-  display: inline-flex; align-items: center; gap: 7px; margin-left: 4px;
-  padding: 6px 13px 6px 9px; border-radius: 999px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px; margin-left: 4px;
+  padding: 4px 14px 4px 5px; border-radius: 999px; cursor: pointer;
   color: var(--gold); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em;
   background: linear-gradient(180deg, rgba(201, 160, 78, 0.16), rgba(201, 160, 78, 0.06));
   border: 1px solid rgba(201, 160, 78, 0.5);
@@ -10,7 +10,9 @@
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
 }
 .kd-btn:hover { transform: translateY(-1px); box-shadow: 0 0 24px -4px rgba(201, 160, 78, 0.8); background: rgba(201, 160, 78, 0.2); }
-.kd-btn svg { flex: none; }
+.co-logo { display: inline-flex; flex: none; align-items: center; justify-content: center; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.co-logo img { display: block; width: 100%; height: 100%; object-fit: contain; box-sizing: border-box; }
+.co-logo--initials { background: var(--gold-soft); color: var(--gold); font-weight: 700; letter-spacing: 0.02em; box-shadow: 0 0 0 1px rgba(201, 160, 78, 0.45); }
 
 .kd-overlay {
   position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
@@ -25,7 +27,6 @@
   overflow: hidden;
 }
 .kd-head { display: flex; align-items: center; gap: 14px; padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }
-.kd-head-icon { display: inline-flex; padding: 9px; border-radius: 12px; color: var(--gold); background: var(--gold-soft); border: 1px solid rgba(201, 160, 78, 0.4); }
 .kd-head .lab-kicker { margin-bottom: 2px; }
 .kd-title { font-size: 1.15rem; font-weight: 600; line-height: 1.25; }
 .kd-close { margin-left: auto; align-self: flex-start; background: none; border: none; color: var(--text-faint); font-size: 1.6rem; line-height: 1; padding: 2px 8px; cursor: pointer; }

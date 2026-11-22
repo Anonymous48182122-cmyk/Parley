@@ -54,6 +54,32 @@ def _current(claims, prop):
     return [i for _, i in sorted(out)]
 
 
+def _brand(claims):
+    """The company's own web address (P856) and its logo file on Wikimedia Commons (P8972 the small icon, then
+    P154 the logo), so the page can show the real logo. Either can be None."""
+    domain, logo = None, None
+    for c in claims.get("P856", []):
+        if c.get("rank") == "deprecated":
+            continue
+        url = ((c.get("mainsnak") or {}).get("datavalue") or {}).get("value")
+        if isinstance(url, str):
+            host = re.sub(r"^https?://(www.)?", "", url.strip().lower()).split("/")[0]
+            if host:
+                domain = host
+                break
+    for prop in ("P8972", "P154"):
+        for c in claims.get(prop, []):
+            if c.get("rank") == "deprecated":
+                continue
+            value = ((c.get("mainsnak") or {}).get("datavalue") or {}).get("value")
+            if isinstance(value, str) and value:
+                logo = value
+                break
+        if logo:
+            break
+    return {"domain": domain, "logo": logo}
+
+
 _LINK = re.compile(r"\[\[([^\]|#]+)(?:\|([^\]]+))?\]\]")
 _CEO_WORDS = re.compile(r"\bceo\b|chief executive", re.I)
 _ROLE_WORDS = re.compile(r"chair|president|ceo|chief|officer|executive|director|board|vice|founder", re.I)
@@ -100,6 +126,7 @@ def _fetch(name):
         return {"ceo": [], "founders": []}
     entity = _get({"action": "wbgetentities", "ids": company["id"], "props": "claims|sitelinks"})["entities"][company["id"]]
     claims = entity.get("claims") or {}
+    brand = _brand(claims)
     wiki = {"ceo": [], "founders": []}
     title = ((entity.get("sitelinks") or {}).get("enwiki") or {}).get("title")
     if title:
@@ -110,7 +137,7 @@ def _fetch(name):
     ceo_ids, founder_ids = _current(claims, "P169")[:2], _current(claims, "P112")[:5]
     ids = list(dict.fromkeys(ceo_ids + founder_ids))
     if not ids:
-        return {"ceo": wiki["ceo"], "founders": wiki["founders"], "entity": company["id"]}
+        return {"ceo": wiki["ceo"], "founders": wiki["founders"], "entity": company["id"], **brand}
     labels = _get({"action": "wbgetentities", "ids": "|".join(ids), "props": "labels", "languages": "en"})["entities"]
 
     def name_of(i):
@@ -122,14 +149,14 @@ def _fetch(name):
     for n in map(name_of, founder_ids):
         if n and not any(n.split()[-1].lower() == f.split()[-1].lower() for f in founders):
             founders.append(n)
-    return {"ceo": ceo, "founders": founders[:5], "entity": company["id"], "from_wikipedia": bool(wiki["ceo"])}
+    return {"ceo": ceo, "founders": founders[:5], "entity": company["id"], "from_wikipedia": bool(wiki["ceo"]), **brand}
 
 
 def fetch_people(company_name):
     """{"ceo": [names], "founders": [names]}; empty lists when Wikidata has nothing or cannot be reached."""
     if not company_name:
         return {"ceo": [], "founders": []}
-    key = "people_" + re.sub(r"[^a-z0-9]+", "_", company_name.lower())[:60]
+    key = "people2_" + re.sub(r"[^a-z0-9]+", "_", company_name.lower())[:60]
     try:
         return cached_fetch(key, PEOPLE_TTL_HOURS, lambda: _fetch(company_name))
     except Exception:

@@ -1,7 +1,9 @@
 import "../casefile.css";
 import { useEffect, useMemo, useState } from "react";
+import { getBrand } from "../api.js";
 import { buildCaseFile } from "../caseFile.js";
 import { currencySymbol } from "../currency.js";
+import CompanyLogo from "./CompanyLogo.jsx";
 
 // The company's case file: a button beside the name that opens a one page file on the company. It is not an
 // encyclopaedia entry. It holds only what helps a decision: what the company is, what its numbers really say,
@@ -9,17 +11,6 @@ import { currencySymbol } from "../currency.js";
 // Parley already has, so it opens instantly and every line can be traced to a number.
 
 const VERDICT_COLORS = { BUY: "var(--success)", HOLD: "var(--gold)", SELL: "var(--danger)" };
-
-// A chart icon: a square, its two diagonals and the diamond joining the midpoints.
-function ChartIcon({ size = 20 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2.75" y="2.75" width="18.5" height="18.5" rx="1.5" />
-      <path d="M2.75 2.75 21.25 21.25M21.25 2.75 2.75 21.25" />
-      <path d="M12 2.75 21.25 12 12 21.25 2.75 12Z" />
-    </svg>
-  );
-}
 
 function Section({ title, children }) {
   return (
@@ -157,6 +148,24 @@ function Body({ k, onFull }) {
 
 export default function CaseFile({ model, onFull }) {
   const [open, setOpen] = useState(false);
+  const [fetched, setFetched] = useState(null);
+  const savedBrand = model.marketData?.business_facts?.brand;
+  const companyName = model.name || model.marketData?.name || model.ticker;
+  // a stored brand from before site pictures were read has no site fields, so it is asked for again
+  const hasSaved = !!(savedBrand && (savedBrand.site_icon || savedBrand.site_logo || savedBrand.logo));
+
+  // a run made before logos existed, or a saved debate, has no logo stored: ask the server by name
+  useEffect(() => {
+    if (!model.marketData || hasSaved || !model.name) return undefined;
+    let cancelled = false;
+    getBrand(model.name, model.ticker, model.market)
+      .then((b) => !cancelled && setFetched(b))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [model.marketData ? model.name : null, hasSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+  const brand = hasSaved ? savedBrand : fetched;
   const k = useMemo(() => (open ? buildCaseFile(model) : null), [open, model]);
 
   useEffect(() => {
@@ -175,10 +184,11 @@ export default function CaseFile({ model, onFull }) {
 
   if (!model.marketData) return null;
 
+
   return (
     <>
       <button type="button" className="kd-btn" onClick={() => setOpen(true)} aria-haspopup="dialog" title="The company's case file: what it is, what its numbers say, what most people miss">
-        <ChartIcon />
+        <CompanyLogo brand={brand} name={companyName} size={24} />
         <span>Case file</span>
       </button>
 
@@ -186,7 +196,7 @@ export default function CaseFile({ model, onFull }) {
         <div className="kd-overlay" onClick={() => setOpen(false)}>
           <div className="kd-sheet" role="dialog" aria-modal="true" aria-label={`Case file on ${k.name}`} onClick={(e) => e.stopPropagation()}>
             <header className="kd-head">
-              <span className="kd-head-icon"><ChartIcon size={26} /></span>
+              <CompanyLogo brand={brand} name={companyName} size={48} wide />
               <div>
                 <div className="lab-kicker">Company case file</div>
                 <div className="kd-title">{k.name}</div>
