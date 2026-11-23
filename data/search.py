@@ -101,6 +101,32 @@ def _score(query, ticker, name):
     return None
 
 
+_FUND = re.compile(r"\b(ETF|ETFS|ETN|MUTUAL FUND|INDEX FUND|FUND OF FUNDS|LIQUID FUND|EXCHANGE TRADED)\b", re.I)
+_CLASS_SUFFIX = re.compile(r"[-.](UN|WT|WS|RT|U|W|R)$")
+
+
+def instrument_kind(ticker, name, market="US", listed=frozenset()):
+    """What a listed symbol is when it is not a company's shares: "fund" (an ETF or mutual fund unit), "warrant",
+    "unit" or "right". None for an ordinary share. Parley analyses companies, so these are left out of search
+    rather than offered and then failing. `listed` is the set of US symbols, used to tell a five letter warrant
+    (NEWCW beside NEWC) from a company whose name merely ends in W."""
+    ticker, name = (ticker or "").upper(), (name or "")
+    if _FUND.search(name):
+        return "fund"
+    if re.search(r"-(RE\d?|W\d)$", ticker):  # an Indian rights entitlement (-RE) or warrant (-W1), not the share itself
+        return "right" if "-RE" in ticker else "warrant"
+    if market != "US":
+        return None  # the share class and five letter conventions below are the US exchanges'
+    m = _CLASS_SUFFIX.search(ticker)
+    if m and len(ticker) > len(m.group(0)) + 1:
+        return {"UN": "unit", "U": "unit", "WT": "warrant", "WS": "warrant", "W": "warrant", "RT": "right", "R": "right"}[m.group(1)]
+    if len(ticker) == 5 and ticker[-1] in "WRU" and ticker[:-1] in listed:
+        return {"W": "warrant", "R": "right", "U": "unit"}[ticker[-1]]
+    if re.search(r"\b(WARRANTS?|RIGHTS)\b", name, re.I) and re.search(r"\b(EACH|REDEEMABLE|ENTITLING|TO PURCHASE)\b", name, re.I):
+        return "warrant"
+    return None
+
+
 def _build_all_entries():
     """Flattens both US and India sources into one normalized
     (ticker, name, payload) list, built once per memo refresh."""
@@ -150,7 +176,8 @@ def _build_all_entries():
         seen.add(key)
         entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India", "country": "IN"}))
 
-    return entries
+    us_symbols = {t for t, _n, p in entries if p["market"] == "US"}
+    return [e for e in entries if instrument_kind(e[0], e[1], e[2]["market"], us_symbols) is None]
 
 
 def _build_prefix_index(entries):
@@ -180,6 +207,18 @@ _MINOR_VENUES = {"F", "BE", "DU", "HM", "MU", "SG", "HA", "IL"}  # secondary Ger
 _RECEIPT = re.compile(r"\b(CEDEAR|BDR|DRN?|SDR)\b", re.I)
 
 
+def _is_derivative(symbol, name):
+    """Hong Kong lists thousands of warrants and structured products beside its shares ("JPLENOV@EC2611B"). Shares
+    there have codes up to 9999 (and 80000s for the yuan counters); the rest, and anything with an "@", is not a company."""
+    if "@" in name or "@" in symbol:
+        return True
+    m = re.match(r"^(\d+)\.HK$", symbol.upper())
+    if m:
+        code = int(m.group(1))
+        return 10000 <= code < 80000 or code >= 90000
+    return False
+
+
 def _yahoo_global_matches_live(query, limit):
     """Companies on exchanges outside the US and India, from Yahoo's own search (7203.T, SAP.DE, 0700.HK).
     Anything without a known exchange suffix (US listings, OTC) is left out, since our own lists cover it."""
@@ -195,7 +234,7 @@ def _yahoo_global_matches_live(query, limit):
             name = q.get("longname") or q.get("shortname") or symbol
             if q.get("quoteType") != "EQUITY" or not is_global_symbol(symbol) or suffix_of(symbol) in _MINOR_VENUES:
                 continue
-            if _RECEIPT.search(name):
+            if _RECEIPT.search(name) or _is_derivative(symbol, name):
                 continue
             out.append({"ticker": symbol, "name": name, "market": "Global",
                         "country": country_of_symbol(symbol), "exchange": q.get("exchDisp")})

@@ -49,6 +49,56 @@ def _merge_market_data(financials):
     return financials
 
 
+def _listed_name(ticker):
+    """The company's full name from the NSE or BSE list, or None."""
+    try:
+        from data.india.bse_fetcher import get_bse_list, get_symbol_list
+
+        want = ticker.upper()
+        return (next((r["name"] for r in get_symbol_list() if r["symbol"].upper() == want), None)
+                or next((r["name"] for r in get_bse_list() if r["symbol"].upper() == want), None))
+    except Exception:
+        return None
+
+
+def _screener_slug_by_name(ticker):
+    """The name Screener files a listed company under, found by asking its own search for the company's name (our
+    lists know the name for every NSE and BSE ticker). Covers the case where the short name on the exchange list is
+    not the name Screener's page is under. None when nothing sensible comes back."""
+    try:
+        from data.search import _screener_matches_live
+
+        name = _listed_name(ticker)
+        if not name:
+            return None
+        return next((m["ticker"] for m in _screener_matches_live(name, 3) if m.get("ticker")), None)
+    except Exception:
+        return None
+
+
+def fetch_india(ticker):
+    """An Indian company's figures. Screener first. When its page is missing, blank (a company that listed this week
+    has a page before it has any figures) or unreachable, ask Screener's search for the right page by company name,
+    and when that fails too fall back to Yahoo's statements and price history, so a company that exists on the
+    exchange gets an analysis rather than an error. Raises the original error only when nothing at all can be found."""
+    try:
+        return bse_fetcher.fetch(ticker)
+    except (requests.exceptions.RequestException, ValueError) as first:
+        slug = _screener_slug_by_name(ticker)
+        if slug and slug.upper() != ticker.upper():
+            try:
+                found = bse_fetcher.fetch(slug)
+                found["ticker"] = ticker.upper()
+                return found
+            except (requests.exceptions.RequestException, ValueError):
+                pass
+        skeleton = india_skeleton(ticker)
+        if skeleton.get("price") is None:
+            raise first
+        skeleton["name"] = _listed_name(ticker) or skeleton.get("name")
+        return skeleton
+
+
 def fetch_financials(ticker, market=None):
     if market is None and is_global_symbol(ticker):
         market = "Global"  # 7203.T, SAP.DE, 0700.HK: the exchange suffix says where it trades
@@ -57,16 +107,12 @@ def fetch_financials(ticker, market=None):
     elif market == "US":
         financials = edgar_fetcher.fetch(ticker)
     elif market == "India":
-        try:
-            financials = bse_fetcher.fetch(ticker)
-        except requests.exceptions.RequestException:
-            # Screener unreachable (not "no such company", which is a ValueError): carry on with Yahoo
-            financials = india_skeleton(ticker)
+        financials = fetch_india(ticker)
     else:
         try:
             financials = edgar_fetcher.fetch(ticker)
         except ValueError:
-            financials = bse_fetcher.fetch(ticker)
+            financials = fetch_india(ticker)
 
     financials = complete_with_yahoo(financials)
     if not financials.get("annual") and financials.get("qualitative", "").startswith("Screener.in could not"):
@@ -81,6 +127,9 @@ def fetch_financials(ticker, market=None):
     financials = complete_with_nasdaq(financials)  # Yahoo is empty from cloud IPs; Nasdaq is the backup
     financials = _merge_market_data(financials)
     financials = fill_market_gaps(financials)
+    if not financials.get("annual") and financials.get("price") is None:
+        # nothing to read at all (a blank cheque company, a fund, a symbol that stopped trading): say so before the committee is convened
+        raise ValueError(f"No financial statements or prices found for {ticker}")
     financials = derive_ratios(financials)
     financials["peers"] = fetch_peers(
         financials["ticker"],

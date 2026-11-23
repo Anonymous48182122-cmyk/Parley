@@ -36,11 +36,24 @@ def _is_not_found(exc, stage):
 
 def not_found_message(ticker):
     text = (f"We could not find {ticker}. Parley covers companies listed on the US exchanges (NYSE and Nasdaq) "
-            "and on India's NSE. Please check the spelling, or search by company name.")
+            "and on India's NSE. Please check the spelling, or search by company name. It analyses company shares, "
+            "not funds, ETFs, warrants or units.")
     if len(ticker) == 5 and ticker.endswith("F") and ticker.isalpha():
         text += (" A five letter ticker ending in F is usually a foreign share traded over the counter, "
                  "which Parley does not cover yet. Try the company's main stock exchange listing instead.")
     return text
+
+
+def _is_listed(ticker):
+    """True when the ticker is on one of our own lists of what trades (NSE, BSE, NYSE and Nasdaq), as opposed to
+    a typo. Never raises."""
+    try:
+        from data.search import search_tickers
+
+        want = str(ticker).upper()
+        return any(m.get("market") in ("US", "India") and str(m.get("ticker", "")).upper() == want for m in search_tickers(want, limit=6))
+    except Exception:
+        return False
 
 
 def _fail_data(job, exc, ticker):
@@ -48,7 +61,11 @@ def _fail_data(job, exc, ticker):
     failure, with close matches, because trying the same ticker again can never work."""
     job["status"] = "error"
     job["error"] = friendly_error(exc, ticker, "data")
-    if _is_not_found(exc, "data"):
+    if _is_not_found(exc, "data") and _is_listed(ticker):
+        # the exchange lists it, so "we could not find it" would be untrue: its figures just cannot be read right now
+        job["error"] = (f"{ticker} is listed, but we could not read its figures just now. A company that listed very "
+                        "recently can take a few days to have any, otherwise please try again in a few minutes.")
+    elif _is_not_found(exc, "data"):
         from data.search import search_tickers
         job["error_kind"] = "not_found"
         try:
