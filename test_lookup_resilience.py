@@ -123,3 +123,13 @@ def test_real_companies_are_never_dropped():
         ("XYZ-BE", "Some Trade To Trade Ltd", "India"),
     ]:
         assert instrument_kind(ticker, name, market, us) is None, ticker
+
+
+def test_preferred_series_and_spac_shells():
+    assert instrument_kind("GAB-PH", "Gabelli Equity Trust Preferred", "US", set()) == "preferred"
+    assert instrument_kind("BRK-B", "BERKSHIRE HATHAWAY INC", "US", set()) is None
+
+
+def test_a_spac_shell_gets_its_own_plain_message():
+    text = jobs.friendly_error(ValueError("EVOX is a blank check company (SPAC) with no business or statements yet"), "EVOX", "data")
+    assert "blank check" in text and "could not find" not in text.lower()

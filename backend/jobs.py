@@ -38,8 +38,8 @@ def not_found_message(ticker):
     text = (f"We could not find {ticker}. Parley covers companies listed on the US exchanges (NYSE and Nasdaq) "
             "and on India's NSE. Please check the spelling, or search by company name. It analyses company shares, "
             "not funds, ETFs, warrants or units.")
-    if len(ticker) == 5 and ticker.endswith("F") and ticker.isalpha():
-        text += (" A five letter ticker ending in F is usually a foreign share traded over the counter, "
+    if len(ticker) == 5 and ticker[-1] in "FY" and ticker.isalpha():
+        text += (" A five letter ticker ending in F or Y is usually a foreign share or ADR traded over the counter, "
                  "which Parley does not cover yet. Try the company's main stock exchange listing instead.")
     return text
 
@@ -85,6 +85,9 @@ def friendly_error(exc, ticker, stage):
     if isinstance(exc, (requests.exceptions.ConnectionError, requests.exceptions.Timeout)):
         return "We could not reach one of our data sources just now. This is usually brief. Please try again in a minute."
     if stage == "data" and isinstance(exc, ValueError):
+        if "blank check" in text:
+            return (f"{ticker} is a blank check company (a SPAC): it has raised money to buy a business it has not "
+                    "bought yet, so there is nothing for the committee to analyse. Try it again after it merges.")
         if _is_not_found(exc, stage):
             return not_found_message(ticker)
         if "could not reach" in text:

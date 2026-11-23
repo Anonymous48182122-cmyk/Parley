@@ -5,6 +5,8 @@ schema (see data/common.py), so downstream code never needs to know which
 market it came from.
 """
 
+import re
+
 import requests
 
 from data.common import format_for_agents
@@ -130,6 +132,9 @@ def fetch_financials(ticker, market=None):
     if not financials.get("annual") and financials.get("price") is None:
         # nothing to read at all (a blank cheque company, a fund, a symbol that stopped trading): say so before the committee is convened
         raise ValueError(f"No financial statements or prices found for {ticker}")
+    if financials.get("market") == "US" and not financials.get("annual") and re.search(r"\bACQUISITION\b", str(financials.get("name") or "").upper()):
+        # a blank cheque company: it has raised money to buy a business it has not bought yet, so there is nothing to analyse
+        raise ValueError(f"{ticker} is a blank check company (SPAC) with no business or statements yet")
     financials = derive_ratios(financials)
     financials["peers"] = fetch_peers(
         financials["ticker"],

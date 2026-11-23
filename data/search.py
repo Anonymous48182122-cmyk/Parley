@@ -117,6 +117,8 @@ def instrument_kind(ticker, name, market="US", listed=frozenset()):
         return "right" if "-RE" in ticker else "warrant"
     if market != "US":
         return None  # the share class and five letter conventions below are the US exchanges'
+    if re.search(r"-P[A-Z]$", ticker):  # a preferred share series (GAB-PH), not the common share
+        return "preferred"
     m = _CLASS_SUFFIX.search(ticker)
     if m and len(ticker) > len(m.group(0)) + 1:
         return {"UN": "unit", "U": "unit", "WT": "warrant", "WS": "warrant", "W": "warrant", "RT": "right", "R": "right"}[m.group(1)]
