@@ -129,6 +129,17 @@ def instrument_kind(ticker, name, market="US", listed=frozenset()):
     return None
 
 
+def is_otc_foreign(ticker, market, exchange_listed):
+    """A five letter US symbol ending in F (a foreign ordinary share) or Y (an ADR) that no US exchange lists:
+    the over the counter line of a company whose real listing is abroad (Deutsche Telekom's DTEGY, Rio Tinto's
+    RTNTF). The SEC has no statements for it, so analysing it fails; the search for the company's own name already
+    finds the home listing (DTE.DE), so these are left out rather than offered and then failing. Only applied when the
+    exchange list actually loaded, so a failed download can never empty the search of every such ticker."""
+    t = (ticker or "").upper()
+    return (market == "US" and len(exchange_listed) > 1000 and len(t) == 5 and t.isalpha()
+            and t[-1] in "FY" and t not in exchange_listed)
+
+
 def _build_all_entries():
     """Flattens both US and India sources into one normalized
     (ticker, name, payload) list, built once per memo refresh."""
@@ -179,7 +190,10 @@ def _build_all_entries():
         entries.append((ticker, name, {"ticker": entry["symbol"], "name": entry["name"], "market": "India", "country": "IN"}))
 
     us_symbols = {t for t, _n, p in entries if p["market"] == "US"}
-    return [e for e in entries if instrument_kind(e[0], e[1], e[2]["market"], us_symbols) is None]
+    exchange_listed = {row["symbol"].upper().replace("/", "-") for row in universe}
+    return [e for e in entries
+            if instrument_kind(e[0], e[1], e[2]["market"], us_symbols) is None
+            and not is_otc_foreign(e[0], e[2]["market"], exchange_listed)]
 
 
 def _build_prefix_index(entries):

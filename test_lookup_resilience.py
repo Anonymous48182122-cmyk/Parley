@@ -133,3 +133,16 @@ def test_preferred_series_and_spac_shells():
 def test_a_spac_shell_gets_its_own_plain_message():
     text = jobs.friendly_error(ValueError("EVOX is a blank check company (SPAC) with no business or statements yet"), "EVOX", "data")
     assert "blank check" in text and "could not find" not in text.lower()
+
+
+from data.search import is_otc_foreign
+
+
+def test_over_the_counter_foreign_lines_are_dropped_but_exchange_listed_adrs_stay():
+    listed = {f"T{i}" for i in range(1500)} | {"RYAAY", "KO"}
+    assert is_otc_foreign("DTEGY", "US", listed)  # Deutsche Telekom's OTC ADR
+    assert is_otc_foreign("RTNTF", "US", listed)  # Rio Tinto's OTC ordinary share
+    assert not is_otc_foreign("RYAAY", "US", listed)  # Ryanair's ADR is listed on Nasdaq
+    assert not is_otc_foreign("KO", "US", listed)
+    assert not is_otc_foreign("DTEGY", "India", listed)
+    assert not is_otc_foreign("DTEGY", "US", {"KO"})  # a failed exchange list never empties the search
