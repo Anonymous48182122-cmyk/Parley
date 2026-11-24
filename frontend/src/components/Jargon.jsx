@@ -8,7 +8,7 @@ import { explain, splitJargon } from "../glossary.js";
 //
 // Only the first appearance of each word in a block is marked, so a paragraph is not covered in underlines.
 
-export default function Jargon({ text }) {
+export default function Jargon({ text, only }) {
   const [open, setOpen] = useState(null);
   const box = useRef(null);
 
@@ -28,9 +28,12 @@ export default function Jargon({ text }) {
     };
   }, [open]);
 
+  // `only`, when given, is the set of words this piece may mark: a longer piece of writing works out once, from the
+  // whole text, which line holds each word's first appearance, so a word is underlined once and the result never
+  // depends on how many times a component happens to render
   const seen = new Set();
   const parts = splitJargon(text).map((p) => {
-    if (!p.term || seen.has(p.term)) return { text: p.text };
+    if (!p.term || seen.has(p.term) || (only && !only.has(p.term))) return { text: p.text };
     seen.add(p.term);
     return p;
   });
