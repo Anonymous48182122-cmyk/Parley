@@ -146,3 +146,17 @@ def test_over_the_counter_foreign_lines_are_dropped_but_exchange_listed_adrs_sta
     assert not is_otc_foreign("KO", "US", listed)
     assert not is_otc_foreign("DTEGY", "India", listed)
     assert not is_otc_foreign("DTEGY", "US", {"KO"})  # a failed exchange list never empties the search
+
+
+def test_live_search_matches_are_held_to_the_same_rule(monkeypatch):
+    import data.search as search
+
+    monkeypatch.setattr(search, "_screener_matches", lambda q, n: [
+        {"ticker": "CPSEETF", "name": "CPSE ETF", "market": "India", "country": "IN"},
+        {"ticker": "CPSE", "name": "CPSE Industries Ltd", "market": "India", "country": "IN"},
+    ])
+    monkeypatch.setattr(search, "_yahoo_global_matches", lambda q, n: [])
+    monkeypatch.setattr(search, "_build_all_entries", lambda: [])
+    monkeypatch.setattr(search, "_memoized", lambda key, fn: fn())
+    found = search.search_tickers("CPSE", limit=8)
+    assert [m["ticker"] for m in found] == ["CPSE"]

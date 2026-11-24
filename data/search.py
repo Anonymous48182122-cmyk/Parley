@@ -294,6 +294,12 @@ def _screener_matches_live(query, limit):
         return []
 
 
+def _only_companies(matches):
+    """Screener's and Yahoo's live searches know nothing of our rule that funds, warrants and the like are not offered,
+    so their matches are held to it too."""
+    return [m for m in matches if not instrument_kind(m.get("ticker"), m.get("name"), m.get("market", "US"))]
+
+
 def search_tickers(query, limit=8, _retry=True):
     query = (query or "").strip().upper()
     if not query:
@@ -354,10 +360,10 @@ def search_tickers(query, limit=8, _retry=True):
         if may_refresh_lists():
             refresh_lists()
             return search_tickers(query, limit, _retry=False)
-        return _screener_matches(query, limit)
+        return _only_companies(_screener_matches(query, limit))
 
     if not scored and not _retry:
-        return _screener_matches(query, limit)
+        return _only_companies(_screener_matches(query, limit))
 
     scored.sort(key=lambda row: (row[0], row[1]))
-    return [row[2] for row in scored[:limit]]
+    return _only_companies([row[2] for row in scored])[:limit]
