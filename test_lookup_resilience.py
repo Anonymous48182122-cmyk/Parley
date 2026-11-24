@@ -160,3 +160,11 @@ def test_live_search_matches_are_held_to_the_same_rule(monkeypatch):
     monkeypatch.setattr(search, "_memoized", lambda key, fn: fn())
     found = search.search_tickers("CPSE", limit=8)
     assert [m["ticker"] for m in found] == ["CPSE"]
+
+
+def test_closed_end_funds_go_but_lending_funds_that_are_businesses_stay():
+    assert instrument_kind("PDI", "PIMCO Dynamic Income Fund", "US", set()) == "fund"
+    assert instrument_kind("ETB", "Eaton Vance Tax-Managed Buy-Write Income Fund", "US", set()) == "fund"
+    assert instrument_kind("BXSL", "Blackstone Secured Lending Fund", "US", set()) is None
+    assert instrument_kind("MSDL", "Morgan Stanley Direct Lending Fund", "US", set()) is None
+    assert instrument_kind("KO", "COCA COLA CO", "US", set()) is None

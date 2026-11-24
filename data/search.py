@@ -102,6 +102,8 @@ def _score(query, ticker, name):
 
 
 _FUND = re.compile(r"\b(ETF|ETFS|ETN|MUTUAL FUND|INDEX FUND|FUND OF FUNDS|LIQUID FUND|EXCHANGE TRADED)\b", re.I)
+_CLOSED_END = re.compile(r"\bFUNDS?\b", re.I)
+_LENDER = re.compile(r"\b(LENDING|CREDIT|CAPITAL|BDC|INVESTMENT CORP)\b", re.I)
 _CLASS_SUFFIX = re.compile(r"[-.](UN|WT|WS|RT|U|W|R)$")
 
 
@@ -113,6 +115,8 @@ def instrument_kind(ticker, name, market="US", listed=frozenset()):
     ticker, name = (ticker or "").upper(), (name or "")
     if _FUND.search(name):
         return "fund"
+    if market == "US" and _CLOSED_END.search(name) and not _LENDER.search(name):
+        return "fund"  # a closed end fund ("PIMCO Dynamic Income Fund"); a lending fund that is a business (a BDC) stays
     if re.search(r"-(RE\d?|W\d)$", ticker):  # an Indian rights entitlement (-RE) or warrant (-W1), not the share itself
         return "right" if "-RE" in ticker else "warrant"
     if market != "US":
