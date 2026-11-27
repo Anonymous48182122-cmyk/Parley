@@ -48,7 +48,7 @@ function Inline({ text, only }) {
   );
 }
 
-export default function FormattedText({ text, accentColor = "var(--gold)" }) {
+export default function FormattedText({ text, accentColor = "var(--accent)" }) {
   const lines = text.split(/\n+/).filter((line) => line.trim().length > 0);
   // which finance words each line may mark: a word only where it first appears in the whole piece
   const running = new Set();

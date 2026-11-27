@@ -1,65 +1,59 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
+import { useOpenResearch } from "../committee.js";
+import ThemeToggle from "./ThemeToggle.jsx";
+import TickerSearchBox from "./TickerSearchBox.jsx";
 
+// The top bar: the name, a search that works from any page (the home page has its own, larger one), history,
+// light or dark, and signing in.
 export default function TopNav() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const open = useOpenResearch();
+  const home = pathname === "/";
 
   return (
-    <div
-      style={{
-        position: "sticky",
-        top: 0,
-        zIndex: 20,
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: 16,
-        padding: "14px 24px",
-        fontSize: "0.85rem",
-        borderBottom: "1px solid var(--border)",
-        background: "rgba(5, 7, 13, 0.7)",
-        backdropFilter: "blur(10px)",
-      }}
-    >
-      <Link
-        to="/"
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontWeight: 600,
-          fontSize: "1.05rem",
-          color: "var(--text)",
-        }}
-      >
-        Parley
-      </Link>
+    <header className="nav">
+      <div className="nav-in">
+        <Link to="/" className="brand" aria-label="Parley home">
+          <span className="brand-mark" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <span className="brand-name">Parley</span>
+        </Link>
 
-      <div className="topnav-actions">
-        {user ? (
-          <>
-            <span className="topnav-user-badge" title={user.email}>
-              {user.email?.[0]?.toUpperCase() ?? "?"}
-            </span>
-            <Link to="/history" style={{ color: "var(--text-dim)", flexShrink: 0 }}>
+        <div className="nav-search">{!home && <TickerSearchBox variant="nav" onSelect={(t, m) => open(t, m)} />}</div>
+
+        <nav className="nav-actions">
+          {user && (
+            <NavLink to="/history" className="nav-link">
               History
-            </Link>
+            </NavLink>
+          )}
+          <ThemeToggle />
+          {user ? (
             <button
-              className="button-secondary"
-              style={{ padding: "6px 14px" }}
+              type="button"
+              className="nav-user"
+              title={`${user.email}. Sign out`}
               onClick={async () => {
                 await signOut();
                 navigate("/");
               }}
             >
-              Sign Out
+              <span className="topnav-user-badge">{user.email?.[0]?.toUpperCase() ?? "?"}</span>
+              <span className="nav-signout">Sign out</span>
             </button>
-          </>
-        ) : (
-          <Link to="/auth" className="button-secondary" style={{ padding: "6px 14px" }}>
-            Sign In
-          </Link>
-        )}
+          ) : (
+            <Link to="/auth" className="button-secondary nav-signin">
+              Sign in
+            </Link>
+          )}
+        </nav>
       </div>
-    </div>
+    </header>
   );
 }

@@ -158,7 +158,7 @@ export default function CIOMemo({ text, verdict, conviction, stage1, debate, fal
       )}
       <div className="cio-note">A synthesis, not a vote: a map of where the committee actually landed.</div>
       <div className="cio-body">
-        <FormattedText text={text} accentColor="var(--gold)" />
+        <FormattedText text={text} accentColor="var(--accent)" />
       </div>
     </div>
   );

@@ -13,7 +13,8 @@ function mergeResults(local, full, limit) {
   return [...full, ...extra].slice(0, limit);
 }
 
-export default function TickerSearchBox({ onSelect }) {
+export default function TickerSearchBox({ onSelect, variant = "hero" }) {
+  const nav = variant === "nav";
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
@@ -93,11 +94,16 @@ export default function TickerSearchBox({ onSelect }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ position: "relative", marginBottom: 20 }}>
-      <div className="search-row" style={{ display: "flex", gap: 10 }}>
+    <form onSubmit={handleSubmit} className={`search search--${variant}`} role="search">
+      <div className="search-row">
+        <svg className="search-glass" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20.5 20.5-4.3-4.3" />
+        </svg>
         <input
           type="text"
-          placeholder="Search a ticker or company"
+          aria-label="Search a ticker or company"
+          placeholder={nav ? "Search any company" : "Search a company or ticker"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -105,12 +111,14 @@ export default function TickerSearchBox({ onSelect }) {
           onBlur={() => {
             blurTimeoutRef.current = setTimeout(() => setOpen(false), 150);
           }}
-          autoFocus
+          autoFocus={!nav}
           autoComplete="off"
         />
-        <button type="submit" className="button-primary" style={{ whiteSpace: "nowrap" }}>
-          Convene committee
-        </button>
+        {!nav && (
+          <button type="submit" className="button-primary">
+            Research
+          </button>
+        )}
       </div>
 
       {open && results.length > 0 && (
@@ -139,7 +147,7 @@ export default function TickerSearchBox({ onSelect }) {
                 padding: "12px 14px",
                 borderRadius: "var(--radius-sm)",
                 cursor: "pointer",
-                background: i === highlighted ? "var(--gold-soft)" : "transparent",
+                background: i === highlighted ? "var(--accent-soft)" : "transparent",
                 transition: "background 0.15s var(--ease)",
               }}
             >

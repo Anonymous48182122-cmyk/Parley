@@ -215,7 +215,7 @@ export function HistoryView({ entries, error, onDelete }) {
         <div className="card" style={{ textAlign: "center", padding: "52px 24px" }}>
           <div style={{ fontSize: "1.05rem", fontWeight: 600, marginBottom: 8 }}>Nothing saved yet</div>
           <div style={{ color: "var(--text-dim)", fontSize: "0.92rem", lineHeight: 1.6, marginBottom: 20 }}>
-            Run a committee session and press <span style={{ color: "var(--gold)" }}>Save to History</span> once
+            Run a committee session and press <span style={{ color: "var(--accent)" }}>Save to History</span> once
             the CIO memo is ready.
           </div>
           <Link to="/" className="button-primary" style={{ display: "inline-block" }}>

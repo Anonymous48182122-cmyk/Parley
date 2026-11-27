@@ -8,7 +8,7 @@ import BioAvatar from "./BioAvatar.jsx";
 // from the same figures (the scorecards and the business card), so a missing piece simply hides.
 
 const FLOW_STEPS = [
-  { key: "gross", label: "Left after making the product", tone: "var(--gold)" },
+  { key: "gross", label: "Left after making the product", tone: "var(--accent)" },
   { key: "operating", label: "Left after running the business", tone: "var(--success)" },
   { key: "net", label: "Kept as profit", tone: "var(--success)" },
 ];

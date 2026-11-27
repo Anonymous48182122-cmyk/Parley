@@ -41,14 +41,14 @@ function ChatReplay({ chat }) {
           <div key={i} style={{ marginBottom: i === chat.length - 1 ? 0 : 22 }}>
             <div
               style={{
-                background: "var(--gold-soft)",
+                background: "var(--accent-soft)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-sm)",
                 padding: "10px 14px",
                 fontSize: "0.92rem",
               }}
             >
-              <span style={{ color: "var(--gold)", fontWeight: 600, marginRight: 8 }}>You</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600, marginRight: 8 }}>You</span>
               {entry.question}
             </div>
             {entry.responses.map((r, j) => {

@@ -5,8 +5,8 @@
 const W = 1080;
 const H = 1350;
 const COLORS = {
-  bg: "#05070d", surface: "#0d1220", text: "#e8ebf4", dim: "#98a2bd", faint: "#565f75", gold: "#c9a04e",
-  success: "#1fc98d", danger: "#f0576a",
+  bg: "#f7f6f2", surface: "#ffffff", text: "#14171c", dim: "#485059", faint: "#767d86", gold: "#9a6208",
+  success: "#0a7a4a", danger: "#bf342a",
 };
 const VERDICT = { BUY: COLORS.success, HOLD: COLORS.gold, SELL: COLORS.danger };
 const LIGHT = { good: COLORS.success, ok: COLORS.gold, bad: COLORS.danger, unknown: COLORS.faint };
@@ -44,20 +44,20 @@ export function drawShareCard(canvas, { ticker, name, verdict, conviction, headl
   canvas.height = H;
   const ctx = canvas.getContext("2d");
   const color = VERDICT[verdict] || COLORS.dim;
-  const font = (size, weight = 500) => `${weight} ${size}px Inter, "Segoe UI", system-ui, sans-serif`;
+  const font = (size, weight = 500) => `${weight} ${size}px "IBM Plex Sans", "Segoe UI", system-ui, sans-serif`;
 
   // background with a soft glow in the verdict's colour
   ctx.fillStyle = COLORS.bg;
   ctx.fillRect(0, 0, W, H);
   const glow = ctx.createRadialGradient(0, 0, 40, 0, 0, 900);
-  glow.addColorStop(0, `${color}33`);
+  glow.addColorStop(0, `${color}00`);
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
   // header
   ctx.fillStyle = COLORS.text;
-  ctx.font = '600 44px Georgia, "Times New Roman", serif';
+  ctx.font = '700 46px "Source Serif 4", Georgia, serif';
   ctx.fillText("Parley", 72, 112);
   ctx.fillStyle = COLORS.faint;
   ctx.font = font(26);
@@ -67,7 +67,7 @@ export function drawShareCard(canvas, { ticker, name, verdict, conviction, headl
 
   // ticker and name
   ctx.fillStyle = COLORS.text;
-  ctx.font = '700 96px "JetBrains Mono", ui-monospace, monospace';
+  ctx.font = '600 96px "IBM Plex Mono", ui-monospace, monospace';
   ctx.fillText(String(ticker).toUpperCase(), 72, 250);
   if (name) {
     ctx.fillStyle = COLORS.dim;
@@ -126,7 +126,7 @@ export function drawShareCard(canvas, { ticker, name, verdict, conviction, headl
       roundRect(ctx, x, y, w, 40, 12);
       ctx.fillStyle = c;
       ctx.fill();
-      ctx.fillStyle = "#07090f";
+      ctx.fillStyle = "#ffffff";
       ctx.font = font(26, 700);
       ctx.textAlign = "center";
       ctx.fillText(String(n), x + w / 2, y + 28);

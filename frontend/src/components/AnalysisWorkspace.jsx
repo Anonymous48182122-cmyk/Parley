@@ -4,7 +4,12 @@ import { currencySymbol } from "../currency.js";
 import { finalStances, tallyFinal } from "../stance.js";
 import { businessWord, deriveBrief } from "../brief.js";
 import { DepthSwitch, Glance, Story } from "./PlainViews.jsx";
+import { useBrand } from "../useBrand.js";
+import { addRecent } from "../recent.js";
 import CaseFile from "./CaseFile.jsx";
+import CommitteeChart from "./CommitteeChart.jsx";
+import CompanyLogo from "./CompanyLogo.jsx";
+import RoomSpectrum from "./RoomSpectrum.jsx";
 import ConvictionRing from "./ConvictionRing.jsx";
 import Flag from "./Flag.jsx";
 import MarketSnapshot from "./MarketSnapshot.jsx";
@@ -136,8 +141,9 @@ function Signals({ model, open }) {
     tiles.push({ id: "room", kicker: "The Table", big: `${decided} voices`, line: (model.debate || []).length ? `${model.debate.length} debate turns` : "First passes in", color: "var(--gold)" });
   }
   if (below || above) {
-    tiles.push({ id: "ruling", kicker: "The price", big: formatPrice(model.price, model.currency) || "Levels",
-      line: below ? `Buyers start near ${formatPrice(below.price, model.currency)}` : `Sellers start near ${formatPrice(above.price, model.currency)}`, color: "var(--gold)" });
+    const level = below || above;
+    tiles.push({ id: "ruling", kicker: "The price", big: formatPrice(level.price, model.currency),
+      line: `${below ? "Buyers" : "Sellers"} start here, ${Math.abs(Math.round(level.pct))}% ${below ? "below" : "above"} today`, color: below ? "var(--success)" : "var(--danger)" });
   }
   if (tiles.length === 0) return null;
   return (
@@ -191,6 +197,22 @@ export default function AnalysisWorkspace({ model, panels, liveTop, snapshotSkel
     }
   }
   const brief = useMemo(() => deriveBrief(model), [model]);
+  const brand = useBrand(model);
+  const md = model.marketData || {};
+  const yearChange = md.technicals?.ret_1y;
+  const chart = md.technicals?.closes ? (
+    <CommitteeChart closes={md.technicals.closes} levels={model.priceLevels} price={model.price} currency={model.currency} />
+  ) : null;
+  const room = <RoomSpectrum brief={brief} />;
+
+  // remember what was looked at, for the home page's "where you left off"
+  useEffect(() => {
+    if (!live || !md.name) return;
+    addRecent({
+      ticker: String(model.ticker).toUpperCase(), name: md.name, market: model.market, country: model.country,
+      verdict: model.hasMemo ? model.verdict : null, price: model.price, currency: model.currency,
+    });
+  }, [live, md.name, model.ticker, model.market, model.hasMemo, model.verdict, model.price]); // eslint-disable-line react-hooks/exhaustive-deps
   const memoAtStart = useRef(model.hasMemo);
   const [toastGone, setToastGone] = useState(false);
   const topRef = useRef(null);
@@ -242,28 +264,50 @@ export default function AnalysisWorkspace({ model, panels, liveTop, snapshotSkel
 
   return (
     <div className="ws">
-      <header className="ws-head">
-        <div className="ws-id">
-          <h1 className="ticker">{String(model.ticker).toUpperCase()}</h1>
-          <Flag code={country} size={15} />
-          {model.market === "Global" && model.exchange && <span className="ws-exchange">{model.exchange}</span>}
-          <CaseFile model={model} onFull={() => setDepth("full")} />
+      <header className="stock">
+        <CompanyLogo brand={brand} name={model.name || model.ticker} size={52} wide />
+        <div className="stock-id">
+          <h1>{model.name || String(model.ticker).toUpperCase()}</h1>
+          <div className="stock-meta">
+            <span className="ticker">{String(model.ticker).toUpperCase()}</span>
+            <Flag code={country} size={12} />
+            {(model.exchange || md.sector) && <span>{[model.exchange, md.sector && md.sector !== "N/A" ? md.sector : null].filter(Boolean).join(", ")}</span>}
+          </div>
         </div>
-        {model.name && model.name !== model.ticker && <div className="ws-name">{model.name}</div>}
-        <div className="ws-head-row">
-          {model.price != null && <span className="ws-price">{formatPrice(model.price, model.currency)}</span>}
+        <div className="stock-quote">
+          {model.price != null && <div className="stock-price">{formatPrice(model.price, model.currency)}</div>}
+          {yearChange != null && (
+            <div className={`stock-change ${yearChange >= 0 ? "up" : "down"}`}>
+              {yearChange >= 0 ? "+" : ""}
+              {yearChange.toFixed(1)}% in a year
+            </div>
+          )}
+        </div>
+        <div className="stock-actions">
           {model.hasMemo && model.verdict && (
-            <button type="button" className="ws-chip" style={{ color: verdictColor, borderColor: verdictColor }} onClick={() => open("ruling")}>
-              {model.verdict} {model.conviction != null ? `· ${model.conviction}/10` : ""}
+            <button type="button" className="stock-call" style={{ "--verdict": verdictColor }} onClick={() => open("ruling")}>
+              <b>{model.verdict}</b>
+              <span>{model.conviction != null ? `${model.conviction} of 10` : "Committee"}</span>
             </button>
           )}
-          {running && <span className="ws-chip ws-chip--live">Live</span>}
+          {running && <span className="stock-live">Live</span>}
+          <CaseFile model={model} brand={brand} onFull={() => setDepth("full")} />
         </div>
       </header>
 
       <DepthSwitch depth={depth} setDepth={setDepth} />
 
-      {depth === "glance" && <Glance model={model} brief={brief} go={setDepth} waiting={waiting} />}
+      {depth === "glance" && (
+        <div className="split">
+          <div>
+            <Glance model={model} brief={brief} go={setDepth} waiting={waiting} />
+          </div>
+          <aside>
+            {chart}
+            {model.hasMemo && room}
+          </aside>
+        </div>
+      )}
       {depth === "story" && <Story model={model} brief={brief} go={setDepth} waiting={waiting} />}
 
       {depth === "full" && (
@@ -281,12 +325,18 @@ export default function AnalysisWorkspace({ model, panels, liveTop, snapshotSkel
 
       <div className="ws-body" key={tab}>
         {tab === "overview" && (
-          <div className="fade-in">
-            {liveTop}
-            <VerdictHero model={model} open={open} />
-            <Signals model={model} open={open} />
-            {model.marketData ? <MarketSnapshot data={model.marketData} /> : running && snapshotSkeleton}
-            {previousEntry && <WhatChanged previous={previousEntry} current={job} />}
+          <div className="fade-in split split--brief">
+            <div>
+              {liveTop}
+              {chart}
+              {room}
+              {model.marketData ? <MarketSnapshot data={model.marketData} compact /> : running && snapshotSkeleton}
+              {previousEntry && <WhatChanged previous={previousEntry} current={job} />}
+            </div>
+            <aside>
+              <VerdictHero model={model} open={open} />
+              <Signals model={model} open={open} />
+            </aside>
           </div>
         )}
         {tab === "business" && <div className="fade-in">{panels.business}</div>}

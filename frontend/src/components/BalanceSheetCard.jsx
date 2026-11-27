@@ -19,10 +19,10 @@ const STATUS = {
   unknown: { label: "Context", color: "var(--text-faint)" },
 };
 const TONE = {
-  strong: { color: "var(--success)", tint: "rgba(31, 201, 141, 0.08)" },
-  mixed: { color: "var(--gold)", tint: "rgba(201, 160, 78, 0.08)" },
-  weak: { color: "var(--danger)", tint: "rgba(240, 87, 106, 0.08)" },
-  unknown: { color: "var(--text-dim)", tint: "rgba(255, 255, 255, 0.04)" },
+  strong: { color: "var(--success)", tint: "color-mix(in srgb, var(--success) 8%, transparent)" },
+  mixed: { color: "var(--gold)", tint: "var(--gold-soft)" },
+  weak: { color: "var(--danger)", tint: "color-mix(in srgb, var(--danger) 8%, transparent)" },
+  unknown: { color: "var(--text-dim)", tint: "var(--surface-raised)" },
 };
 const SEGMENT_COLORS = ["#c9a04e", "#38bdf8", "#8b7cf6", "#1fc98d", "#f5a623", "#ef5da8", "#6b7280"];
 

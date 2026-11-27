@@ -97,7 +97,8 @@ function Move({ label, value }) {
   );
 }
 
-export default function MarketSnapshot({ data }) {
+// `compact` is for the company page, whose header and chart already show the price: only the figures are listed.
+export default function MarketSnapshot({ data, compact = false }) {
   if (!data) return null;
 
   const ratios = data.ratios || {};
@@ -125,7 +126,9 @@ export default function MarketSnapshot({ data }) {
   const industry = pick(ratios, "Industry");
 
   return (
-    <div className="card snapshot fade-in">
+    <div className={`card snapshot fade-in${compact ? " snapshot--compact" : ""}`}>
+      {compact && <div className="snapshot-title">Key figures</div>}
+      {!compact && (
       <div className="snapshot-hero">
         <div className="snapshot-price">
           <div className="snapshot-eyebrow">
@@ -149,6 +152,16 @@ export default function MarketSnapshot({ data }) {
           </div>
         )}
       </div>
+      )}
+
+      {compact && hasMoves && (
+        <div className="snapshot-moves">
+          <Move label="1M" value={tech.ret_1m} />
+          <Move label="3M" value={tech.ret_3m} />
+          <Move label="6M" value={tech.ret_6m} />
+          <Move label="1Y" value={tech.ret_1y} />
+        </div>
+      )}
 
       <div className="stat-grid">
         <Stat label="Market cap" value={formatMarketCap(data.market_cap, data.market_cap_unit ?? data.unit_label)} />

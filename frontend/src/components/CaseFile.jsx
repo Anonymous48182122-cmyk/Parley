@@ -1,6 +1,5 @@
 import "../casefile.css";
 import { useEffect, useMemo, useState } from "react";
-import { getBrand } from "../api.js";
 import { buildCaseFile } from "../caseFile.js";
 import { currencySymbol } from "../currency.js";
 import CompanyLogo from "./CompanyLogo.jsx";
@@ -146,26 +145,9 @@ function Body({ k, onFull }) {
   );
 }
 
-export default function CaseFile({ model, onFull }) {
+export default function CaseFile({ model, brand, onFull }) {
   const [open, setOpen] = useState(false);
-  const [fetched, setFetched] = useState(null);
-  const savedBrand = model.marketData?.business_facts?.brand;
   const companyName = model.name || model.marketData?.name || model.ticker;
-  // a stored brand from before site pictures were read has no site fields, so it is asked for again
-  const hasSaved = !!(savedBrand && (savedBrand.site_icon || savedBrand.site_logo || savedBrand.logo));
-
-  // a run made before logos existed, or a saved debate, has no logo stored: ask the server by name
-  useEffect(() => {
-    if (!model.marketData || hasSaved || !model.name) return undefined;
-    let cancelled = false;
-    getBrand(model.name, model.ticker, model.market)
-      .then((b) => !cancelled && setFetched(b))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [model.marketData ? model.name : null, hasSaved]); // eslint-disable-line react-hooks/exhaustive-deps
-  const brand = hasSaved ? savedBrand : fetched;
   const k = useMemo(() => (open ? buildCaseFile(model) : null), [open, model]);
 
   useEffect(() => {
@@ -188,7 +170,9 @@ export default function CaseFile({ model, onFull }) {
   return (
     <>
       <button type="button" className="kd-btn" onClick={() => setOpen(true)} aria-haspopup="dialog" title="The company's case file: what it is, what its numbers say, what most people miss">
-        <CompanyLogo brand={brand} name={companyName} size={24} />
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3.5 6.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z" />
+        </svg>
         <span>Case file</span>
       </button>
 

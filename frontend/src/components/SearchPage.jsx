@@ -1,146 +1,113 @@
 import { useEffect, useState } from "react";
-import { flushSync } from "react-dom";
-import { useNavigate } from "react-router-dom";
-import { DEFAULT_AGENTS, MIN_AGENTS } from "../agentMeta.js";
-import CommitteePicker from "./CommitteePicker.jsx";
+import { MIN_AGENTS } from "../agentMeta.js";
+import { loadCommittee, saveCommittee, useOpenResearch } from "../committee.js";
+import { currencySymbol } from "../currency.js";
+import { countryFor } from "../countryNames.js";
+import { listRecent } from "../recent.js";
+import CommitteeRoster from "./CommitteeRoster.jsx";
+import Flag from "./Flag.jsx";
 import InstallAppButton from "./InstallAppButton.jsx";
 import TickerSearchBox from "./TickerSearchBox.jsx";
 
 const QUICK_PICKS = [
-  { ticker: "AAPL", market: "US" },
-  { ticker: "NVDA", market: "US" },
-  { ticker: "PLTR", market: "US" },
-  { ticker: "RELIANCE", market: "India" },
-  { ticker: "TCS", market: "India" },
-  { ticker: "URBANCO", market: "India" },
+  { ticker: "AAPL", name: "Apple", market: "US" },
+  { ticker: "NVDA", name: "NVIDIA", market: "US" },
+  { ticker: "KO", name: "Coca Cola", market: "US" },
+  { ticker: "RELIANCE", name: "Reliance", market: "India" },
+  { ticker: "TCS", name: "TCS", market: "India" },
+  { ticker: "HDFCBANK", name: "HDFC Bank", market: "India" },
 ];
 
-const STORAGE_KEY = "parley.committee";
-
-// The default committee before the Bull Advocate was added. The page saves the
-// default to localStorage on first visit, so every returning visitor has this
-// exact set stored; treat it as "never customised" and move them to the new
-// default instead of freezing them on the old one. Any genuinely custom pick
-// is left untouched.
-const LEGACY_DEFAULT = [
-  "buffett", "munger", "lynch", "jhunjhunwala", "simons",
-  "ackman", "historian", "future", "devils_advocate",
+const STEPS = [
+  { title: "Search a company", text: "Listed in the US, India or most big markets abroad." },
+  { title: "The committee studies it", text: "Each member reads the filings, prices and ratios on their own." },
+  { title: "They argue, then decide", text: "A chairman writes the ruling and keeps the disagreement in it." },
+  { title: "Read it your way", text: "Ten seconds, one minute, or every word." },
 ];
 
-function isLegacyDefault(keys) {
-  return keys.length === LEGACY_DEFAULT.length && LEGACY_DEFAULT.every((k) => keys.includes(k));
-}
+const CALL = { BUY: "buy", HOLD: "pass", SELL: "sell" };
 
-function loadSavedCommittee() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set(DEFAULT_AGENTS);
-    const keys = JSON.parse(raw);
-    if (!Array.isArray(keys) || keys.length < MIN_AGENTS || isLegacyDefault(keys)) {
-      return new Set(DEFAULT_AGENTS);
-    }
-    return new Set(keys);
-  } catch {
-    return new Set(DEFAULT_AGENTS);
-  }
+function Recent({ items, open }) {
+  if (!items.length) return null;
+  return (
+    <section className="home-block" aria-label="Where you left off">
+      <header className="sec-head">
+        <h2>Where you left off</h2>
+      </header>
+      <ul className="rows">
+        {items.slice(0, 6).map((r) => (
+          <li key={`${r.market}:${r.ticker}`}>
+            <button type="button" onClick={() => open(r.ticker, r.market)}>
+              <Flag code={countryFor(r)} size={13} />
+              <span className="rows-id">
+                <b>{r.ticker}</b>
+                <em>{r.name}</em>
+              </span>
+              {r.price != null && (
+                <span className="rows-num">
+                  {currencySymbol(r.currency || "USD")}
+                  {Number(r.price).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </span>
+              )}
+              {r.verdict && <span className={`tag tag--${CALL[r.verdict] || "pass"}`}>{r.verdict}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
-
-// A few specks of gold drifting up through the spotlight. Fixed positions and timings, so it
-// looks the same every visit and costs nothing to render.
-const DUST = Array.from({ length: 16 }, (_, i) => ({
-  left: `${(i * 37 + 11) % 100}%`,
-  top: `${150 + ((i * 53) % 260)}px`,
-  delay: `${(i * 1.3) % 12}s`,
-  duration: `${11 + (i % 5) * 2.5}s`,
-  size: 2 + (i % 3),
-}));
 
 export default function SearchPage() {
-  const navigate = useNavigate();
-  const [selected, setSelected] = useState(loadSavedCommittee);
+  const open = useOpenResearch();
+  const [selected, setSelected] = useState(loadCommittee);
+  const [recent] = useState(listRecent);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected]));
-    } catch {
-      // best-effort convenience only — a blocked/private-mode storage write
-      // just means the next visit falls back to the default committee
-    }
-  }, [selected]);
+  useEffect(() => saveCommittee(selected), [selected]);
 
-  function goToTicker(value, market) {
-    const clean = value.trim().toUpperCase();
-    if (!clean || selected.size < MIN_AGENTS) return;
-    // the market the person picked travels with them, so a ticker that exists in two markets analyses the one they chose
-    const go = () => navigate(`/analysis/${encodeURIComponent(clean)}`, { state: { agents: [...selected], market: market || undefined } });
-    const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (document.startViewTransition && !calm) {
-      // the page cross-fades into the boardroom instead of cutting
-      document.startViewTransition(() => flushSync(go));
-    } else {
-      go();
-    }
-  }
+  const ready = selected.size >= MIN_AGENTS;
+  const go = (ticker, market) => open(ticker, market, selected);
 
   return (
-    <div className="container" style={{ position: "relative" }}>
-      <div className="hero-atmosphere" aria-hidden="true">
-        <div className="hero-spot" />
-        {DUST.map((d, i) => (
-          <span
-            key={i}
-            className="dust"
-            style={{ left: d.left, top: d.top, width: d.size, height: d.size, animationDelay: d.delay, animationDuration: d.duration }}
-          />
-        ))}
-      </div>
-      <div style={{ textAlign: "center", marginTop: 32, marginBottom: 44 }}>
-        <div className="pill" style={{ marginBottom: 24 }}>
-          Your committee · One live debate
-        </div>
-        <h1 style={{ fontSize: "clamp(2rem, 9vw, 3.1rem)", marginBottom: 16, lineHeight: 1.05 }}>
-          Parley
-        </h1>
-        <p
-          style={{
-            color: "var(--text-dim)",
-            fontSize: "1.08rem",
-            maxWidth: 480,
-            margin: "0 auto",
-            lineHeight: 1.6,
-          }}
-        >
-          Pick a stock and pick your committee. Watch legendary investors and founders argue
-          about it in real time, then read a CIO memo that keeps the disagreement instead
-          of averaging it away.
+    <div className="container home">
+      <section className="home-hero">
+        <h1>Every stock, argued before you buy it.</h1>
+        <p>
+          An investment committee of legendary investors reads the company, disagrees out loud, and hands you a ruling
+          you can understand.
         </p>
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+        <TickerSearchBox variant="hero" onSelect={go} />
+        <div className="quick">
+          <span>Try</span>
+          {QUICK_PICKS.map((q) => (
+            <button key={q.ticker} type="button" disabled={!ready} onClick={() => go(q.ticker, q.market)}>
+              <Flag code={countryFor(q)} size={11} />
+              {q.name}
+            </button>
+          ))}
+        </div>
         <InstallAppButton />
+      </section>
+
+      <div className="home-grid">
+        <CommitteeRoster selected={selected} onChange={setSelected} />
+        <aside>
+          <Recent items={recent} open={go} />
+          <section className="home-block" aria-label="How it works">
+            <header className="sec-head">
+              <h2>How it works</h2>
+            </header>
+            <ol className="steps">
+              {STEPS.map((s) => (
+                <li key={s.title}>
+                  <b>{s.title}</b>
+                  <span>{s.text}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </aside>
       </div>
-
-      <TickerSearchBox onSelect={(ticker, market) => goToTicker(ticker, market)} />
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 48, justifyContent: "center" }}>
-        {QUICK_PICKS.map((pick) => (
-          <button
-            key={pick.ticker}
-            className="button-secondary ticker"
-            disabled={selected.size < MIN_AGENTS}
-            onClick={() => goToTicker(pick.ticker)}
-          >
-            {pick.ticker}
-          </button>
-        ))}
-      </div>
-
-      <CommitteePicker
-        selected={selected}
-        onChange={setSelected}
-        onReset={() => setSelected(new Set(DEFAULT_AGENTS))}
-        defaultAgents={DEFAULT_AGENTS}
-      />
     </div>
   );
 }

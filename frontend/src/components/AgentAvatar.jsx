@@ -56,7 +56,7 @@ export default function AgentAvatar({ agentKey, size = "md", style }) {
   // Guard against an unknown/null agentKey (e.g. the "whole committee"
   // pending state) — agentColor() would otherwise emit var(--agent-null),
   // an undefined custom property that breaks the var() fallback chain below.
-  const color = meta ? agentColor(agentKey) : "var(--gold)";
+  const color = meta ? agentColor(agentKey) : "var(--accent)";
   const isPortrait = Boolean(agentKey && PORTRAIT_AGENTS.has(agentKey));
   // Hooks must run unconditionally — skip the (cheap) bot generation when a
   // portrait will be used instead, rather than branching before this call.

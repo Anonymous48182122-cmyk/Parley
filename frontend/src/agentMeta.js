@@ -97,6 +97,20 @@ export function agentName(key) {
   return AGENT_META[key]?.name ?? key;
 }
 
+const SHORT = {
+  "The Historian": "Historian",
+  "The Future Agent": "Future",
+  "The Bull Advocate": "Bull",
+  "The Devil's Advocate": "Devil's",
+  "Dhirubhai Ambani": "Dhirubhai",
+};
+
+// The name as it fits in a small space, from a member's key or full name: "Warren Buffett" is "Buffett".
+export function shortName(keyOrName) {
+  const full = AGENT_META[keyOrName]?.name ?? String(keyOrName ?? "");
+  return SHORT[full] ?? full.split(" ").pop();
+}
+
 // Builds a regex that matches any agent's display name (and common short
 // forms) so mentions inside debate prose can be auto-highlighted.
 // A short form (the last word of a name) is only usable if it identifies exactly
