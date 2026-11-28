@@ -4,7 +4,7 @@ import { loadCommittee, saveCommittee, useOpenResearch } from "../committee.js";
 import { currencySymbol } from "../currency.js";
 import { countryFor } from "../countryNames.js";
 import { listRecent } from "../recent.js";
-import CommitteeRoster from "./CommitteeRoster.jsx";
+import CommitteeWall from "./CommitteeWall.jsx";
 import Flag from "./Flag.jsx";
 import InstallAppButton from "./InstallAppButton.jsx";
 import TickerSearchBox from "./TickerSearchBox.jsx";
@@ -16,13 +16,6 @@ const QUICK_PICKS = [
   { ticker: "RELIANCE", name: "Reliance", market: "India" },
   { ticker: "TCS", name: "TCS", market: "India" },
   { ticker: "HDFCBANK", name: "HDFC Bank", market: "India" },
-];
-
-const STEPS = [
-  { title: "Search a company", text: "Listed in the US, India or most big markets abroad." },
-  { title: "The committee studies it", text: "Each member reads the filings, prices and ratios on their own." },
-  { title: "They argue, then decide", text: "A chairman writes the ruling and keeps the disagreement in it." },
-  { title: "Read it your way", text: "Ten seconds, one minute, or every word." },
 ];
 
 const CALL = { BUY: "buy", HOLD: "pass", SELL: "sell" };
@@ -71,14 +64,13 @@ export default function SearchPage() {
   return (
     <div className="container home">
       <section className="home-hero">
-        <h1>Every stock, argued before you buy it.</h1>
-        <p>
-          An investment committee of legendary investors reads the company, disagrees out loud, and hands you a ruling
-          you can understand.
-        </p>
+        <h1>
+          Every stock gets <br />
+          <em>a hearing.</em>
+        </h1>
+        <p>Legendary investors read the company, argue it out in front of you, and say what price would change their minds.</p>
         <TickerSearchBox variant="hero" onSelect={go} />
         <div className="quick">
-          <span>Try</span>
           {QUICK_PICKS.map((q) => (
             <button key={q.ticker} type="button" disabled={!ready} onClick={() => go(q.ticker, q.market)}>
               <Flag code={countryFor(q)} size={11} />
@@ -89,25 +81,8 @@ export default function SearchPage() {
         <InstallAppButton />
       </section>
 
-      <div className="home-grid">
-        <CommitteeRoster selected={selected} onChange={setSelected} />
-        <aside>
-          <Recent items={recent} open={go} />
-          <section className="home-block" aria-label="How it works">
-            <header className="sec-head">
-              <h2>How it works</h2>
-            </header>
-            <ol className="steps">
-              {STEPS.map((s) => (
-                <li key={s.title}>
-                  <b>{s.title}</b>
-                  <span>{s.text}</span>
-                </li>
-              ))}
-            </ol>
-          </section>
-        </aside>
-      </div>
+      <Recent items={recent} open={go} />
+      <CommitteeWall selected={selected} onChange={setSelected} />
     </div>
   );
 }

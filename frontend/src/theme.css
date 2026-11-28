@@ -1,103 +1,40 @@
 /* ---- Design tokens ------------------------------------------------------
-   Parley reads like a research desk, not a nightclub: paper and ink in light, graphite in dark, one ink blue for
-   actions, and colour only where it means something (for, wait, against). No glows, no gradients. */
+   Parley is a hearing in a dark room: black, warm white, engraved portraits, and colour that only ever means
+   for (green), waiting (amber) or against (red). One serif speaks; one plain sans does the labels and figures. */
 :root {
-  color-scheme: light;
-  --bg: #f7f6f2;
-  --surface: #ffffff;
-  --surface-raised: #f1efe9;
-  --border: #e4e1d8;
-  --border-strong: #cbc6b9;
-  --text: #14171c;
-  --text-dim: #485059;
-  --text-faint: #767d86;
-  --accent: #1d4f9e;
-  --accent-soft: color-mix(in srgb, var(--accent) 9%, transparent);
-  --success: #0a7a4a;
-  --danger: #bf342a;
-  --warn: #9a6208;
-  --gold: var(--warn); /* the older name for "wait" amber, kept for the places that mean it */
-  --gold-soft: color-mix(in srgb, var(--warn) 12%, transparent);
-  --on-solid: #ffffff;
-
-  --agent-buffett: #8a6a0a;
-  --agent-munger: #5b47c9;
-  --agent-lynch: #0a7a4a;
-  --agent-jhunjhunwala: #a75a05;
-  --agent-simons: #0b7285;
-  --agent-ackman: #b0293b;
-  --agent-graham: #4d6b49;
-  --agent-marks: #2464a8;
-  --agent-pabrai: #a4521c;
-  --agent-burry: #4b5563;
-  --agent-sperandeo: #1c7266;
-  --agent-damani: #3d4a63;
-  --agent-historian: #7d6743;
-  --agent-future: #7a31b8;
-  --agent-bull_advocate: #4a7c14;
-  --agent-devils_advocate: #b72371;
-  --agent-musk: #475569;
-  --agent-bezos: #0369a1;
-  --agent-jobs: #1f2937;
-  --agent-dhirubhai: #bf4312;
-  --agent-thiel: #9d21a8;
-  --agent-cio: #1d4f9e;
-
-  --font-serif: "Source Serif 4", "Source Serif Pro", Georgia, serif;
-  --font-body: "IBM Plex Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
-
-  --radius-lg: 10px;
-  --radius-md: 8px;
-  --radius-sm: 6px;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #0e1013;
-    --surface: #15181d;
-    --surface-raised: #1c2026;
-    --border: #272c34;
-    --border-strong: #3a414c;
-    --text: #eceef1;
-    --text-dim: #a9b0ba;
-    --text-faint: #747c88;
-    --accent: #82adf0;
-    --success: #3cc486;
-    --danger: #f37168;
-    --warn: #e2a640;
-    --on-solid: #0e1013;
-    --agent-buffett: #d9b84a; --agent-munger: #a394f7; --agent-lynch: #3cc486; --agent-jhunjhunwala: #f2ab3c;
-    --agent-simons: #46cfe0; --agent-ackman: #f37282; --agent-graham: #92b58e; --agent-marks: #6aa5e8;
-    --agent-pabrai: #e08c54; --agent-burry: #9aa3b0; --agent-sperandeo: #48bfae; --agent-damani: #8d9dbd;
-    --agent-historian: #cdb996; --agent-future: #c385f7; --agent-bull_advocate: #9fd866; --agent-devils_advocate: #f276b6;
-    --agent-musk: #cbd5e1; --agent-bezos: #55c4f8; --agent-jobs: #f4f5f7; --agent-dhirubhai: #ff8355; --agent-thiel: #ea8ef9;
-    --agent-cio: #82adf0;
-  }
-}
-:root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e1013;
-  --surface: #15181d;
-  --surface-raised: #1c2026;
-  --border: #272c34;
-  --border-strong: #3a414c;
-  --text: #eceef1;
-  --text-dim: #a9b0ba;
-  --text-faint: #747c88;
-  --accent: #82adf0;
-  --success: #3cc486;
-  --danger: #f37168;
-  --warn: #e2a640;
-  --on-solid: #0e1013;
-  --agent-buffett: #d9b84a; --agent-munger: #a394f7; --agent-lynch: #3cc486; --agent-jhunjhunwala: #f2ab3c;
+  --bg: #000000;
+  --surface: #0b0b0a;
+  --surface-raised: #141412;
+  --border: #1f1e1c;
+  --border-strong: #37352f;
+  --text: #f2eee6;
+  --text-dim: #aaa399;
+  --text-faint: #7b766d;
+  --accent: #f2eee6;
+  --accent-soft: color-mix(in srgb, #f2eee6 8%, transparent);
+  --success: #4fd394;
+  --danger: #ff6f5e;
+  --warn: #efb95a;
+  --gold: var(--warn); /* the older name for "waiting" amber, kept for the places that mean it */
+  --gold-soft: color-mix(in srgb, var(--warn) 12%, transparent);
+  --on-solid: #000000;
+
+  --agent-buffett: #d9b84a; --agent-munger: #a394f7; --agent-lynch: #4fd394; --agent-jhunjhunwala: #f2ab3c;
   --agent-simons: #46cfe0; --agent-ackman: #f37282; --agent-graham: #92b58e; --agent-marks: #6aa5e8;
   --agent-pabrai: #e08c54; --agent-burry: #9aa3b0; --agent-sperandeo: #48bfae; --agent-damani: #8d9dbd;
   --agent-historian: #cdb996; --agent-future: #c385f7; --agent-bull_advocate: #9fd866; --agent-devils_advocate: #f276b6;
   --agent-musk: #cbd5e1; --agent-bezos: #55c4f8; --agent-jobs: #f4f5f7; --agent-dhirubhai: #ff8355; --agent-thiel: #ea8ef9;
-  --agent-cio: #82adf0;
+  --agent-cio: #f2eee6;
+
+  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-body: "Inter Tight", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-lg: 4px;
+  --radius-md: 4px;
+  --radius-sm: 4px;
+  --ease: cubic-bezier(0.22, 1, 0.28, 1);
 }
 
 * {
@@ -233,18 +170,6 @@ button {
 }
 
 .agent-avatar--fill {
-  width: 100%;
-  height: 100%;
-}
-
-.agent-avatar-bot {
-  display: block;
-  width: 72%;
-  height: 72%;
-}
-
-.agent-avatar-bot svg {
-  display: block;
   width: 100%;
   height: 100%;
 }

@@ -1,7 +1,7 @@
+import { useEffect } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { useOpenResearch } from "../committee.js";
-import ThemeToggle from "./ThemeToggle.jsx";
 import TickerSearchBox from "./TickerSearchBox.jsx";
 
 // The top bar: the name, a search that works from any page (the home page has its own, larger one), history,
@@ -13,15 +13,22 @@ export default function TopNav() {
   const open = useOpenResearch();
   const home = pathname === "/";
 
+  // Ctrl K (or Command K) puts the cursor in the search box, wherever the reader is
+  useEffect(() => {
+    function key(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        document.querySelector(".search input")?.focus();
+      }
+    }
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+
   return (
     <header className="nav">
       <div className="nav-in">
         <Link to="/" className="brand" aria-label="Parley home">
-          <span className="brand-mark" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
           <span className="brand-name">Parley</span>
         </Link>
 
@@ -33,7 +40,6 @@ export default function TopNav() {
               History
             </NavLink>
           )}
-          <ThemeToggle />
           {user ? (
             <button
               type="button"

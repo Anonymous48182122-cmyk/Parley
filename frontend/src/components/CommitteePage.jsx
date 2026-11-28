@@ -10,7 +10,7 @@ import CIOMemo from "./CIOMemo.jsx";
 import SectionLabel from "./SectionLabel.jsx";
 import ChatPanel from "./ChatPanel.jsx";
 import SpeakerRail from "./SpeakerRail.jsx";
-import BoardroomScene from "./BoardroomScene.jsx";
+import Floor from "./Floor.jsx";
 import AnalysisWorkspace from "./AnalysisWorkspace.jsx";
 import BusinessLab from "./BusinessLab.jsx";
 import PriceLadder from "./PriceLadder.jsx";
@@ -335,6 +335,8 @@ export default function CommitteePage() {
       currency: md.price_currency || md.currency,
       status: job.status,
       stage: job.current_stage,
+      agents: job.agents,
+      speaking: inDebate ? (job.turn_plan || [])[(job.debate || []).length] : null,
       stage1: job.stage1,
       debate: job.debate,
       verdict: job.verdict,
@@ -440,12 +442,7 @@ export default function CommitteePage() {
       ask: <ChatPanel ticker={ticker} initialChat={job.user_chat} ready={job.status !== "error"} agents={job.agents} />,
     };
 
-    const liveTop = running && (
-      <>
-        <BoardroomScene job={job} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />
-        {progress}
-      </>
-    );
+    const liveTop = progress;
 
     return (
       <AnalysisWorkspace
@@ -505,9 +502,11 @@ export default function CommitteePage() {
 
       {!job && !fatalError && (
         <div className="fade-in">
-          <BoardroomScene job={null} agents={requestedAgents || DEFAULT_AGENTS} ticker={ticker} />
           <WaitingHint secs={elapsed} />
-          <SnapshotSkeleton />
+          <Floor
+            model={{ ticker, agents: requestedAgents || DEFAULT_AGENTS, stage1: {}, debate: [], status: "running", price: null }}
+            brief={null}
+          />
         </div>
       )}
 

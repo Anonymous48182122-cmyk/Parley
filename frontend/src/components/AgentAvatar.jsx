@@ -1,81 +1,24 @@
-import { useMemo } from "react";
-import { createAvatar } from "@dicebear/core";
-import * as bottts from "@dicebear/bottts";
 import { AGENT_META, agentColor } from "../agentMeta.js";
+import { portraitOf, symbolOf } from "../floor.js";
 
-const SIZE_PX = { sm: 28, md: 34, lg: 56 };
-
-// Real people (investors and founders) get a commissioned illustrated portrait (frontend/public/avatars/*.webp)
-// instead of a bot avatar — the Historian, Future Agent, Devil's Advocate, and CIO
-// aren't real people, so they keep the procedurally generated bot.
-const PORTRAIT_AGENTS = new Set([
-  "buffett", "munger", "lynch", "jhunjhunwala", "simons", "ackman",
-  "graham", "marks", "pabrai", "burry", "sperandeo", "damani",
-  "musk", "bezos", "jobs", "dhirubhai", "thiel",
-]);
-
-// Procedurally generated "AI bot" avatars (DiceBear, MIT-licensed, fully
-// local/offline generation — no network call, no per-user tracking) rather
-// than a likeness of the real investors: same seed always produces the same
-// robot design, and baseColor is forced to match each agent's existing
-// accent color so the avatar stays consistent with the rest of the app's
-// color-coded identity system. Cached module-wide since the same agent's
-// avatar renders many times across a page (chat, debate turns, chips).
-const svgCache = new Map();
-
-// DiceBear's bot design is just a deterministic hash of the seed string —
-// there's no inherent link between an agent's identity and which random
-// features (horns, glasses, etc.) it lands on. "future" happened to get a
-// horned design that read as more devilish than "devils_advocate"'s own —
-// swapping only the *seed* used to pick the bot shape (not the color, which
-// stays tied to each agent's own accent) fixes that mismatch directly.
-const SEED_OVERRIDES = { future: "devils_advocate", devils_advocate: "future" };
-
-function resolveHex(agentKey) {
-  const varName = agentKey ? `--agent-${agentKey}` : "--gold";
-  const value = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  return (value || "#c9a04e").replace("#", "");
-}
-
-function getAvatarSvg(agentKey) {
-  const seed = SEED_OVERRIDES[agentKey] || agentKey || "committee";
-  const hex = resolveHex(agentKey);
-  const cacheKey = `${seed}-${hex}`;
-  if (svgCache.has(cacheKey)) return svgCache.get(cacheKey);
-  const svg = createAvatar(bottts, {
-    seed,
-    baseColor: [hex],
-    backgroundColor: ["transparent"],
-  }).toString();
-  svgCache.set(cacheKey, svg);
-  return svg;
-}
-
+// A member's face. Real people (investors and founders) have an engraved portrait (frontend/public/avatars).
+// The members who are not people (the Historian, the Future Agent, the two advocates and the CIO) have a mark of
+// their own, drawn in type, so they look the same on the floor, in the debate and everywhere else.
 export default function AgentAvatar({ agentKey, size = "md", style }) {
   const meta = agentKey ? AGENT_META[agentKey] : null;
-  // Guard against an unknown/null agentKey (e.g. the "whole committee"
-  // pending state) — agentColor() would otherwise emit var(--agent-null),
-  // an undefined custom property that breaks the var() fallback chain below.
+  // Guard against an unknown or missing key (the "whole committee" pending state): agentColor() would otherwise
+  // emit var(--agent-null), an undefined property that breaks the fallback chain.
   const color = meta ? agentColor(agentKey) : "var(--accent)";
-  const isPortrait = Boolean(agentKey && PORTRAIT_AGENTS.has(agentKey));
-  // Hooks must run unconditionally — skip the (cheap) bot generation when a
-  // portrait will be used instead, rather than branching before this call.
-  const svg = useMemo(() => (isPortrait ? null : getAvatarSvg(agentKey)), [agentKey, isPortrait]);
+  const portrait = agentKey ? portraitOf(agentKey) : null;
 
   return (
-    <span
-      className={`agent-avatar agent-avatar--${size}`}
-      style={{ "--avatar-color": color, ...style }}
-      title={meta?.name}
-    >
-      {isPortrait ? (
-        <img
-          className="agent-avatar-portrait"
-          src={`/avatars/${agentKey}.webp`}
-          alt={meta?.name ?? agentKey}
-        />
+    <span className={`agent-avatar agent-avatar--${size}`} style={{ "--avatar-color": color, ...style }} title={meta?.name}>
+      {portrait ? (
+        <img className="agent-avatar-portrait" src={portrait} alt={meta?.name ?? agentKey} />
       ) : (
-        <span className="agent-avatar-bot" dangerouslySetInnerHTML={{ __html: svg }} />
+        <span className="agent-avatar-symbol" aria-hidden="true">
+          {agentKey ? symbolOf(agentKey) : "¶"}
+        </span>
       )}
     </span>
   );

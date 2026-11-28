@@ -112,6 +112,7 @@ export default function ReplayPage() {
     price: md.price,
     currency: md.price_currency || md.currency,
     status: "complete",
+    agents: Object.keys(entry.stage1 || {}),
     stage1: entry.stage1,
     debate: entry.debate,
     verdict: entry.verdict,

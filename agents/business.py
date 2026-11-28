@@ -17,15 +17,20 @@ import re
 
 SCORECARD_INSTRUCTION = """
 
-After your Verdict, finish with this scorecard on its own, using exactly these four labels and nothing
-else around it. It rates the BUSINESS (the machine that makes the money), not the share price, so a
-wonderful business can score high even if you would not buy it today. Each line is one plain sentence
-of at most 18 words, in your own voice, with no dashes. Any figure you quote must come from the data.
+After your Verdict, finish with this scorecard on its own, using exactly these six labels and nothing
+else around it. The first four rate the BUSINESS (the machine that makes the money), not the share price,
+so a wonderful business can score high even if you would not buy it today. Each of those is one plain
+sentence of at most 18 words, in your own voice, with no dashes. Any figure you quote must come from the data.
+The last two are your price limits: a single number in the share's own currency, with no words, that agrees
+with your Verdict. If you would buy today, BUY AT OR BELOW is today's price or higher. Write NONE when no
+price would change your answer.
 
 BUSINESS MODEL SCORE: <a whole number from 1 to 10>/10
 THE GREAT: <the best thing about how this business makes money>
 THE BAD: <its real weakness or risk>
 THE GRUESOME: <the thing that could really hurt or kill it, or "Nothing that scares me" if truly nothing>
+BUY AT OR BELOW: <the highest price at which you would buy, or NONE>
+SELL AT OR ABOVE: <the lowest price at which you would sell or trim, or NONE>
 """
 
 _BLOCK = re.compile(r"\n[\s*#_>-]*BUSINESS MODEL SCORE\b.*\Z", re.S | re.I)
@@ -39,6 +44,21 @@ def _line(block, label):
     text = re.sub(r"[*_`#]+", "", m.group(1)).strip()
     text = text.split("\n")[0].strip()
     return text[:240] or None
+
+
+_LIMIT = r"\W*[:\-][\s*_`]*(?:about |around |near )?(?:[$₹€£]|USD\s*|INR\s*|Rs\.?\s*)?\s*(\d[\d,]*(?:\.\d+)?)(?![\d,]|\.\d)(?!\s*(?:%|x\b|times|percent))"
+
+
+def _limit(block, label):
+    """The one price after a limit label, or None (NONE, words, a percentage or a multiple are all no price)."""
+    m = re.search(label + _LIMIT, block, re.I)
+    if not m:
+        return None
+    try:
+        value = float(m.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 
 def split_scorecard(text):
@@ -56,7 +76,8 @@ def split_scorecard(text):
     if not 1 <= value <= 10:
         return clean, None
     card = {"score": value, "great": _line(block, "THE GREAT"), "bad": _line(block, "THE BAD"),
-            "gruesome": _line(block, "THE GRUESOME")}
+            "gruesome": _line(block, "THE GRUESOME"), "buy_at": _limit(block, "BUY AT OR BELOW"),
+            "sell_at": _limit(block, "SELL AT OR ABOVE")}
     return clean, card
 
 

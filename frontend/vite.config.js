@@ -28,8 +28,8 @@ export default defineConfig({
         description: "Parley — nine legendary investor frameworks debate any stock, live",
         start_url: "/",
         scope: "/",
-        theme_color: "#f7f6f2",
-        background_color: "#f7f6f2",
+        theme_color: "#000000",
+        background_color: "#000000",
         display: "standalone",
         icons: [
           { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

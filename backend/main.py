@@ -77,7 +77,7 @@ def _job_response(job):
         "progress": jobs.progress_fraction(job),
         "stage1": job["stage1"],
         "scorecards": job.get("scorecards", {}),
-        "price_levels": price_levels(job["stage1"], (job.get("market_data") or {}).get("price"), AGENT_DISPLAY_NAMES),
+        "price_levels": price_levels(job["stage1"], (job.get("market_data") or {}).get("price"), AGENT_DISPLAY_NAMES, job.get("scorecards")),
         "business_card": job.get("business_card"),
         "plain_brief": job.get("plain_brief"),
         "debate": job["debate"],

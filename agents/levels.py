@@ -32,9 +32,11 @@ def _sentences(text):
     return [s for s in re.split(r"(?<=[.;!?])\s+|\n+", text) if s.strip()]
 
 
-def price_levels(stage1, price, names):
+def price_levels(stage1, price, names, scorecards=None):
     """[{"price", "pct", "side", "who": [names]}] sorted from the highest price down, one entry per
-    distinct price, where `pct` is how far the price is from today's (negative means below it)."""
+    distinct price, where `pct` is how far the price is from today's (negative means below it).
+    A member who stated price limits in the fixed lines of their scorecard is read from those; only the
+    others are read from the wording of their verdict."""
     try:
         price = float(price)
     except (TypeError, ValueError):
@@ -43,6 +45,15 @@ def price_levels(stage1, price, names):
         return []
     found = {}
     for agent, text in (stage1 or {}).items():
+        card = (scorecards or {}).get(agent) or {}
+        stated = [card.get("buy_at"), card.get("sell_at")]
+        if any(stated):
+            for value in stated:
+                if value and 0.4 * price <= value <= 2.5 * price and abs(value / price - 1) >= 0.02:
+                    who = found.setdefault(round(value, 2), [])
+                    if names.get(agent, agent) not in who:
+                        who.append(names.get(agent, agent))
+            continue
         for sentence in _sentences(_verdict_text(text)):
             if not _ACTION.search(sentence):
                 continue

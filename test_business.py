@@ -11,7 +11,7 @@ def test_scorecard_is_split_off_and_the_write_up_keeps_its_verdict():
     clean, card = split_scorecard(WRITE_UP)
     assert "BUSINESS MODEL" not in clean and clean.rstrip().endswith("Pass at this price.")
     assert card == {"score": 8, "great": "A brand that sets its own price.", "bad": "Volumes are capped.",
-                    "gruesome": "Nothing that scares me"}
+                    "gruesome": "Nothing that scares me", "buy_at": None, "sell_at": None}
 
 
 def test_a_write_up_without_a_scorecard_or_with_a_wild_score_is_left_alone():
